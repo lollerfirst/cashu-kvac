@@ -6,7 +6,7 @@ Experimental implementation of the core crypto behind a anonymous credentials en
 * Paper on KVAC used for CoinJoins: https://eprint.iacr.org/2021/206.pdf
 * Gist about steps to take: https://gist.github.com/nothingmuch/08bac12fcb58417e71b762721e77a71c
 * Deterministic Recovery: read `deterministic_recovery.md`
-* Server/Mint can tweak the amounts encoded in the attributes: $M_a' = M_a + \deltaG$
+* Server/Mint can tweak the amounts encoded in the attributes: $M_a' = M_a + \delta G$
 * **Potentially** we use $r$ as the randomizing factor instead of $z$:
   - Benefit: No $\pi_\text{serial}$, one less witness in $\pi_\text{MAC}$ (if I understand correctly)
   - $C_a$ becomes the serial
