@@ -4,7 +4,7 @@
 
 * Client generates: $t' = \text{HMAC}(\text{seed}, \text{"t"}, i)$
 
-* Mint takes $t = Hash(t')$. This step might be unnecessary since HashToCurve should be secure for arbitrary inputs
+* Mint takes $t = \text{Hash}(t')$. This step might be unnecessary since HashToCurve should be secure for arbitrary inputs
 
 * Mint generates $U = \text{HashToCurve}(t)$ as usual
 
@@ -17,4 +17,4 @@
 
 * Client starts with $M'_a \leftarrow rH$ and  $i \leftarrow 0$ and an upper bound on the iterations $b$. Then it checks whether $M'_a \overset{?}= M_a$:
     - If true, then $a = i$
-    - If it's not, $M'_a \leftarrow M'_a + G$ and $i \leftarrow i+1$ 
+    - If it's not, $M'_a \leftarrow M'_a + G$ and $i \leftarrow i+1$ and repeat the check. 
