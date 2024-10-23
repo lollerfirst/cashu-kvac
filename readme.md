@@ -10,6 +10,6 @@ Experimental implementation of the core crypto behind a anonymous credentials en
 
 ### Basic Protocol Diagram:
 
-Will surely change.
+Will surely change nor it is particularly accurate.
 
 ![](kvac.devcall.diagram.png)
