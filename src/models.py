@@ -1,15 +1,15 @@
 from secp import PrivateKey, PublicKey
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 # There is some terrible boilerplate here but
 # couldn't make pydantic work (skill issue)
 
 class ZKP:
-    s: List[bytes]
+    w: List[bytes]
     c: bytes
 
     def __init__(self, **kwargs):
-        self.s = kwargs.get('s')
+        self.w = kwargs.get('w')
         self.c = kwargs.get('c')
 
 class Attribute:
@@ -56,3 +56,11 @@ class MAC:
     def __init__(self, **kwargs):
         self.t = kwargs.get('t')
         self.V = kwargs.get('V')
+
+class Statement:
+    value: PublicKey
+    construction: Dict[PublicKey, int]
+
+    def __init__(self, **kwargs):
+        self.value = kwargs.get('value')
+        self.construction = kwargs.get('construction')

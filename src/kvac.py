@@ -1,8 +1,9 @@
 from secp import PrivateKey, PublicKey
-from models import ZKP, Attribute, CommitmentSet, MAC
+from models import ZKP, Attribute, CommitmentSet, MAC, Statement
 import hashlib
 
-from typing import Tuple, List
+from typing import Tuple, List, Optional
+from enum import Enum
 
 DOMAIN_SEPARATOR = b"Secp256k1_HashToCurve_Cashu_"
 RANGE_LIMIT = 1 << 51
@@ -45,6 +46,100 @@ Cw = W.mult(w) + W_.mult(w_)
 I = Gv + -(X0.mult(x0) + X1.mult(x1) + A.mult(ya))
 iparams = (Cw, I)
 
+class LinearRelationMode(Enum):
+    PROVE = 0
+    VERIFY = 1
+
+    @property
+    def isProve(self):
+        return self == LinearRelationMode.PROVE
+    
+    @property
+    def isVerify(self):
+        return self == LinearRelationMode.VERIFY
+
+class LinearRelationProverVerifier:
+    random_terms: List[PrivateKey]  # k1, k2, ...
+    challenge_preimage: bytes
+    secrets: List[PrivateKey]
+    witnesses: List[PrivateKey]
+    c: PrivateKey
+    mode: LinearRelationMode
+
+    def __init__(self,
+        mode: LinearRelationMode,
+        secrets: Optional[List[PrivateKey]] = None,
+        proof: Optional[ZKP] = None,
+    ):
+        match mode:
+            case LinearRelationMode.PROVE:
+                assert secrets is not None, "mode is PROVE but no secrets provided"
+                self.secrets = secrets
+                self.random_terms = [PrivateKey() for _ in secrets]
+            case LinearRelationMode.VERIFY:
+                assert proof is not None, "mode is VERIFY but no ZKP provided"
+                self.witnesses = [PrivateKey(w, raw=True) for w in proof.w]
+                self.c = PrivateKey(proof.c, raw=True)
+            case _:
+                raise Exception("unrecognized mode")
+
+        self.challenge_preimage = b""
+        self.mode = mode
+
+    def add_statement(self, statement: Statement):
+        R = G
+        V = statement.value
+
+        if self.mode.isProve:
+            for P, index in statement.construction.items():
+                assert 0 <= index < len(self.random_terms), f"index {index} not within range"
+                R += P.mult(self.random_terms[index])
+        elif self.mode.isVerify:
+            for P, index in statement.construction.items():
+                assert 0 <= index < len(self.witnesses), f"index {index} not within range"
+                R += P.mult(self.witnesses[index])
+            R += -V.mult(self.c)
+
+        R += -G
+        self.challenge_preimage += V.serialize(True) + R.serialize(True)
+    
+    def prove(self,
+        add_to_challenge: Optional[List[PublicKey]] = None
+    ) -> ZKP:
+        assert self.mode.isProve, "mode is not PROVE!"
+
+        if add_to_challenge is not None:
+            for E in add_to_challenge:
+                self.challenge_preimage += E.serialize(True)
+
+        c = PrivateKey(
+            hashlib.sha256(self.challenge_preimage).digest(),
+            raw=True
+        )
+        w = [k.tweak_add(
+            c.tweak_mul(
+                s.private_key
+            )
+        ) for k, s in zip(self.random_terms, self.secrets)]
+        
+        return ZKP(w=w, c=c.private_key)
+
+    def verify(self,
+        add_to_challenge: Optional[List[PublicKey]] = None
+    ) -> bool:
+        assert self.mode.isVerify, "mode is not VERIFY!"
+
+        if add_to_challenge is not None:
+            for E in add_to_challenge:
+                self.challenge_preimage += E.serialize(True)
+
+        c_ = PrivateKey(
+            hashlib.sha256(self.challenge_preimage).digest(),
+            raw=True
+        )
+
+        return self.c.private_key == c_.private_key
+
 def prove_iparams(
     sk: List[PrivateKey],
     attribute: Attribute,
@@ -59,6 +154,43 @@ def prove_iparams(
     V = mac.V
     t = mac.t
     U = hash_to_curve(t.private_key)
+
+    # Derive params from secret key
+    Cw = W.mult(sk[0]) + W_.mult(sk[1])
+    I = Gv + -(X0.mult(sk[2]) + X1.mult(sk[3]) + A.mult(sk[4]))
+
+    prover = LinearRelationProverVerifier(
+        mode=LinearRelationMode.PROVE,
+        secrets=sk,
+    )
+    prover.add_statement(Statement(         # Cw = w*W  + w_*W_
+        value=Cw,
+        construction={
+            W: 0,
+            W_: 1,
+        },
+    ))
+    prover.add_statement(Statement(         # I = Gv - x0*X0 - x1*X1 - ya*A 
+        value=(-I)+Gv,
+        construction={
+            X0: 2,
+            X1: 3,
+            A: 4
+        }
+    ))
+    prover.add_statement(Statement(         # V = w*W + x0*U + x1*t*U + ya*Ma
+        value=V,
+        construction={
+            W: 0,
+            U: 2,
+            U.mult(t): 3,
+            Ma: 4,
+        }
+    ))
+
+    return prover.prove()
+
+    ''' OLD CODE
     k = [PrivateKey() for _ in range(5)]
 
     # Build commitments
@@ -72,9 +204,6 @@ def prove_iparams(
     print(f"{R2.serialize().hex() = }")
     print(f"{R3.serialize().hex() = }")
 
-    # Derive params from secret key
-    Cw = W.mult(sk[0]) + W_.mult(sk[1])
-    I = Gv + -(X0.mult(sk[2]) + X1.mult(sk[3]) + A.mult(sk[4]))
 
     # challenge
     # Fiat-Shamir heuristic
@@ -95,6 +224,7 @@ def prove_iparams(
     s = [kk.tweak_add(c.tweak_mul(sk[i].private_key)) for i, kk in enumerate(k)]
     c = c.private_key
     return ZKP(s=s, c=c)
+    '''
 
 def verify_iparams(
     attribute: Attribute,
@@ -105,15 +235,47 @@ def verify_iparams(
     '''
         Verifies that (t, V) is a credential generated from Ma and <Cw, I>
     '''
-    # Extract signatures and challenge
-    s = [PrivateKey(ss, raw=True) for ss in proof.s]
-    c = PrivateKey(proof.c, raw=True)
     Cw, I = iparams
-
     Ma = attribute.Ma
     t = mac.t
     V = mac.V
     U = hash_to_curve(t.private_key)
+
+    verifier = LinearRelationProverVerifier(
+        mode=LinearRelationMode.VERIFY,
+        proof=proof,
+    )
+    verifier.add_statement(Statement(         # Cw = w*W  + w_*W_
+        value=Cw,
+        construction={
+            W: 0,
+            W_: 1,
+        },
+    ))
+    verifier.add_statement(Statement(         # I = Gv - x0*X0 - x1*X1 - ya*A 
+        value=(-I)+Gv,
+        construction={
+            X0: 2,
+            X1: 3,
+            A: 4
+        }
+    ))
+    verifier.add_statement(Statement(         # V = w*W + x0*U + x1*t*U + ya*Ma
+        value=V,
+        construction={
+            W: 0,
+            U: 2,
+            U.mult(t): 3,
+            Ma: 4,
+        }
+    ))
+
+    return verifier.verify()
+
+    ''' OLD CODE
+    # Extract signatures and challenge
+    s = [PrivateKey(ss, raw=True) for ss in proof.s]
+    c = PrivateKey(proof.c, raw=True)
 
     # Build commitments
     R1 = W.mult(s[0]) + W_.mult(s[1]) + -Cw.mult(c)
@@ -139,13 +301,14 @@ def verify_iparams(
     ).digest()
 
     return c.private_key == c_
+    '''
 
 def generate_MAC(
     attribute: Attribute,
     sk: List[PrivateKey]
 ) -> MAC:
     '''
-        Issues a credential for a given attribute
+        Generates a credential for a given attribute
     '''
     t = PrivateKey()
     Ma = attribute.Ma
@@ -202,14 +365,62 @@ def prove_MAC_and_serial(
     mac: MAC,
     attribute: Attribute,
 ) -> ZKP:
-    # Draw randomness terms and extract commitments, params
-    k = [PrivateKey() for _ in range(5)]
+
     Ca, Cx0, Cx1 = (
         commitments.Ca, 
         commitments.Cx0,
         commitments.Cx1
     )
     _, I = iparams
+    S = Gs.mult(attribute.r)
+    Z = I.mult(commitments.z)
+
+    prover = LinearRelationProverVerifier(
+        mode=LinearRelationMode.PROVE,
+        secrets=[
+            commitments.z,
+            commitments.z0,
+            mac.t,
+            attribute.r,
+            attribute.a
+        ]
+    )
+    # MAC
+    prover.add_statement(Statement(         # Z = z*I
+        value=Z,
+        construction={
+            I: 0
+        }
+    ))
+    prover.add_statement(Statement(         # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
+        value=Cx1,
+        construction={
+            Cx0: 2,
+            X0: 1,
+            X1: 0,
+        }
+    ))
+    # Serial
+    prover.add_statement(Statement(         # S = r*Gs
+        value=S,
+        construction={
+            Gs: 3,
+        }
+    ))
+    prover.add_statement(Statement(         # Ca = z*A + r*H + a*G
+        value=Ca,
+        construction={
+            A: 0,
+            H: 3,
+            G: 4,
+        }
+    ))
+
+    return prover.prove()
+
+    '''OLD CODE (FOR COMPARISON)
+    # Draw randomness terms and extract commitments, params
+    k = [PrivateKey() for _ in range(5)]
 
     # MAC
     R1 = I.mult(k[0]) # <-- comm for zI == Z
@@ -225,9 +436,6 @@ def prove_MAC_and_serial(
     print(f"{R3.serialize().hex() = }")
     print(f"{R4.serialize().hex() = }")
 
-    r = attribute.r
-    S = Gs.mult(r)
-
     c = PrivateKey(
         hashlib.sha256(
             I.serialize(True)
@@ -242,12 +450,13 @@ def prove_MAC_and_serial(
         ).digest(),
         raw=True
     )
-    secrets = [commitments.z, commitments.z0, mac.t, attribute.r, attribute.a]
-    s = [kk.tweak_add(
+    secrets = 
+    w = [kk.tweak_add(
         c.tweak_mul(secrets[i].private_key)
     ) for i, kk in enumerate(k)]
     c = c.private_key
-    return ZKP(s=s, c=c)
+    return ZKP(w=w, c=c)
+    '''
 
 def verify_MAC_and_serial(
     sk: List[PrivateKey],
@@ -262,12 +471,49 @@ def verify_MAC_and_serial(
         commitments.Cx1,
         commitments.Cv,
     )
-
-    s = [PrivateKey(p, raw=True) for p in proof.s]
-    c = PrivateKey(proof.c, raw=True)
-
     I = Gv + -(X0.mult(x0) + X1.mult(x1) + A.mult(ya))
     Z = Cv + -(W.mult(w) + Cx0.mult(x0) + Cx1.mult(x1) + Ca.mult(ya))
+
+    verifier = LinearRelationProverVerifier(
+        mode=LinearRelationMode.VERIFY,
+        proof=proof,
+    )
+    # MAC
+    verifier.add_statement(Statement(         # Z = z*I
+        value=Z,
+        construction={
+            I: 0
+        }
+    ))
+    verifier.add_statement(Statement(         # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
+        value=Cx1,
+        construction={
+            Cx0: 2,
+            X0: 1,
+            X1: 0,
+        }
+    ))
+    # Serial
+    verifier.add_statement(Statement(         # S = r*Gs
+        value=S,
+        construction={
+            Gs: 3,
+        }
+    ))
+    verifier.add_statement(Statement(         # Ca = z*A + r*H + a*G
+        value=Ca,
+        construction={
+            A: 0,
+            H: 3,
+            G: 4,
+        }
+    ))
+    
+    return verifier.verify()
+
+    ''' OLD CODE
+    s = [PrivateKey(p, raw=True) for p in proof.w]
+    c = PrivateKey(proof.c, raw=True)    
 
     R1 = I.mult(s[0]) + -Z.mult(c)
     R2 = Cx0.mult(s[2]) + X0.mult(s[1]) + X1.mult(s[0]) + -Cx1.mult(c)
@@ -296,6 +542,7 @@ def verify_MAC_and_serial(
     ) # reduce by q
 
     return c.private_key == c_.private_key
+    '''
 
 def get_serial(attribute: Attribute):
     return Gs.mult(attribute.r)
@@ -322,6 +569,25 @@ def prove_balance(
 
     B = A.mult(z_sum) + H.mult(r_sum) + -H.mult(r_sum_)
 
+    delta_r_num = (int.from_bytes(r_sum.private_key, 'big')
+        - int.from_bytes(r_sum_.private_key, 'big')) % q
+    delta_r = PrivateKey(delta_r_num.to_bytes(32, 'big'), raw=True)
+
+    prover = LinearRelationProverVerifier(
+        mode=LinearRelationMode.PROVE,
+        secrets=[z_sum, delta_r]
+    )
+    prover.add_statement(Statement(             # B = z*A + 𝚫r*H
+        value=B,
+        construction={
+            A: 0,
+            H: 1,
+        }
+    ))
+
+    return prover.prove()
+
+    ''' OLD CODE
     k = [PrivateKey() for _ in range(2)]
     R = A.mult(k[0]) + H.mult(k[1])
 
@@ -338,10 +604,6 @@ def prove_balance(
         raw=True
     )
 
-    delta_r_num = (int.from_bytes(r_sum.private_key, 'big')
-        - int.from_bytes(r_sum_.private_key, 'big')) % q
-    delta_r = PrivateKey(delta_r_num.to_bytes(32, 'big'), raw=True)
-
     secrets = [z_sum, delta_r]
     s = [kk.tweak_add(
         c.tweak_mul(
@@ -350,23 +612,40 @@ def prove_balance(
     ) for i, kk in enumerate(k)]
     c = c.private_key
 
-    return ZKP(s=s, c=c)
+    return ZKP(w=s, c=c)
+    '''
 
 def verify_balance(
     commitments: List[CommitmentSet],
     attributes: List[Attribute],
     balance_proof: ZKP,
     delta_amount: int,
-) -> bool:    
-    # Extract proof and challenge
-    s = [PrivateKey(p, raw=True) for p in balance_proof.s]
-    c = PrivateKey(balance_proof.c, raw=True)
-
+) -> bool:
     delta_a = PrivateKey(abs(delta_amount).to_bytes(32, 'big'), raw=True)
     B = -G.mult(delta_a) if delta_amount >= 0 else G.mult(delta_a)
-    for (comm, att) in zip(commitments, attributes):
-        Ca, Ma = comm.Ca, att.Ma
-        B += Ca + -Ma
+    for comm in commitments:
+        B += comm.Ca
+    for att in attributes:
+        B += -att.Ma
+
+    verifier = LinearRelationProverVerifier(
+        mode=LinearRelationMode.VERIFY,
+        proof=balance_proof,
+    )
+    verifier.add_statement(Statement(             # B = z*A + 𝚫r*H
+        value=B,
+        construction={
+            A: 0,
+            H: 1,
+        }
+    ))
+
+    return verifier.verify()
+
+    ''' OLD CODE
+    # Extract proof and challenge
+    s = [PrivateKey(p, raw=True) for p in balance_proof.w]
+    c = PrivateKey(balance_proof.c, raw=True)
 
     R = A.mult(s[0]) + H.mult(s[1]) + -B.mult(c)
 
@@ -384,6 +663,7 @@ def verify_balance(
     ) # reduce by q
 
     return c.private_key == c_.private_key
+    '''
 
 '''
 def prove_range(
