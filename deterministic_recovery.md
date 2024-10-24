@@ -2,7 +2,7 @@
 
 ### Normal execution:
 
-* Client generates: $t' = \text{HMAC}(\text{seed}, \text{"t"}, i)$
+* Client generates: $t' = \text{HMAC}(\text{seed}, \text{"t"}, d)$ where $d$ is some derivation.
 
 * Mint takes $t = \text{Hash}(t')$. This step might be unnecessary since HashToCurve should be secure for arbitrary inputs
 
@@ -11,7 +11,7 @@
 * Mint stores $(M_a, t)$
 
 ### Recovery:
-* $r = \text{HMAC}(\text{seed}, \text{"r"}, i)$
+* $r = \text{HMAC}(\text{seed}, \text{"r"}, d')$, where $d'$ is some derivation
 
 * Client asks the server (Mint) for the $M_a$ associated with a $t'$
 
