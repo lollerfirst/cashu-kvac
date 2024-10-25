@@ -1,5 +1,12 @@
 from secp import PrivateKey, PublicKey
-from models import ZKP, Attribute, CommitmentSet, MAC, Statement
+from models import (
+    ZKP,
+    Attribute,
+    CommitmentSet,
+    MAC,
+    Statement,
+    Equation,
+)
 from generators import (
     hash_to_curve,
     W, W_, X0, X1, Gv, A, G, H, Gs,
@@ -53,22 +60,23 @@ class LinearRelationProverVerifier:
         self.mode = mode
 
     def add_statement(self, statement: Statement):
-        R = G
-        V = statement.value
+        for eq in statement:
+            R = G
+            V = eq.value
 
-        if self.mode.isProve:
-            for P, index in statement.construction.items():
-                assert 0 <= index < len(self.random_terms), f"index {index} not within range"
-                R += P.mult(self.random_terms[index])
-        elif self.mode.isVerify:
-            for P, index in statement.construction.items():
-                assert 0 <= index < len(self.responses), f"index {index} not within range"
-                R += P.mult(self.responses[index])
-            R += -V.mult(self.c)
+            if self.mode.isProve:
+                for P, index in eq.construction.items():
+                    assert 0 <= index < len(self.random_terms), f"index {index} not within range"
+                    R += P.mult(self.random_terms[index])
+            elif self.mode.isVerify:
+                for P, index in eq.construction.items():
+                    assert 0 <= index < len(self.responses), f"index {index} not within range"
+                    R += P.mult(self.responses[index])
+                R += -V.mult(self.c)
 
-        R += -G
-        # NOTE: No domain separation?
-        self.challenge_preimage += V.serialize(True) + R.serialize(True)
+            R += -G
+            # NOTE: No domain separation?
+            self.challenge_preimage += V.serialize(True) + R.serialize(True)
     
     def prove(self,
         add_to_challenge: Optional[List[PublicKey]] = None
@@ -130,30 +138,32 @@ def prove_iparams(
         mode=LinearRelationMode.PROVE,
         secrets=sk,
     )
-    prover.add_statement(Statement(         # Cw = w*W  + w_*W_
-        value=Cw,
-        construction={
-            W: 0,
-            W_: 1,
-        },
-    ))
-    prover.add_statement(Statement(         # I = Gv - x0*X0 - x1*X1 - ya*A 
-        value=(-I)+Gv,
-        construction={
-            X0: 2,
-            X1: 3,
-            A: 4
-        }
-    ))
-    prover.add_statement(Statement(         # V = w*W + x0*U + x1*t*U + ya*Ma
-        value=V,
-        construction={
-            W: 0,
-            U: 2,
-            U.mult(t): 3,
-            Ma: 4,
-        }
-    ))
+    prover.add_statement([           
+        Equation(                   # Cw = w*W  + w_*W_
+            value=Cw,
+            construction={
+                W: 0,
+                W_: 1,
+            },
+        ),
+        Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
+            value=(-I)+Gv,          
+            construction={
+                X0: 2,
+                X1: 3,
+                A: 4
+            }
+        ),
+        Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
+            value=V,
+            construction={
+                W: 0,
+                U: 2,
+                U.mult(t): 3,
+                Ma: 4,
+            }
+        )
+    ])
 
     return prover.prove()
 
@@ -176,30 +186,32 @@ def verify_iparams(
         mode=LinearRelationMode.VERIFY,
         proof=proof,
     )
-    verifier.add_statement(Statement(         # Cw = w*W  + w_*W_
-        value=Cw,
-        construction={
-            W: 0,
-            W_: 1,
-        },
-    ))
-    verifier.add_statement(Statement(         # I = Gv - x0*X0 - x1*X1 - ya*A 
-        value=(-I)+Gv,
-        construction={
-            X0: 2,
-            X1: 3,
-            A: 4
-        }
-    ))
-    verifier.add_statement(Statement(         # V = w*W + x0*U + x1*t*U + ya*Ma
-        value=V,
-        construction={
-            W: 0,
-            U: 2,
-            U.mult(t): 3,
-            Ma: 4,
-        }
-    ))
+    verifier.add_statement([
+        Equation(           # Cw = w*W  + w_*W_
+            value=Cw,
+            construction={
+                W: 0,
+                W_: 1,
+            },
+        ),
+        Equation(           # I = Gv - x0*X0 - x1*X1 - ya*A 
+            value=(-I)+Gv,
+            construction={
+                X0: 2,
+                X1: 3,
+                A: 4
+            }
+        ),
+        Equation(           # V = w*W + x0*U + x1*t*U + ya*Ma
+            value=V,
+            construction={
+                W: 0,
+                U: 2,
+                U.mult(t): 3,
+                Ma: 4,
+            }
+        )
+    ])
 
     return verifier.verify()
 
@@ -285,36 +297,36 @@ def prove_MAC_and_serial(
             attribute.a
         ]
     )
-    # MAC
-    prover.add_statement(Statement(         # Z = z*I
-        value=Z,
-        construction={
-            I: 0
-        }
-    ))
-    prover.add_statement(Statement(         # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
-        value=Cx1,
-        construction={
-            Cx0: 2,
-            X0: 1,
-            X1: 0,
-        }
-    ))
-    # Serial
-    prover.add_statement(Statement(         # S = r*Gs
-        value=S,
-        construction={
-            Gs: 3,
-        }
-    ))
-    prover.add_statement(Statement(         # Ca = z*A + r*H + a*G
-        value=Ca,
-        construction={
-            A: 0,
-            H: 3,
-            G: 4,
-        }
-    ))
+    prover.add_statement([
+        Equation(           # Z = z*I
+            value=Z,
+            construction={
+                I: 0
+            }
+        ),
+        Equation(           # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
+            value=Cx1,
+            construction={
+                Cx0: 2,
+                X0: 1,
+                X1: 0,
+            }
+        ),
+        Equation(           # S = r*Gs
+            value=S,
+            construction={
+                Gs: 3,
+            }
+        ),
+        Equation(           # Ca = z*A + r*H + a*G
+            value=Ca,
+            construction={
+                A: 0,
+                H: 3,
+                G: 4,
+            }
+        )
+    ])
 
     return prover.prove()
 
@@ -338,36 +350,36 @@ def verify_MAC_and_serial(
         mode=LinearRelationMode.VERIFY,
         proof=proof,
     )
-    # MAC
-    verifier.add_statement(Statement(         # Z = z*I
-        value=Z,
-        construction={
-            I: 0
-        }
-    ))
-    verifier.add_statement(Statement(         # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
-        value=Cx1,
-        construction={
-            Cx0: 2,
-            X0: 1,
-            X1: 0,
-        }
-    ))
-    # Serial
-    verifier.add_statement(Statement(         # S = r*Gs
-        value=S,
-        construction={
-            Gs: 3,
-        }
-    ))
-    verifier.add_statement(Statement(         # Ca = z*A + r*H + a*G
-        value=Ca,
-        construction={
-            A: 0,
-            H: 3,
-            G: 4,
-        }
-    ))
+    verifier.add_statement([
+        Equation(           # Z = z*I
+            value=Z,
+            construction={
+                I: 0
+            }
+        ),
+        Equation(           # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
+            value=Cx1,
+            construction={
+                Cx0: 2,
+                X0: 1,
+                X1: 0,
+            }
+        ),
+        Equation(           # S = r*Gs
+            value=S,
+            construction={
+                Gs: 3,
+            }
+        ),
+        Equation(           # Ca = z*A + r*H + a*G
+            value=Ca,
+            construction={
+                A: 0,
+                H: 3,
+                G: 4,
+            }
+        )
+    ])
     
     return verifier.verify()
 
@@ -401,13 +413,13 @@ def prove_balance(
         mode=LinearRelationMode.PROVE,
         secrets=[z_sum, delta_r]
     )
-    prover.add_statement(Statement(             # B = z*A + 𝚫r*H
+    prover.add_statement([Equation(             # B = z*A + 𝚫r*H
         value=B,
         construction={
             A: 0,
             H: 1,
         }
-    ))
+    )])
 
     return prover.prove()
 
@@ -428,13 +440,13 @@ def verify_balance(
         mode=LinearRelationMode.VERIFY,
         proof=balance_proof,
     )
-    verifier.add_statement(Statement(             # B = z*A + 𝚫r*H
+    verifier.add_statement([Equation(             # B = z*A + 𝚫r*H
         value=B,
         construction={
             A: 0,
             H: 1,
         }
-    ))
+    )])
 
     return verifier.verify()
 

@@ -70,11 +70,13 @@ class MAC:
     def __init__(self, **kwargs):
         self.t = kwargs.get('t')
         self.V = kwargs.get('V')
-
-class Statement:
+        
+class Equation:
     value: PublicKey
     construction: Dict[PublicKey, int]
 
     def __init__(self, **kwargs):
         self.value = kwargs.get('value')
         self.construction = kwargs.get('construction')
+
+Statement = List[Equation]
