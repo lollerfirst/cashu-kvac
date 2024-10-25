@@ -62,7 +62,7 @@ class LinearRelationProverVerifier:
     random_terms: List[PrivateKey]  # k1, k2, ...
     challenge_preimage: bytes
     secrets: List[PrivateKey]
-    witnesses: List[PrivateKey]
+    responses: List[PrivateKey]
     c: PrivateKey
     mode: LinearRelationMode
 
@@ -78,7 +78,7 @@ class LinearRelationProverVerifier:
                 self.random_terms = [PrivateKey() for _ in secrets]
             case LinearRelationMode.VERIFY:
                 assert proof is not None, "mode is VERIFY but no ZKP provided"
-                self.witnesses = [PrivateKey(w, raw=True) for w in proof.w]
+                self.responses = [PrivateKey(w, raw=True) for w in proof.w]
                 self.c = PrivateKey(proof.c, raw=True)
             case _:
                 raise Exception("unrecognized mode")
@@ -96,11 +96,12 @@ class LinearRelationProverVerifier:
                 R += P.mult(self.random_terms[index])
         elif self.mode.isVerify:
             for P, index in statement.construction.items():
-                assert 0 <= index < len(self.witnesses), f"index {index} not within range"
+                assert 0 <= index < len(self.responses), f"index {index} not within range"
                 R += P.mult(self.witnesses[index])
             R += -V.mult(self.c)
 
         R += -G
+        # NOTE: No domain separation?
         self.challenge_preimage += V.serialize(True) + R.serialize(True)
     
     def prove(self,
@@ -190,42 +191,6 @@ def prove_iparams(
 
     return prover.prove()
 
-    ''' OLD CODE
-    k = [PrivateKey() for _ in range(5)]
-
-    # Build commitments
-    R1 = W.mult(k[0]) + W_.mult(k[1])                                       # R1 = r1W + r2W_
-    R2 = X0.mult(k[2]) + X1.mult(k[3]) + A.mult(k[4])                       # R2 = r3X0 + r4X1 + r5A
-    R3 = W.mult(k[0]) + U.mult(k[2]) + U.mult(k[3]).mult(t) + Ma.mult(k[4]) # R3 = r1W + r3U + tr4U + r5Ma
-
-    ## DEBUG
-    print("Proof generation:")
-    print(f"{R1.serialize().hex() = }")
-    print(f"{R2.serialize().hex() = }")
-    print(f"{R3.serialize().hex() = }")
-
-
-    # challenge
-    # Fiat-Shamir heuristic
-    c = PrivateKey(hashlib.sha256(
-            Cw.serialize(True)
-            +I.serialize(True)
-            +Ma.serialize(True)
-            +V.serialize(True)
-            +U.serialize(True)
-            +R1.serialize(True)
-            +R2.serialize(True)
-            +R3.serialize(True)
-        ).digest(),
-        raw=True
-    )
-    
-    # signatures
-    s = [kk.tweak_add(c.tweak_mul(sk[i].private_key)) for i, kk in enumerate(k)]
-    c = c.private_key
-    return ZKP(s=s, c=c)
-    '''
-
 def verify_iparams(
     attribute: Attribute,
     mac: MAC,
@@ -271,37 +236,6 @@ def verify_iparams(
     ))
 
     return verifier.verify()
-
-    ''' OLD CODE
-    # Extract signatures and challenge
-    s = [PrivateKey(ss, raw=True) for ss in proof.s]
-    c = PrivateKey(proof.c, raw=True)
-
-    # Build commitments
-    R1 = W.mult(s[0]) + W_.mult(s[1]) + -Cw.mult(c)
-    R2 = X0.mult(s[2]) + X1.mult(s[3]) + A.mult(s[4]) + I.mult(c) + -Gv.mult(c)
-    R3 = W.mult(s[0]) + U.mult(s[2]) + U.mult(s[3]).mult(t) + Ma.mult(s[4]) + -V.mult(c)
-
-    ## DEBUG
-    print("Verification:")
-    print(f"{R1.serialize().hex() = }")
-    print(f"{R2.serialize().hex() = }")
-    print(f"{R3.serialize().hex() = }")
-
-    # Simulated challenge Fiat-Shamir heuristic
-    c_ = hashlib.sha256(
-            Cw.serialize(True)
-            +I.serialize(True)
-            +Ma.serialize(True)
-            +V.serialize(True)
-            +U.serialize(True)
-            +R1.serialize(True)
-            +R2.serialize(True)
-            +R3.serialize(True)
-    ).digest()
-
-    return c.private_key == c_
-    '''
 
 def generate_MAC(
     attribute: Attribute,
@@ -418,46 +352,6 @@ def prove_MAC_and_serial(
 
     return prover.prove()
 
-    '''OLD CODE (FOR COMPARISON)
-    # Draw randomness terms and extract commitments, params
-    k = [PrivateKey() for _ in range(5)]
-
-    # MAC
-    R1 = I.mult(k[0]) # <-- comm for zI == Z
-    R2 = X1.mult(k[0]) + X0.mult(k[1]) + Cx0.mult(k[2]) # <-- comm for Cx1 == tCx0 + z0X0 + zX1
-    # Serial
-    R3 = Gs.mult(k[3]) # <-- comm for S == rGs
-    R4 = A.mult(k[0]) + H.mult(k[3]) + G.mult(k[4]) # <-- comm for Ca == zA + rH + aG
-
-    ## DEBUG
-    print("MAC generate proof:")
-    print(f"{R1.serialize().hex() = }")
-    print(f"{R2.serialize().hex() = }")
-    print(f"{R3.serialize().hex() = }")
-    print(f"{R4.serialize().hex() = }")
-
-    c = PrivateKey(
-        hashlib.sha256(
-            I.serialize(True)
-            +Cx0.serialize(True)
-            +Cx1.serialize(True)
-            +Ca.serialize(True)
-            +S.serialize(True)
-            +R1.serialize(True)
-            +R2.serialize(True)
-            +R3.serialize(True)
-            +R4.serialize(True)
-        ).digest(),
-        raw=True
-    )
-    secrets = 
-    w = [kk.tweak_add(
-        c.tweak_mul(secrets[i].private_key)
-    ) for i, kk in enumerate(k)]
-    c = c.private_key
-    return ZKP(w=w, c=c)
-    '''
-
 def verify_MAC_and_serial(
     sk: List[PrivateKey],
     commitments: CommitmentSet,
@@ -511,39 +405,6 @@ def verify_MAC_and_serial(
     
     return verifier.verify()
 
-    ''' OLD CODE
-    s = [PrivateKey(p, raw=True) for p in proof.w]
-    c = PrivateKey(proof.c, raw=True)    
-
-    R1 = I.mult(s[0]) + -Z.mult(c)
-    R2 = Cx0.mult(s[2]) + X0.mult(s[1]) + X1.mult(s[0]) + -Cx1.mult(c)
-    R3 = Gs.mult(s[3]) + -S.mult(c)
-    R4 = A.mult(s[0]) + H.mult(s[3]) + G.mult(s[4]) + -(Ca.mult(c))
-
-    ## DEBUG
-    print("MAC verify:")
-    print(f"{R1.serialize().hex() = }")
-    print(f"{R2.serialize().hex() = }")
-    print(f"{R3.serialize().hex() = }")
-    print(f"{R4.serialize().hex() = }")
-
-    c_ = PrivateKey(hashlib.sha256(
-            I.serialize(True)
-            +Cx0.serialize(True)
-            +Cx1.serialize(True)
-            +Ca.serialize(True)
-            +S.serialize(True)
-            +R1.serialize(True)
-            +R2.serialize(True)
-            +R3.serialize(True)
-            +R4.serialize(True)
-        ).digest(),
-        raw=True,
-    ) # reduce by q
-
-    return c.private_key == c_.private_key
-    '''
-
 def get_serial(attribute: Attribute):
     return Gs.mult(attribute.r)
 
@@ -587,34 +448,6 @@ def prove_balance(
 
     return prover.prove()
 
-    ''' OLD CODE
-    k = [PrivateKey() for _ in range(2)]
-    R = A.mult(k[0]) + H.mult(k[1])
-
-    ## DEBUG
-    print("Prove balance:")
-    print(f"{B.serialize(True).hex() = }")
-    print(f"{R.serialize(True).hex() = }")
-
-    c = PrivateKey(
-        hashlib.sha256(
-            B.serialize(True)
-            +R.serialize(True)
-        ).digest(),
-        raw=True
-    )
-
-    secrets = [z_sum, delta_r]
-    s = [kk.tweak_add(
-        c.tweak_mul(
-            secrets[i].private_key
-        )
-    ) for i, kk in enumerate(k)]
-    c = c.private_key
-
-    return ZKP(w=s, c=c)
-    '''
-
 def verify_balance(
     commitments: List[CommitmentSet],
     attributes: List[Attribute],
@@ -641,29 +474,6 @@ def verify_balance(
     ))
 
     return verifier.verify()
-
-    ''' OLD CODE
-    # Extract proof and challenge
-    s = [PrivateKey(p, raw=True) for p in balance_proof.w]
-    c = PrivateKey(balance_proof.c, raw=True)
-
-    R = A.mult(s[0]) + H.mult(s[1]) + -B.mult(c)
-
-    ## DEBUG
-    print("Verify balance:")
-    print(f"{B.serialize(True).hex() = }")
-    print(f"{R.serialize(True).hex() = }")
-
-    c_ = PrivateKey(
-        hashlib.sha256(
-            B.serialize(True)
-            +R.serialize(True)
-        ).digest(),
-        raw=True,
-    ) # reduce by q
-
-    return c.private_key == c_.private_key
-    '''
 
 '''
 def prove_range(
