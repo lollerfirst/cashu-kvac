@@ -78,7 +78,7 @@ class LinearRelationProverVerifier:
                 self.random_terms = [PrivateKey() for _ in secrets]
             case LinearRelationMode.VERIFY:
                 assert proof is not None, "mode is VERIFY but no ZKP provided"
-                self.responses = [PrivateKey(w, raw=True) for w in proof.w]
+                self.responses = [PrivateKey(s, raw=True) for s in proof.s]
                 self.c = PrivateKey(proof.c, raw=True)
             case _:
                 raise Exception("unrecognized mode")
@@ -117,13 +117,13 @@ class LinearRelationProverVerifier:
             hashlib.sha256(self.challenge_preimage).digest(),
             raw=True
         )
-        w = [k.tweak_add(
+        s = [k.tweak_add(
             c.tweak_mul(
                 s.private_key
             )
         ) for k, s in zip(self.random_terms, self.secrets)]
         
-        return ZKP(w=w, c=c.private_key)
+        return ZKP(s=s, c=c.private_key)
 
     def verify(self,
         add_to_challenge: Optional[List[PublicKey]] = None

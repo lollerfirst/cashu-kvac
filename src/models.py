@@ -5,7 +5,7 @@ from typing import List, Optional, Dict
 # couldn't make pydantic work (skill issue)
 
 class ZKP:
-    w: List[bytes]
+    s: List[bytes]
     c: bytes
 
     def __init__(self, **kwargs):
