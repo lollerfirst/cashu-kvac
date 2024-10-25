@@ -1,5 +1,6 @@
 from secp import PrivateKey, PublicKey
 from typing import List, Optional, Dict
+import generators
 
 # There is some terrible boilerplate here but
 # couldn't make pydantic work (skill issue)
@@ -9,7 +10,7 @@ class ZKP:
     c: bytes
 
     def __init__(self, **kwargs):
-        self.w = kwargs.get('w')
+        self.s = kwargs.get('s')
         self.c = kwargs.get('c')
 
 class Attribute:
@@ -24,6 +25,19 @@ class Attribute:
 
     def lose_secrets(self):
         return Attribute(Ma=self.Ma)
+
+    def get_serial(self) -> PublicKey:
+        assert self.r is not None, "Serial preimage unknown"
+        return generators.Gs.mult(self.r)
+
+    def tweak_amount(self, delta: int):
+        d = PrivateKey(abs(delta).to_bytes(32, 'big'), raw=True)
+        D = generators.G.mult(d) if delta >= 0 else -G.mult(d)
+        return Attribute(
+            Ma=self.Ma+D,
+            r=self.r,
+            a=self.a,
+        )
 
 class CommitmentSet:
     z: Optional[PrivateKey]

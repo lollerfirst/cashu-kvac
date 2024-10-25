@@ -6,9 +6,12 @@ from kvac import (
     randomize_commitment,
     prove_MAC_and_serial,
     verify_MAC_and_serial,
-    get_serial,
     prove_balance,
     verify_balance,
+)
+from secp import PrivateKey
+from generators import (
+    W, W_, X0, X1, A, G, Gv
 )
 
 # Mint's secret key <w, w_, x0, x1, ya>
@@ -35,8 +38,8 @@ print("iparams successfully verified!")
 # User randomizes commitment and produces proof of MAC for it
 commitmentset = randomize_commitment(attribute, mac)
 proof_MAC_serial = prove_MAC_and_serial(iparams, commitmentset, mac, attribute)
-S = get_serial(attribute)
-assert verify_MAC_and_serial(sk, commitmentset, S, proof_MAC_serial)
+serial = attribute.get_serial()
+assert verify_MAC_and_serial(sk, commitmentset, serial, proof_MAC_serial)
 
 print("MAC and Serial successfully verified")
 

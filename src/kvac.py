@@ -1,40 +1,16 @@
 from secp import PrivateKey, PublicKey
 from models import ZKP, Attribute, CommitmentSet, MAC, Statement
+from generators import (
+    hash_to_curve,
+    W, W_, X0, X1, Gv, A, G, H, Gs,
+    q
+)
 import hashlib
 
 from typing import Tuple, List, Optional
 from enum import Enum
 
-DOMAIN_SEPARATOR = b"Secp256k1_HashToCurve_Cashu_"
 RANGE_LIMIT = 1 << 51
-
-q = int('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141', 16)
-
-def hash_to_curve(message: bytes) -> PublicKey:
-    msg_to_hash = hashlib.sha256(DOMAIN_SEPARATOR + message).digest()
-    counter = 0
-    while counter < 2**16:
-        _hash = hashlib.sha256(msg_to_hash + counter.to_bytes(4, "little")).digest()
-        try:
-            # will error if point does not lie on curve
-            return PublicKey(b"\x02" + _hash, raw=True)
-        except Exception:
-            counter += 1
-    # it should never reach this point
-    raise ValueError("No valid point found")
-
-# Generators <W, W_, X0, X1, Gv, A, G, H, Gs> drawn with NUMS
-W, W_, X0, X1, Gv, A, G, H, Gs = (
-    hash_to_curve(b"W"),
-    hash_to_curve(b"W_"),
-    hash_to_curve(b"X0"),
-    hash_to_curve(b"X1"),
-    hash_to_curve(b"Gv"),
-    hash_to_curve(b"Ga"),
-    hash_to_curve(b"G"),
-    hash_to_curve(b"H"),
-    hash_to_curve(b"Gs"),
-)
 
 class LinearRelationMode(Enum):
     PROVE = 0
@@ -87,7 +63,7 @@ class LinearRelationProverVerifier:
         elif self.mode.isVerify:
             for P, index in statement.construction.items():
                 assert 0 <= index < len(self.responses), f"index {index} not within range"
-                R += P.mult(self.witnesses[index])
+                R += P.mult(self.responses[index])
             R += -V.mult(self.c)
 
         R += -G
@@ -394,9 +370,6 @@ def verify_MAC_and_serial(
     ))
     
     return verifier.verify()
-
-def get_serial(attribute: Attribute):
-    return Gs.mult(attribute.r)
 
 def prove_balance(
     commitment_sets: List[CommitmentSet],
