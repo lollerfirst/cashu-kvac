@@ -10,7 +10,6 @@ RANGE_LIMIT = 1 << 51
 
 q = int('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141', 16)
 
-
 def hash_to_curve(message: bytes) -> PublicKey:
     msg_to_hash = hashlib.sha256(DOMAIN_SEPARATOR + message).digest()
     counter = 0
@@ -36,15 +35,6 @@ W, W_, X0, X1, Gv, A, G, H, Gs = (
     hash_to_curve(b"H"),
     hash_to_curve(b"Gs"),
 )
-
-# Mint's secret key <w, w_, x0, x1, ya>
-w, w_, x0, x1, ya = [PrivateKey() for _ in range(5)]
-sk = (w, w_, x0, x1, ya)
-
-# Mint iparams <Cw, I> 
-Cw = W.mult(w) + W_.mult(w_)
-I = Gv + -(X0.mult(x0) + X1.mult(x1) + A.mult(ya))
-iparams = (Cw, I)
 
 class LinearRelationMode(Enum):
     PROVE = 0

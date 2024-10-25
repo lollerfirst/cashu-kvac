@@ -9,10 +9,16 @@ from kvac import (
     get_serial,
     prove_balance,
     verify_balance,
-    sk,
-    iparams,
 )
 
+# Mint's secret key <w, w_, x0, x1, ya>
+w, w_, x0, x1, ya = [PrivateKey() for _ in range(5)]
+sk = (w, w_, x0, x1, ya)
+
+# Mint iparams <Cw, I> 
+Cw = W.mult(w) + W_.mult(w_)
+I = Gv + -(X0.mult(x0) + X1.mult(x1) + A.mult(ya))
+iparams = (Cw, I)
 
 # User creates 1 attribute worth 16
 attribute = create_attribute(16)
