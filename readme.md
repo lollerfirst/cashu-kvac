@@ -8,7 +8,7 @@ Experimental implementation of the core crypto behind a anonymous credentials en
 * Deterministic Recovery: read `deterministic_recovery.md`
 * Server/Mint can tweak the amounts encoded in the attributes: $M_a' = M_a + \delta G$
 * **Potentially** we use $r$ as the randomizing factor instead of $z$:
-  - Benefit: No $\pi_\text{serial}$, one less witness in $\pi_\text{MAC}$ (if I understand correctly)
+  - Benefit: $\pi_\text{serial}+\pi_\text{MAC}$ has one less witness
   - $C_a$ becomes the serial
 
 ### Basic Protocol Diagram:
