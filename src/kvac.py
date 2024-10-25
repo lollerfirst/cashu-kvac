@@ -32,6 +32,20 @@ class LinearRelationMode(Enum):
         return self == LinearRelationMode.VERIFY
 
 class LinearRelationProverVerifier:
+    """
+    A class for proving and verifying linear relations in zero-knowledge.
+
+    This class provides methods for adding statements to be proven or verified,
+    and for generating or verifying a zero-knowledge proof.
+
+    Attributes:
+        random_terms (List[PrivateKey]): Random terms used in the proof.
+        challenge_preimage (bytes): The preimage of the challenge used in the proof.
+        secrets (List[PrivateKey]): The secrets used to compute the proof.
+        responses (List[PrivateKey]): The responses used in the verification.
+        c (PrivateKey): The challenge extracted from the provided proof.
+        mode (LinearRelationMode): The mode of the class, either PROVE or VERIFY.
+    """
     random_terms: List[PrivateKey]  # k1, k2, ...
     challenge_preimage: bytes
     secrets: List[PrivateKey]
@@ -44,6 +58,14 @@ class LinearRelationProverVerifier:
         secrets: Optional[List[PrivateKey]] = None,
         proof: Optional[ZKP] = None,
     ):
+        """
+        Initializes the LinearRelationProverVerifier class.
+
+        Parameters:
+            mode (LinearRelationMode): The mode of the class, either PROVE or VERIFY.
+            secrets (Optional[List[PrivateKey]]): The secrets used in the proof, required if mode is PROVE.
+            proof (Optional[ZKP]): The proof used in the verification, required if mode is VERIFY.
+        """
         match mode:
             case LinearRelationMode.PROVE:
                 assert secrets is not None, "mode is PROVE but no secrets provided"
@@ -60,6 +82,12 @@ class LinearRelationProverVerifier:
         self.mode = mode
 
     def add_statement(self, statement: Statement):
+        """
+        Adds a statement to be proven or verified.
+
+        Parameters:
+            statement (Statement): The statement to be added.
+        """
         for eq in statement:
             R = G
             V = eq.value
@@ -81,6 +109,15 @@ class LinearRelationProverVerifier:
     def prove(self,
         add_to_challenge: Optional[List[PublicKey]] = None
     ) -> ZKP:
+        """
+        Generates a zero-knowledge proof.
+
+        Parameters:
+            add_to_challenge (Optional[List[PublicKey]]): Additional public keys to add to the challenge.
+
+        Returns:
+            ZKP: The generated zero-knowledge proof.
+        """
         assert self.mode.isProve, "mode is not PROVE!"
 
         if add_to_challenge is not None:
@@ -102,6 +139,15 @@ class LinearRelationProverVerifier:
     def verify(self,
         add_to_challenge: Optional[List[PublicKey]] = None
     ) -> bool:
+        """
+        Verifies a zero-knowledge proof.
+
+        Parameters:
+            add_to_challenge (Optional[List[PublicKey]]): Additional public keys to add to the challenge.
+
+        Returns:
+            bool: True if the proof is valid, False otherwise.
+        """
         assert self.mode.isVerify, "mode is not VERIFY!"
 
         if add_to_challenge is not None:
@@ -120,11 +166,19 @@ def prove_iparams(
     attribute: Attribute,
     mac: MAC,
 ) -> ZKP:
-    '''
-        Computes a proof that (t, V) was generated with correct iparameters <Cw, I> and
-        the attribute Ma
-    '''
+    """
+    Generates a zero-knowledge proof that mac was generated from attribute and sk.
 
+    This function takes as input a secret key, an attribute, and a MAC, and returns a zero-knowledge proof that the MAC is valid for the given attribute and secret key.
+
+    Parameters:
+        sk (List[PrivateKey]): The secret key.
+        attribute (Attribute): The attribute.
+        mac (MAC): The MAC.
+
+    Returns:
+        ZKP: The generated zero-knowledge proof.
+    """
     Ma = attribute.Ma
     V = mac.V
     t = mac.t
@@ -173,9 +227,22 @@ def verify_iparams(
     iparams: Tuple[PublicKey, PublicKey],
     proof: ZKP,
 ) -> bool:
-    '''
-        Verifies that (t, V) is a credential generated from Ma and <Cw, I>
-    '''
+    """
+    Verifies that MAC was generated from Attribute using iparams.
+
+    This function takes as input an attribute, a MAC, iparams, and a
+    proof, and returns True if the proof is valid for the given attribute
+    and MAC, and False otherwise.
+
+    Parameters:
+        attribute (Attribute): The attribute.
+        mac (MAC): The MAC.
+        iparams (Tuple[PublicKey, PublicKey]): The iparams.
+        proof (ZKP): The proof.
+
+    Returns:
+        bool: True if the proof is valid, False otherwise.
+    """
     Cw, I = iparams
     Ma = attribute.Ma
     t = mac.t
@@ -219,9 +286,18 @@ def generate_MAC(
     attribute: Attribute,
     sk: List[PrivateKey]
 ) -> MAC:
-    '''
-        Generates a credential for a given attribute
-    '''
+    """
+    Generates a MAC for a given attribute and secret key.
+
+    This function takes as input an attribute and a secret key, and returns a MAC that can be used to authenticate the attribute.
+
+    Parameters:
+        attribute (Attribute): The attribute.
+        sk (List[PrivateKey]): The secret key.
+
+    Returns:
+        MAC: The generated MAC.
+    """
     t = PrivateKey()
     Ma = attribute.Ma
     U = hash_to_curve(bytes.fromhex(t.serialize()))
@@ -231,9 +307,20 @@ def generate_MAC(
 def create_attribute(
     amount: int
 ) -> Attribute:
-    '''
-        Creates an attribute worth `amount`
-    '''
+    """
+    Creates an attribute worth the given amount.
+
+    This function takes as input an amount and returns an attribute that represents the given amount.
+
+    Parameters:
+        amount (int): The amount.
+
+    Returns:
+        Attribute: The created attribute.
+
+    Raises:
+        Exception: If the amount is not within the valid range.
+    """
     if not 0 <= amount < RANGE_LIMIT:
         raise Exception("how about no?")
     
@@ -252,6 +339,18 @@ def randomize_commitment(
     attribute: Attribute,
     mac: MAC
 ) -> CommitmentSet:
+    """
+    Produces randomized commitments for the given attribute and MAC.
+
+    This function takes as input an attribute and a MAC, and returns a randomized commitment set.
+
+    Parameters:
+        attribute (Attribute): The attribute.
+        mac (MAC): The MAC.
+
+    Returns:
+        CommitmentSet: The randomized commitment set.
+    """
     t = mac.t
     V = mac.V
     Ma = attribute.Ma
@@ -277,7 +376,21 @@ def prove_MAC_and_serial(
     mac: MAC,
     attribute: Attribute,
 ) -> ZKP:
+    """
+    Generates a zero-knowledge proof that the given commitments where derived
+    from attribute and mac.
 
+    Only who knows the opening of iparams can correctly verify this proof.
+
+    Parameters:
+        iparams (Tuple[PublicKey, PublicKey]): The iparams.
+        commitments (CommitmentSet): The commitments.
+        mac (MAC): The MAC.
+        attribute (Attribute): The attribute.
+
+    Returns:
+        ZKP: The generated zero-knowledge proof.
+    """
     Ca, Cx0, Cx1 = (
         commitments.Ca, 
         commitments.Cx0,
@@ -336,6 +449,20 @@ def verify_MAC_and_serial(
     S: PublicKey,
     proof: ZKP,
 ) -> bool:
+    """
+    Verifies a zero-knowledge proof for the given MAC, serial, and commitments.
+
+    This function takes as input a secret key, commitments, a public key S, and a zero-knowledge proof, and returns True if the proof is valid for the given commitments and secret key, and False otherwise.
+
+    Parameters:
+        sk (List[PrivateKey]): The secret key.
+        commitments (CommitmentSet): The commitments.
+        S (PublicKey): The serial number S.
+        proof (ZKP): The zero-knowledge proof.
+
+    Returns:
+        bool: True if the proof is valid, False otherwise.
+    """
     w, w_, x0, x1, ya = sk[:5]
     Ca, Cx0, Cx1, Cv = (
         commitments.Ca,
@@ -388,7 +515,17 @@ def prove_balance(
     old_attributes: List[Attribute],                   
     new_attributes: List[Attribute],
 ) -> ZKP:
+    """
+    This function takes as input a list of commitment sets, a list of old attributes, and a list of new attributes, and returns a zero-knowledge proof that the balance is valid for the given commitment sets and attributes.
 
+    Parameters:
+        commitment_sets (List[CommitmentSet]): The list of commitment sets.
+        old_attributes (List[Attribute]): The list of old attributes.
+        new_attributes (List[Attribute]): The list of new attributes.
+
+    Returns:
+        ZKP: The generated zero-knowledge proof.
+    """
     z = [comm.z for comm in commitment_sets]
     r = [att.r for att in old_attributes]
     r_ = [att.r for att in new_attributes]
@@ -429,6 +566,21 @@ def verify_balance(
     balance_proof: ZKP,
     delta_amount: int,
 ) -> bool:
+    """
+    This function computes a balance from a list of "old" randomized attributes,
+    a list of attributes and a public Δamount,
+    then verifies zero-knowledge balance proof and returns True if the proof is valid, and False otherwise.
+
+    Parameters:
+        commitments (List[CommitmentSet]): The list of commitment sets.
+        attributes (List[Attribute]): The list of attributes.
+        balance_proof (ZKP): The zero-knowledge proof.
+        delta_amount (int): The delta amount.
+
+    Returns:
+        bool: True if the proof is valid, False otherwise.
+    """
+
     delta_a = PrivateKey(abs(delta_amount).to_bytes(32, 'big'), raw=True)
     B = -G.mult(delta_a) if delta_amount >= 0 else G.mult(delta_a)
     for comm in commitments:

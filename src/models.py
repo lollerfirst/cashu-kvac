@@ -70,7 +70,7 @@ class MAC:
     def __init__(self, **kwargs):
         self.t = kwargs.get('t')
         self.V = kwargs.get('V')
-        
+
 class Equation:
     value: PublicKey
     construction: Dict[PublicKey, int]
