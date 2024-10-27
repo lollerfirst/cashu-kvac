@@ -305,7 +305,8 @@ def generate_MAC(
     return MAC(t=t, V=V)
 
 def create_attribute(
-    amount: int
+    amount: int,
+    blinding_factor: Optional[bytes] = None,
 ) -> Attribute:
     """
     Creates an attribute worth the given amount.
@@ -313,7 +314,8 @@ def create_attribute(
     This function takes as input an amount and returns an attribute that represents the given amount.
 
     Parameters:
-        amount (int): The amount.
+        amount (int): The amount
+        blinding_factor (Optional[bytes]): Optionally a blinding_factor derived from a BIP32 derivation path
 
     Returns:
         Attribute: The created attribute.
@@ -327,7 +329,10 @@ def create_attribute(
     # NOTE: It seems like we would also have to remember the amount it was for.
     # Not ideal for recovery.
     a = PrivateKey(amount.to_bytes(32, 'big'), raw=True)
-    r = PrivateKey()
+    r = (
+        PrivateKey(blinding_factor, raw=True) if blinding_factor
+        else PrivateKey()
+    )
 
     return Attribute(
         r=r,
@@ -337,7 +342,7 @@ def create_attribute(
 
 def randomize_commitment(
     attribute: Attribute,
-    mac: MAC
+    mac: MAC,
 ) -> CommitmentSet:
     """
     Produces randomized commitments for the given attribute and MAC.
