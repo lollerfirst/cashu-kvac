@@ -1,5 +1,5 @@
 from secp import PrivateKey, PublicKey
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 import generators
 
 # There is some terrible boilerplate here but
@@ -72,11 +72,20 @@ class MAC:
         self.V = kwargs.get('V')
 
 class Equation:
-    value: PublicKey
-    construction: Dict[PublicKey, int]
+    value: Optional[PublicKey]
+    construction: List[Tuple[PublicKey, int]]
 
     def __init__(self, **kwargs):
         self.value = kwargs.get('value')
         self.construction = kwargs.get('construction')
 
 Statement = List[Equation]
+
+class RangeZKP(ZKP):
+    B: List[PublicKey]
+    width: int
+
+    def __init__(self, **kwargs):
+        self.B = kwargs.get("B")
+        self.width = kwargs.get("width")
+        super().__init__(**kwargs)

@@ -8,6 +8,8 @@ from kvac import (
     verify_MAC_and_serial,
     prove_balance,
     verify_balance,
+    prove_range,
+    verify_range,
 )
 from secp import PrivateKey
 from generators import (
@@ -57,3 +59,8 @@ assert verify_balance(
 )
 
 print("Balance proof successfully verified")
+
+range_proof = prove_range(attribute)
+assert verify_range(attribute.lose_secrets(), range_proof)
+
+print("Range proof successfully verified")

@@ -1,5 +1,6 @@
 import hashlib
-from secp import PublicKey
+from secp import PublicKey, PrivateKey
+import secp256k1
 
 DOMAIN_SEPARATOR = b"Secp256k1_HashToCurve_Cashu_"
 
@@ -30,3 +31,6 @@ W, W_, X0, X1, Gv, A, G, H, Gs = (
     hash_to_curve(b"H"),
     hash_to_curve(b"Gs"),
 )
+
+# Point at Infinity
+O = secp256k1.ffi.NULL

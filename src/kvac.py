@@ -1,6 +1,7 @@
 from secp import PrivateKey, PublicKey
 from models import (
     ZKP,
+    RangeZKP,
     Attribute,
     CommitmentSet,
     MAC,
@@ -10,14 +11,20 @@ from models import (
 from generators import (
     hash_to_curve,
     W, W_, X0, X1, Gv, A, G, H, Gs,
-    q
+    q,
+    O,
 )
 import hashlib
 
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Union
 from enum import Enum
 
+# Maximum allowed for a single attribute
 RANGE_LIMIT = 1 << 51
+
+# PrivateKey in powers of 2
+# Used in range proofs.
+POWERS_2_SCALAR = [PrivateKey((1 << i).to_bytes(32, "big")) for i in range(51)]
 
 class LinearRelationMode(Enum):
     PROVE = 0
@@ -48,14 +55,14 @@ class LinearRelationProverVerifier:
     """
     random_terms: List[PrivateKey]  # k1, k2, ...
     challenge_preimage: bytes
-    secrets: List[PrivateKey]
+    secrets: List[bytes]
     responses: List[PrivateKey]
     c: PrivateKey
     mode: LinearRelationMode
 
     def __init__(self,
         mode: LinearRelationMode,
-        secrets: Optional[List[PrivateKey]] = None,
+        secrets: Optional[Union[List[PrivateKey], List[bytes]]] = None,
         proof: Optional[ZKP] = None,
     ):
         """
@@ -69,7 +76,10 @@ class LinearRelationProverVerifier:
         match mode:
             case LinearRelationMode.PROVE:
                 assert secrets is not None, "mode is PROVE but no secrets provided"
-                self.secrets = secrets
+                if isinstance(secrets[0], bytes):
+                    self.secrets = secrets 
+                elif isinstance(secrets[0], PrivateKey):
+                    self.secrets = [sec.private_key for sec in secrets]
                 self.random_terms = [PrivateKey() for _ in secrets]
             case LinearRelationMode.VERIFY:
                 assert proof is not None, "mode is VERIFY but no ZKP provided"
@@ -93,18 +103,22 @@ class LinearRelationProverVerifier:
             V = eq.value
 
             if self.mode.isProve:
-                for P, index in eq.construction.items():
+                for P, index in eq.construction:
                     assert 0 <= index < len(self.random_terms), f"index {index} not within range"
                     R += P.mult(self.random_terms[index])
             elif self.mode.isVerify:
-                for P, index in eq.construction.items():
+                for P, index in eq.construction:
                     assert 0 <= index < len(self.responses), f"index {index} not within range"
                     R += P.mult(self.responses[index])
-                R += -V.mult(self.c)
+                R = R + -V.mult(self.c) if V else R     # We treat None as point to infinity
 
             R += -G
+            print(f"{R.serialize(True).hex() = }")
             # NOTE: No domain separation?
-            self.challenge_preimage += V.serialize(True) + R.serialize(True)
+            if V:
+                self.challenge_preimage += V.serialize(True) + R.serialize(True)
+            else:
+                self.challenge_preimage += R.serialize(True)
     
     def prove(self,
         add_to_challenge: Optional[List[PublicKey]] = None
@@ -128,11 +142,11 @@ class LinearRelationProverVerifier:
             hashlib.sha256(self.challenge_preimage).digest(),
             raw=True
         )
-        s = [k.tweak_add(
-            c.tweak_mul(
-                s.private_key
-            )
-        ) for k, s in zip(self.random_terms, self.secrets)]
+        
+        # sum c*s to k only if s is non-zero
+        s = [k.tweak_add(c.tweak_mul(s)) if s != b"\x00"*32
+            else k.private_key
+            for k, s in zip(self.random_terms, self.secrets)]
         
         return ZKP(s=s, c=c.private_key)
 
@@ -192,32 +206,33 @@ def prove_iparams(
         mode=LinearRelationMode.PROVE,
         secrets=sk,
     )
-    prover.add_statement([           
+    prover.add_statement([
         Equation(                   # Cw = w*W  + w_*W_
             value=Cw,
-            construction={
-                W: 0,
-                W_: 1,
-            },
+            construction=[
+                (W, 0),
+                (W_, 1),
+            ],
         ),
         Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
             value=(-I)+Gv,          
-            construction={
-                X0: 2,
-                X1: 3,
-                A: 4
-            }
+            construction=[
+                (X0, 2),
+                (X1, 3),
+                (A, 4)
+            ]
         ),
         Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
             value=V,
-            construction={
-                W: 0,
-                U: 2,
-                U.mult(t): 3,
-                Ma: 4,
-            }
+            construction=[
+                (W, 0),
+                (U, 2),
+                (U.mult(t), 3),
+                (Ma, 4),
+            ]
         )
     ])
+
 
     return prover.prove()
 
@@ -254,29 +269,29 @@ def verify_iparams(
         proof=proof,
     )
     verifier.add_statement([
-        Equation(           # Cw = w*W  + w_*W_
+        Equation(                   # Cw = w*W  + w_*W_
             value=Cw,
-            construction={
-                W: 0,
-                W_: 1,
-            },
+            construction=[
+                (W, 0),
+                (W_, 1),
+            ],
         ),
-        Equation(           # I = Gv - x0*X0 - x1*X1 - ya*A 
-            value=(-I)+Gv,
-            construction={
-                X0: 2,
-                X1: 3,
-                A: 4
-            }
+        Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
+            value=(-I)+Gv,          
+            construction=[
+                (X0, 2),
+                (X1, 3),
+                (A, 4)
+            ]
         ),
-        Equation(           # V = w*W + x0*U + x1*t*U + ya*Ma
+        Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
             value=V,
-            construction={
-                W: 0,
-                U: 2,
-                U.mult(t): 3,
-                Ma: 4,
-            }
+            construction=[
+                (W, 0),
+                (U, 2),
+                (U.mult(t), 3),
+                (Ma, 4),
+            ]
         )
     ])
 
@@ -418,31 +433,31 @@ def prove_MAC_and_serial(
     prover.add_statement([
         Equation(           # Z = z*I
             value=Z,
-            construction={
-                I: 0
-            }
+            construction=[
+                (I, 0)
+            ]
         ),
         Equation(           # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
             value=Cx1,
-            construction={
-                Cx0: 2,
-                X0: 1,
-                X1: 0,
-            }
+            construction=[
+                (Cx0, 2),
+                (X0, 1),
+                (X1, 0),
+            ]
         ),
         Equation(           # S = r*Gs
             value=S,
-            construction={
-                Gs: 3,
-            }
+            construction=[
+                (Gs, 3),
+            ]
         ),
         Equation(           # Ca = z*A + r*H + a*G
             value=Ca,
-            construction={
-                A: 0,
-                H: 3,
-                G: 4,
-            }
+            construction=[
+                (A, 0),
+                (H, 3),
+                (G, 4),
+            ]
         )
     ])
 
@@ -485,33 +500,34 @@ def verify_MAC_and_serial(
     verifier.add_statement([
         Equation(           # Z = z*I
             value=Z,
-            construction={
-                I: 0
-            }
+            construction=[
+                (I, 0)
+            ]
         ),
         Equation(           # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
             value=Cx1,
-            construction={
-                Cx0: 2,
-                X0: 1,
-                X1: 0,
-            }
+            construction=[
+                (Cx0, 2),
+                (X0, 1),
+                (X1, 0),
+            ]
         ),
         Equation(           # S = r*Gs
             value=S,
-            construction={
-                Gs: 3,
-            }
+            construction=[
+                (Gs, 3),
+            ]
         ),
         Equation(           # Ca = z*A + r*H + a*G
             value=Ca,
-            construction={
-                A: 0,
-                H: 3,
-                G: 4,
-            }
+            construction=[
+                (A, 0),
+                (H, 3),
+                (G, 4),
+            ]
         )
     ])
+
     
     return verifier.verify()
 
@@ -557,10 +573,10 @@ def prove_balance(
     )
     prover.add_statement([Equation(             # B = z*A + 𝚫r*H
         value=B,
-        construction={
-            A: 0,
-            H: 1,
-        }
+        construction=[
+            (A, 0),
+            (H, 1),
+        ]
     )])
 
     return prover.prove()
@@ -599,18 +615,185 @@ def verify_balance(
     )
     verifier.add_statement([Equation(             # B = z*A + 𝚫r*H
         value=B,
-        construction={
-            A: 0,
-            H: 1,
-        }
+        construction=[
+            (A, 0),
+            (H, 1),
+        ]
     )])
 
     return verifier.verify()
 
-'''
+
 def prove_range(
-    r: PrivateKey,
-    a: PrivateKey
-) -> Tuple[List[bytes], bytes]:
-    Ma = 
-'''
+    attribute: Attribute
+):
+    # https://github.com/WalletWasabi/WalletWasabi/pull/4429
+    # This amounts to 6KB. Nasty.
+
+    # Get the attribute public point
+    Ma = attribute.Ma
+
+    # Get the powers of 2 in PrivateKey form
+    k = POWERS_2_SCALAR
+
+    # Decompose attribute's amount into bits
+    amount = int.from_bytes(attribute.a.private_key, "big")
+    bits = []
+    while amount > 0:
+        bits.append(amount & 1)
+        amount >>= 1
+
+    ### DEBUG
+    print(f"{bits = }")
+
+    # Get `r` vector for B_i = b_i*G + r_i*H
+    bits_blinding_factors = [PrivateKey() for _ in bits]
+
+    # B is the bit commitments vector
+    B = []
+    for b_i, r_i in zip(bits, bits_blinding_factors):
+        B.append(G + H.mult(r_i) if b_i
+            else H.mult(r_i)
+        )
+
+    # Hadamard product between
+    # the blinding factors vector and the bits vector
+    # We need to take the negation of this to obtain -r_i*b_i because
+    # c*r_i*b_i*H will be the excess challenge term to cancel
+    neg = PrivateKey((q-1).to_bytes(32, "big"), raw=True)
+    product_bits_and_blinding_factors = [
+            r.tweak_mul(neg.private_key)
+            if b
+            else b"\x00"*32
+        for r, b in zip(bits_blinding_factors, bits)
+    ]
+
+    # Instantiate linear prover
+    # Witnesses are:
+    #   - r (attribute.r)
+    #   - b_i
+    #   - r_i
+    #   - -(r_i * b_i) <-- needed to cancel out an excess challenge term in the third set of eqns
+    prover = LinearRelationProverVerifier(
+        mode=LinearRelationMode.PROVE,
+        secrets=[attribute.r.private_key] + 
+            [b.to_bytes(32, "big") for b in bits] +
+            [r.private_key for r in bits_blinding_factors] +
+            product_bits_and_blinding_factors,
+    )
+
+    # 1) This equation proves that Ma - Σ 2^i*B_i = 0
+    # But only the verifier calculates that separately with B and Ma
+    # We (the prover) can provide V = r*H - Σ 2^i*r_i*H directly
+    V = H.mult(attribute.r)
+    for k_i, r_i in zip(k, bits_blinding_factors):
+        V += -H.mult(r_i).mult(k_i)
+
+    print("Range Proof:")
+    print(f"{V.serialize(True).hex() = }")
+    
+    eqn1_construction = [(H, 0)]
+    eqn1_construction.extend([
+        (-H.mult(k[i-1]), i) for i in range(1, len(bits)+1)
+    ])
+
+    statement = [Equation(               # 0 = r*H - Σ 2^i*r_i*H - Ma + Σ (2^i)*B_i
+        value=V,
+        construction=eqn1_construction
+    )]
+
+    # 2) This set of equations proves that we know the opening of B_i for every i
+    # Namely B_i - b_i*G = 0
+    statement += [Equation(
+        value=B_i,
+        construction=[
+            (G, i+1), # i+1 is the index of the corresponding witness b_i
+            (H, i+len(bits)+1), # i+len(bits)+1 is the index of corresponding witness r_i
+        ]
+    ) for i, B_i in enumerate(B)]
+
+    # 3) This set of equations proves that each b_i is such that b_i^2 = b_i
+    # NOTE: This is a little different because
+    # the verifier does not use the challenge to verify these.
+    # Instead they just use the same responses from (2) and multiply them against (B_i - G).
+    # The only way the challenge terms cancel out is if
+    # b_i^2cG - b_icG = O <==> b^2 = b <==> b = 0 or 1
+    statement += [Equation(
+        value=None, # To represent point at infinity
+        construction=[
+            (B_i+(-G), i+1),    # i+1 index of b_i witnesses
+            (H, i+len(bits)+len(bits_blinding_factors)+1)
+                                # i+len(bits)+len(bits_blinding_factors)+1 index of
+                                # rb_i witnesses (product between bits and their blinding_factors)
+        ]
+    ) for i, B_i in enumerate(B)]
+
+    prover.add_statement(statement)
+    zkp = prover.prove()
+
+    # We return the width (for simpler unpacking of responses)
+    # and we return B the bit-commitments vector
+    return RangeZKP(
+        B=B,
+        width=len(bits),
+        s=zkp.s,
+        c=zkp.c
+    )
+
+def verify_range(
+    attribute: Attribute,
+    proof: RangeZKP
+) -> bool:
+
+    # Get the attribute public point
+    Ma = attribute.Ma
+    # Get the bit commitments
+    B = proof.B
+
+    # Calculate Ma - Σ 2^i*B_i
+    V = Ma
+    k = POWERS_2_SCALAR
+    for B_i, kk in zip(B, k):
+        V += -B_i.mult(kk)
+    
+    print("Verify Range:")
+    print(f"{V.serialize(True).hex() = }")
+
+    # Instantiate verifier with the proof
+    verifier = LinearRelationProverVerifier(
+        mode=LinearRelationMode.VERIFY,
+        proof=proof
+    )
+
+    # Same as in the prover
+    eqn1_construction = [(H, 0)]
+    eqn1_construction += [
+        (-H.mult(k[i-1]), i) for i in range(1, proof.width+1)
+    ]
+
+    # 1)
+    statement = [Equation(              
+        value=V,
+        construction=eqn1_construction
+    )]
+
+    # 2)
+    statement += [Equation(
+        value=B_i,
+        construction=[
+            (G, i+1),
+            (H, i+proof.width+1),
+        ]
+    ) for i, B_i in enumerate(B)]
+
+    # 3)
+    statement += [Equation(
+        value=None, # To represent point at infinity / do not use challenge               
+        construction=[
+            (B_i+(-G), i+1),
+            (H, i+2*proof.width+1),
+        ]
+    ) for i, B_i in enumerate(B)]
+
+    verifier.add_statement(statement)
+    return verifier.verify()
