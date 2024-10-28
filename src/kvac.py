@@ -12,7 +12,6 @@ from generators import (
     hash_to_curve,
     W, W_, X0, X1, Gv, A, G, H, Gs,
     q,
-    O,
 )
 import hashlib
 
@@ -110,7 +109,7 @@ class LinearRelationProverVerifier:
                 for P, index in eq.construction:
                     assert 0 <= index < len(self.responses), f"index {index} not within range"
                     R += P.mult(self.responses[index])
-                R = R + -V.mult(self.c) if V else R     # We treat None as point to infinity
+                R = (R + -V.mult(self.c)) if V else R     # We treat V == None as point to infinity
 
             R += -G
             print(f"{R.serialize(True).hex() = }")
@@ -144,11 +143,11 @@ class LinearRelationProverVerifier:
         )
         
         # sum c*s to k only if s is non-zero
-        s = [k.tweak_add(c.tweak_mul(s)) if s != b"\x00"*32
+        responses = [k.tweak_add(c.tweak_mul(s)) if s != b"\x00"*32
             else k.private_key
             for k, s in zip(self.random_terms, self.secrets)]
         
-        return ZKP(s=s, c=c.private_key)
+        return ZKP(s=responses, c=c.private_key)
 
     def verify(self,
         add_to_challenge: Optional[List[PublicKey]] = None
@@ -476,7 +475,7 @@ def verify_MAC_and_serial(
 
     Parameters:
         sk (List[PrivateKey]): The secret key.
-        commitments (CommitmentSet): The commitments.
+        commitments (CommitmentSet): The randomized commitments.
         S (PublicKey): The serial number S.
         proof (ZKP): The zero-knowledge proof.
 
@@ -633,7 +632,7 @@ def prove_range(
     # Get the attribute public point
     Ma = attribute.Ma
 
-    # Get the powers of 2 in PrivateKey form
+    # Get the powers of 2 as PrivateKeys
     k = POWERS_2_SCALAR
 
     # Decompose attribute's amount into bits
@@ -660,9 +659,9 @@ def prove_range(
     # the blinding factors vector and the bits vector
     # We need to take the negation of this to obtain -r_i*b_i because
     # c*r_i*b_i*H will be the excess challenge term to cancel
-    neg = PrivateKey((q-1).to_bytes(32, "big"), raw=True)
+    minus_one = PrivateKey((q-1).to_bytes(32, "big"), raw=True)
     product_bits_and_blinding_factors = [
-            r.tweak_mul(neg.private_key)
+            r.tweak_mul(minus_one.private_key)
             if b
             else b"\x00"*32
         for r, b in zip(bits_blinding_factors, bits)
@@ -691,15 +690,11 @@ def prove_range(
 
     print("Range Proof:")
     print(f"{V.serialize(True).hex() = }")
-    
-    eqn1_construction = [(H, 0)]
-    eqn1_construction.extend([
-        (-H.mult(k[i-1]), i) for i in range(1, len(bits)+1)
-    ])
 
     statement = [Equation(               # 0 = r*H - Σ 2^i*r_i*H - Ma + Σ (2^i)*B_i
         value=V,
-        construction=eqn1_construction
+        construction=[(H, 0)] + 
+            [(-H.mult(k[i-1]), i) for i in range(1, len(bits)+1)]
     )]
 
     # 2) This set of equations proves that we know the opening of B_i for every i
@@ -765,16 +760,11 @@ def verify_range(
         proof=proof
     )
 
-    # Same as in the prover
-    eqn1_construction = [(H, 0)]
-    eqn1_construction += [
-        (-H.mult(k[i-1]), i) for i in range(1, proof.width+1)
-    ]
-
     # 1)
     statement = [Equation(              
         value=V,
-        construction=eqn1_construction
+        construction=([(H, 0)]+
+            [(-H.mult(k[i-1]), i) for i in range(1, proof.width+1)])
     )]
 
     # 2)
