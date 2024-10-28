@@ -21,9 +21,9 @@ from enum import Enum
 # Maximum allowed for a single attribute
 RANGE_LIMIT = 1 << 51
 
-# PrivateKey in powers of 2
+# PublicKey of powers of two mult H
 # Used in range proofs.
-POWERS_2_SCALAR = [PrivateKey((1 << i).to_bytes(32, "big")) for i in range(51)]
+GROUP_ELEMENTS_POW2 = [H.mult(PrivateKey((1 << i).to_bytes(32, "big"))) for i in range(51)]
 
 class LinearRelationMode(Enum):
     PROVE = 0
@@ -633,7 +633,7 @@ def prove_range(
     Ma = attribute.Ma
 
     # Get the powers of 2 as PrivateKeys
-    k = POWERS_2_SCALAR
+    K = GROUP_ELEMENTS_POW2
 
     # Decompose attribute's amount into bits
     amount = int.from_bytes(attribute.a.private_key, "big")
@@ -685,8 +685,8 @@ def prove_range(
     # But only the verifier calculates that separately with B and Ma
     # We (the prover) can provide V = r*H - Σ 2^i*r_i*H directly
     V = H.mult(attribute.r)
-    for k_i, r_i in zip(k, bits_blinding_factors):
-        V += -H.mult(r_i).mult(k_i)
+    for K_i, r_i in zip(K, bits_blinding_factors):
+        V += -K_i.mult(r_i)
 
     print("Range Proof:")
     print(f"{V.serialize(True).hex() = }")
@@ -694,7 +694,7 @@ def prove_range(
     statement = [Equation(               # 0 = r*H - Σ 2^i*r_i*H - Ma + Σ (2^i)*B_i
         value=V,
         construction=[(H, 0)] + 
-            [(-H.mult(k[i-1]), i) for i in range(1, len(bits)+1)]
+            [(-K[i-1], i) for i in range(1, len(bits)+1)]
     )]
 
     # 2) This set of equations proves that we know the opening of B_i for every i
@@ -744,12 +744,14 @@ def verify_range(
     Ma = attribute.Ma
     # Get the bit commitments
     B = proof.B
+    # Get powers of 2 in H
+    K = GROUP_ELEMENTS_POW2
 
     # Calculate Ma - Σ 2^i*B_i
     V = Ma
-    k = POWERS_2_SCALAR
-    for B_i, kk in zip(B, k):
-        V += -B_i.mult(kk)
+    for i, B_i in enumerate(B):
+        k = PrivateKey((1 << i).to_bytes(32, "big"), raw=True)
+        V += -B_i.mult(k)
     
     print("Verify Range:")
     print(f"{V.serialize(True).hex() = }")
@@ -764,7 +766,7 @@ def verify_range(
     statement = [Equation(              
         value=V,
         construction=([(H, 0)]+
-            [(-H.mult(k[i-1]), i) for i in range(1, proof.width+1)])
+            [(-K[i-1], i) for i in range(1, proof.width+1)])
     )]
 
     # 2)
