@@ -112,6 +112,7 @@ class LinearRelationProverVerifier:
                 R = (R + -V.mult(self.c)) if V else R     # We treat V == None as point to infinity
 
             R += -G
+            ## DEBUG
             print(f"{R.serialize(True).hex() = }")
             # NOTE: No domain separation?
             if V:
