@@ -3,7 +3,7 @@ from models import (
     ZKP,
     RangeZKP,
     Attribute,
-    CommitmentSet,
+    RandomizedCredentials,
     MAC,
     Statement,
     Equation,
@@ -355,10 +355,10 @@ def create_attribute(
         Ma=H.mult(r) + G.mult(a)
     )
 
-def randomize_commitment(
+def randomize_credentials(
     attribute: Attribute,
     mac: MAC,
-) -> CommitmentSet:
+) -> RandomizedCredentials:
     """
     Produces randomized commitments for the given attribute and MAC.
 
@@ -369,7 +369,7 @@ def randomize_commitment(
         mac (MAC): The MAC.
 
     Returns:
-        CommitmentSet: The randomized commitment set.
+        RandomizedCredentials: The randomized commitment set.
     """
     t = mac.t
     V = mac.V
@@ -387,12 +387,12 @@ def randomize_commitment(
     Cx1 = X1.mult(z) + U.mult(t)
     Cv = Gv.mult(z) + V
 
-    return CommitmentSet(z=z, z0=z0, Ca=Ca, Cx0=Cx0, Cx1=Cx1, Cv=Cv)
+    return RandomizedCredentials(z=z, z0=z0, Ca=Ca, Cx0=Cx0, Cx1=Cx1, Cv=Cv)
 
 
 def prove_MAC_and_serial(
     iparams: Tuple[PublicKey, PublicKey],
-    commitments: CommitmentSet,
+    commitments: RandomizedCredentials,
     mac: MAC,
     attribute: Attribute,
 ) -> ZKP:
@@ -404,7 +404,7 @@ def prove_MAC_and_serial(
 
     Parameters:
         iparams (Tuple[PublicKey, PublicKey]): The iparams.
-        commitments (CommitmentSet): The commitments.
+        commitments (RandomizedCredentials): The commitments.
         mac (MAC): The MAC.
         attribute (Attribute): The attribute.
 
@@ -465,7 +465,7 @@ def prove_MAC_and_serial(
 
 def verify_MAC_and_serial(
     sk: List[PrivateKey],
-    commitments: CommitmentSet,
+    commitments: RandomizedCredentials,
     S: PublicKey,
     proof: ZKP,
 ) -> bool:
@@ -476,7 +476,7 @@ def verify_MAC_and_serial(
 
     Parameters:
         sk (List[PrivateKey]): The secret key.
-        commitments (CommitmentSet): The randomized commitments.
+        commitments (RandomizedCredentials): The randomized commitments.
         S (PublicKey): The serial number S.
         proof (ZKP): The zero-knowledge proof.
 
@@ -532,7 +532,7 @@ def verify_MAC_and_serial(
     return verifier.verify()
 
 def prove_balance(
-    commitment_sets: List[CommitmentSet],
+    commitment_sets: List[RandomizedCredentials],
     old_attributes: List[Attribute],                   
     new_attributes: List[Attribute],
 ) -> ZKP:
@@ -540,7 +540,7 @@ def prove_balance(
     This function takes as input a list of commitment sets, a list of old attributes, and a list of new attributes, and returns a zero-knowledge proof that the balance is valid for the given commitment sets and attributes.
 
     Parameters:
-        commitment_sets (List[CommitmentSet]): The list of commitment sets.
+        commitment_sets (List[RandomizedCredentials]): The list of commitment sets.
         old_attributes (List[Attribute]): The list of old attributes.
         new_attributes (List[Attribute]): The list of new attributes.
 
@@ -582,7 +582,7 @@ def prove_balance(
     return prover.prove()
 
 def verify_balance(
-    commitments: List[CommitmentSet],
+    commitments: List[RandomizedCredentials],
     attributes: List[Attribute],
     balance_proof: ZKP,
     delta_amount: int,
@@ -593,7 +593,7 @@ def verify_balance(
     then verifies zero-knowledge balance proof and returns True if the proof is valid, and False otherwise.
 
     Parameters:
-        commitments (List[CommitmentSet]): The list of commitment sets.
+        commitments (List[RandomizedCredentials]): The list of commitment sets.
         attributes (List[Attribute]): The list of attributes.
         balance_proof (ZKP): The zero-knowledge proof.
         delta_amount (int): The delta amount.

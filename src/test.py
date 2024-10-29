@@ -3,7 +3,7 @@ from kvac import (
     generate_MAC,
     prove_iparams,
     verify_iparams,
-    randomize_commitment,
+    randomize_credentials,
     prove_MAC_and_serial,
     verify_MAC_and_serial,
     prove_balance,
@@ -38,10 +38,10 @@ assert verify_iparams(attribute, mac, iparams, proof)
 print("iparams successfully verified!")
 
 # User randomizes commitment and produces proof of MAC for it
-commitmentset = randomize_commitment(attribute, mac)
-proof_MAC_serial = prove_MAC_and_serial(iparams, commitmentset, mac, attribute)
+credentials = randomize_credentials(attribute, mac)
+proof_MAC_serial = prove_MAC_and_serial(iparams, credentials, mac, attribute)
 serial = attribute.get_serial()
-assert verify_MAC_and_serial(sk, commitmentset, serial, proof_MAC_serial)
+assert verify_MAC_and_serial(sk, credentials, serial, proof_MAC_serial)
 
 print("MAC and Serial successfully verified")
 
@@ -49,10 +49,10 @@ print("MAC and Serial successfully verified")
 new_attribute = create_attribute(8)
 
 # Prove the balance between randomized commitments and new attributes
-balance_proof = prove_balance([commitmentset], [attribute], [new_attribute])
+balance_proof = prove_balance([credentials], [attribute], [new_attribute])
 
 assert verify_balance(
-    [commitmentset.lose_secrets()],
+    [credentials.lose_secrets()],
     [new_attribute.lose_secrets()],
     balance_proof,
     8

@@ -39,7 +39,7 @@ class Attribute:
             a=self.a,
         )
 
-class CommitmentSet:
+class RandomizedCredentials:
     z: Optional[PrivateKey]
     z0: Optional[PrivateKey]
     Ca: PublicKey
@@ -56,7 +56,7 @@ class CommitmentSet:
         self.Cv = kwargs.get('Cv')
 
     def lose_secrets(self):
-        return CommitmentSet(
+        return RandomizedCredentials(
             Ca=self.Ca,
             Cx0=self.Cx0,
             Cx1=self.Cx1,
