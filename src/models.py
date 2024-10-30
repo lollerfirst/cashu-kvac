@@ -13,6 +13,7 @@ class ZKP:
         self.s = kwargs.get('s')
         self.c = kwargs.get('c')
 
+# NOTE: Make separate classes for Private and Public stuff
 class Attribute:
     r: Optional[PrivateKey]
     a: Optional[PrivateKey]
@@ -36,7 +37,7 @@ class Attribute:
         return Attribute(
             Ma=self.Ma+D,
             r=self.r,
-            a=self.a,
+            a=self.a, # add to this as well
         )
 
 class RandomizedCredentials:

@@ -25,6 +25,9 @@ RANGE_LIMIT = 1 << 51
 # Used in range proofs.
 GROUP_ELEMENTS_POW2 = [H.mult(PrivateKey((1 << i).to_bytes(32, "big"))) for i in range(51)]
 
+# Constant scalar 0
+SCALAR_ZERO = b"\x00"*32
+
 class LinearRelationMode(Enum):
     PROVE = 0
     VERIFY = 1
@@ -144,7 +147,8 @@ class LinearRelationProverVerifier:
         )
         
         # sum c*s to k only if s is non-zero
-        responses = [k.tweak_add(c.tweak_mul(s)) if s != b"\x00"*32
+        # libsecp256k1 doesn't allow multiplication with 0
+        responses = [k.tweak_add(c.tweak_mul(s)) if s != SCALAR_ZERO
             else k.private_key
             for k, s in zip(self.random_terms, self.secrets)]
         
@@ -316,7 +320,7 @@ def generate_MAC(
     t = PrivateKey()
     Ma = attribute.Ma
     U = hash_to_curve(bytes.fromhex(t.serialize()))
-    V = W.mult(sk[0]) + U.mult(sk[2]) + U.mult(sk[3]).mult(t) + Ma.mult(sk[4])
+    V = W.mult(sk[0]) + U.mult(sk[2]) + U.mult(sk[3]).mult(t) + Ma.mult(sk[4]) # + Ms.mult(sk[5])
     return MAC(t=t, V=V)
 
 def create_attribute(
@@ -352,7 +356,7 @@ def create_attribute(
     return Attribute(
         r=r,
         a=a,
-        Ma=H.mult(r) + G.mult(a)
+        Ma=H.mult(r) + G.mult(a) # + L.mult(P2PK?)
     )
 
 def randomize_credentials(
@@ -664,7 +668,7 @@ def prove_range(
     product_bits_and_blinding_factors = [
             r.tweak_mul(minus_one.private_key)
             if b
-            else b"\x00"*32
+            else SCALAR_ZERO
         for r, b in zip(bits_blinding_factors, bits)
     ]
 
@@ -682,7 +686,7 @@ def prove_range(
             product_bits_and_blinding_factors,
     )
 
-    # 1) This equation proves that Ma - Σ 2^i*B_i = 0
+    # 1) This equation proves that Ma - Σ 2^i*B_i is a commitment to zero
     # But only the verifier calculates that separately with B and Ma
     # We (the prover) can provide V = r*H - Σ 2^i*r_i*H directly
     V = H.mult(attribute.r)
@@ -699,7 +703,7 @@ def prove_range(
     )]
 
     # 2) This set of equations proves that we know the opening of B_i for every i
-    # Namely B_i - b_i*G = 0
+    # Namely B_i - b_i*G is a commitment to zero
     statement += [Equation(
         value=B_i,
         construction=[
@@ -713,7 +717,7 @@ def prove_range(
     # the verifier does not use the challenge to verify these.
     # Instead they just use the same responses from (2) and multiply them against (B_i - G).
     # The only way the challenge terms cancel out is if
-    # b_i^2cG - b_icG = O <==> b^2 = b <==> b = 0 or 1
+    # b_i^2cG - b_icG is a commitment to zero <==> b^2 = b <==> b = 0 or 1
     statement += [Equation(
         value=None, # To represent point at infinity
         construction=[
