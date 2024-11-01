@@ -1,60 +1,81 @@
 from secp import PrivateKey, PublicKey
 from typing import List, Optional, Dict, Tuple
 import generators
+from generators import hash_to_curve
 
-# There is some terrible boilerplate here but
-# couldn't make pydantic work (skill issue)
+from dataclasses import dataclass
 
+RANGE_LIMIT = 1 << 51
+
+@dataclass
 class ZKP:
     s: List[bytes]
     c: bytes
 
-    def __init__(self, **kwargs):
-        self.s = kwargs.get('s')
-        self.c = kwargs.get('c')
-
 # NOTE: Make separate classes for Private and Public stuff
+@dataclass
 class Attribute:
-    r: Optional[PrivateKey]
-    a: Optional[PrivateKey]
-    Ma: PublicKey
+    r: Optional[PrivateKey] = None
+    a: Optional[PrivateKey] = None
 
-    def __init__(self, **kwargs):
-        self.r = kwargs.get('r', None)
-        self.a = kwargs.get('a', None)
-        self.Ma = kwargs.get('Ma')
+    @classmethod
+    def create(
+        cls,
+        amount: int,
+        blinding_factor: Optional[bytes] = None,
+    ):
+        """
+        Creates an attribute worth the given amount.
 
-    def lose_secrets(self):
-        return Attribute(Ma=self.Ma)
+        This function takes as input an amount and returns an attribute that represents the given amount.
 
-    def get_serial(self) -> PublicKey:
-        assert self.r is not None, "Serial preimage unknown"
-        return generators.Gs.mult(self.r)
+        Parameters:
+            amount (int): The amount
+            blinding_factor (Optional[bytes]): Optionally a blinding_factor derived from a BIP32 derivation path
 
-    def tweak_amount(self, delta: int):
-        d = PrivateKey(abs(delta).to_bytes(32, 'big'), raw=True)
-        D = generators.G.mult(d) if delta >= 0 else -G.mult(d)
-        return Attribute(
-            Ma=self.Ma+D,
-            r=self.r,
-            a=self.a, # add to this as well
+        Returns:
+            Attribute: The created attribute.
+
+        Raises:
+            Exception: If the amount is not within the valid range.
+        """
+        if not 0 <= amount < RANGE_LIMIT:
+            raise Exception("how about no?")
+        
+        # NOTE: It seems like we would also have to remember the amount it was for.
+        # Not ideal for recovery.
+        a = PrivateKey(amount.to_bytes(32, 'big'), raw=True)
+        r = (
+            PrivateKey(blinding_factor, raw=True) if blinding_factor
+            else PrivateKey()
         )
 
+        return cls(r, a)
+    
+    @property
+    def Ma(self):
+        assert self.r and self.a
+        return generators.H.mult(self.r) + generators.G.mult(self.a)
+
+    @property
+    def serial(self) -> PublicKey:
+        assert self.r, "Serial preimage unknown"
+        return generators.Gs.mult(self.r)
+
+    @classmethod
+    def tweak_amount(cls, Ma: PublicKey, delta: int):
+        d = PrivateKey(abs(delta).to_bytes(32, 'big'), raw=True)
+        D = generators.G.mult(d) if delta >= 0 else -G.mult(d)
+        return Ma+D
+
+@dataclass
 class RandomizedCredentials:
-    z: Optional[PrivateKey]
-    z0: Optional[PrivateKey]
     Ca: PublicKey
     Cx0: PublicKey
     Cx1: PublicKey
     Cv: PublicKey
-
-    def __init__(self, **kwargs):
-        self.z = kwargs.get('z', None)
-        self.z0 = kwargs.get('z0', None)
-        self.Ca = kwargs.get('Ca')
-        self.Cx0 = kwargs.get('Cx0')
-        self.Cx1 = kwargs.get('Cx1')
-        self.Cv = kwargs.get('Cv')
+    z: Optional[PrivateKey] = None
+    z0: Optional[PrivateKey] = None
 
     def lose_secrets(self):
         return RandomizedCredentials(
@@ -64,29 +85,48 @@ class RandomizedCredentials:
             Cv=self.Cv,
         )
 
+@dataclass
 class MAC:
     t: PrivateKey
     V: PublicKey
 
-    def __init__(self, **kwargs):
-        self.t = kwargs.get('t')
-        self.V = kwargs.get('V')
+    @classmethod
+    def generate(
+        cls,
+        attribute: Attribute,
+        sk: List[PrivateKey]
+    ):
+        """
+        Generates a MAC for a given attribute and secret key.
 
+        This function takes as input an attribute and a secret key, and returns a MAC that can be used to authenticate the attribute.
+
+        Parameters:
+            attribute (Attribute): The attribute.
+            sk (List[PrivateKey]): The secret key.
+
+        Returns:
+            MAC: The generated MAC.
+        """
+        t = PrivateKey()
+        Ma = attribute.Ma
+        U = hash_to_curve(bytes.fromhex(t.serialize()))
+        V = (
+            generators.W.mult(sk[0])
+            + U.mult(sk[2])
+            + U.mult(sk[3]).mult(t)
+            + Ma.mult(sk[4]) # + Ms.mult(sk[5])
+        )
+        return cls(t=t, V=V)
+
+@dataclass
 class Equation:
     value: Optional[PublicKey]
     construction: List[Tuple[PublicKey, int]]
 
-    def __init__(self, **kwargs):
-        self.value = kwargs.get('value')
-        self.construction = kwargs.get('construction')
-
 Statement = List[Equation]
 
+@dataclass
 class RangeZKP(ZKP):
     B: List[PublicKey]
     width: int
-
-    def __init__(self, **kwargs):
-        self.B = kwargs.get("B")
-        self.width = kwargs.get("width")
-        super().__init__(**kwargs)

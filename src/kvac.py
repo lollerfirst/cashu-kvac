@@ -301,64 +301,6 @@ def verify_iparams(
 
     return verifier.verify()
 
-def generate_MAC(
-    attribute: Attribute,
-    sk: List[PrivateKey]
-) -> MAC:
-    """
-    Generates a MAC for a given attribute and secret key.
-
-    This function takes as input an attribute and a secret key, and returns a MAC that can be used to authenticate the attribute.
-
-    Parameters:
-        attribute (Attribute): The attribute.
-        sk (List[PrivateKey]): The secret key.
-
-    Returns:
-        MAC: The generated MAC.
-    """
-    t = PrivateKey()
-    Ma = attribute.Ma
-    U = hash_to_curve(bytes.fromhex(t.serialize()))
-    V = W.mult(sk[0]) + U.mult(sk[2]) + U.mult(sk[3]).mult(t) + Ma.mult(sk[4]) # + Ms.mult(sk[5])
-    return MAC(t=t, V=V)
-
-def create_attribute(
-    amount: int,
-    blinding_factor: Optional[bytes] = None,
-) -> Attribute:
-    """
-    Creates an attribute worth the given amount.
-
-    This function takes as input an amount and returns an attribute that represents the given amount.
-
-    Parameters:
-        amount (int): The amount
-        blinding_factor (Optional[bytes]): Optionally a blinding_factor derived from a BIP32 derivation path
-
-    Returns:
-        Attribute: The created attribute.
-
-    Raises:
-        Exception: If the amount is not within the valid range.
-    """
-    if not 0 <= amount < RANGE_LIMIT:
-        raise Exception("how about no?")
-    
-    # NOTE: It seems like we would also have to remember the amount it was for.
-    # Not ideal for recovery.
-    a = PrivateKey(amount.to_bytes(32, 'big'), raw=True)
-    r = (
-        PrivateKey(blinding_factor, raw=True) if blinding_factor
-        else PrivateKey()
-    )
-
-    return Attribute(
-        r=r,
-        a=a,
-        Ma=H.mult(r) + G.mult(a) # + L.mult(P2PK?)
-    )
-
 def randomize_credentials(
     attribute: Attribute,
     mac: MAC,
@@ -586,8 +528,8 @@ def prove_balance(
     return prover.prove()
 
 def verify_balance(
-    commitments: List[RandomizedCredentials],
-    attributes: List[Attribute],
+    commitments: List[PublicKey],
+    attributes: List[PublicKey],
     balance_proof: ZKP,
     delta_amount: int,
 ) -> bool:
@@ -608,10 +550,10 @@ def verify_balance(
 
     delta_a = PrivateKey(abs(delta_amount).to_bytes(32, 'big'), raw=True)
     B = -G.mult(delta_a) if delta_amount >= 0 else G.mult(delta_a)
-    for comm in commitments:
-        B += comm.Ca
-    for att in attributes:
-        B += -att.Ma
+    for Ca in commitments:
+        B += Ca
+    for Ma in attributes:
+        B += -Ma
 
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
@@ -741,12 +683,10 @@ def prove_range(
     )
 
 def verify_range(
-    attribute: Attribute,
+    Ma: PublicKey,
     proof: RangeZKP
 ) -> bool:
 
-    # Get the attribute public point
-    Ma = attribute.Ma
     # Get the bit commitments
     B = proof.B
     # Get powers of 2 in H

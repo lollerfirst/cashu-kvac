@@ -1,6 +1,4 @@
 from kvac import (
-    create_attribute,
-    generate_MAC,
     prove_iparams,
     verify_iparams,
     randomize_credentials,
@@ -10,6 +8,10 @@ from kvac import (
     verify_balance,
     prove_range,
     verify_range,
+)
+from models import (
+    Attribute,
+    MAC
 )
 from secp import PrivateKey
 from generators import (
@@ -26,10 +28,10 @@ I = Gv + -(X0.mult(x0) + X1.mult(x1) + A.mult(ya))
 iparams = (Cw, I)
 
 # User creates 1 attribute worth 16
-attribute = create_attribute(16)
+attribute = Attribute.create(16)
 
 # Mint verifies: range proof, balance proof and issues a MAC with a proof of iparams. 
-mac = generate_MAC(attribute, sk)
+mac = MAC.generate(attribute, sk)
 proof = prove_iparams(sk, attribute, mac)
 
 # User verifies iparams for issued attribute (no tagging plz)
@@ -40,20 +42,20 @@ print("iparams successfully verified!")
 # User randomizes commitment and produces proof of MAC for it
 credentials = randomize_credentials(attribute, mac)
 proof_MAC_serial = prove_MAC_and_serial(iparams, credentials, mac, attribute)
-serial = attribute.get_serial()
+serial = attribute.serial
 assert verify_MAC_and_serial(sk, credentials, serial, proof_MAC_serial)
 
 print("MAC and Serial successfully verified")
 
 # Compute another credential worth 32 and have it signed
-new_attribute = create_attribute(8)
+new_attribute = Attribute.create(8)
 
 # Prove the balance between randomized commitments and new attributes
 balance_proof = prove_balance([credentials], [attribute], [new_attribute])
 
 assert verify_balance(
-    [credentials.lose_secrets()],
-    [new_attribute.lose_secrets()],
+    [credentials.Ca],
+    [new_attribute.Ma],
     balance_proof,
     8
 )
@@ -61,6 +63,6 @@ assert verify_balance(
 print("Balance proof successfully verified")
 
 range_proof = prove_range(attribute)
-assert verify_range(attribute.lose_secrets(), range_proof)
+assert verify_range(attribute.Ma, range_proof)
 
 print("Range proof successfully verified")
