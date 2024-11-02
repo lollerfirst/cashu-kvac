@@ -700,7 +700,7 @@ def verify_range(
     statement += [Equation(
         value=None, # To represent point at infinity / do not use challenge               
         construction=[
-            (B_i+(-G), i+1),
+            (B_i-G, i+1),
             (H, i+2*proof.width+1),
         ]
     ) for i, B_i in enumerate(B)]
