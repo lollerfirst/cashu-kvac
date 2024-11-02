@@ -22,7 +22,7 @@ RANGE_LIMIT = 1 << 51
 
 # Powers of two mult H
 # Used in range proofs.
-GROUP_ELEMENTS_POW2 = [H.mult(Scalar((1 << i).to_bytes(32, "big"))) for i in range(51)]
+GROUP_ELEMENTS_POW2 = [(Scalar((1 << i).to_bytes(32, "big")))*H for i in range(51)]
 
 class LinearRelationMode(Enum):
     PROVE = 0
@@ -99,11 +99,11 @@ class LinearRelationProverVerifier:
 
             if self.mode.isProve:
                 for i, P in enumerate(eq.construction):
-                    R = (R + P.mult(self.random_terms[i])) if P else R
+                    R = (R + self.random_terms[i] * P) if P else R
             elif self.mode.isVerify:
                 for i, P in enumerate(eq.construction):
-                    R = (R + P.mult(self.responses[i])) if P else R
-                R = (R - V.mult(self.c)) if V else R     # We treat V == None as point to infinity
+                    R = (R + self.responses[i] * P) if P else R
+                R = (R - self.c*V) if V else R     # We treat V == None as point to infinity
 
             R -= G
             ## DEBUG
@@ -189,8 +189,8 @@ def prove_iparams(
     U = hash_to_curve(t.to_bytes())
 
     # Derive params from secret key
-    Cw = W.mult(sk[0]) + W_.mult(sk[1])
-    I = Gv - (X0.mult(sk[2]) + X1.mult(sk[3]) + A.mult(sk[4]))
+    Cw = sk[0] * W + sk[1] * W_
+    I = Gv - (sk[2]*X0 + sk[3]*X1 + sk[4]*A)
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
@@ -202,13 +202,13 @@ def prove_iparams(
             construction=[W, W_,]
         ),
         Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
-            value=(-I)+Gv,          
+            value=Gv-I,          
             construction=[None] * 2 + [X0, X1, A]
         ),
         Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
             value=V,
             construction=[
-                W, None, U, U.mult(t), Ma
+                W, None, U, t*U, Ma
             ]
         )
     ])
@@ -260,7 +260,7 @@ def verify_iparams(
         Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
             value=V,
             construction=[
-                W, None, U, U.mult(t), Ma
+                W, None, U, t*U, Ma
             ]
         )
     ])
@@ -290,10 +290,10 @@ def randomize_credentials(
     z = Scalar()
     z0 = -(t*z)   
 
-    Ca = A.mult(z) + Ma
-    Cx0 = X0.mult(z) + U
-    Cx1 = X1.mult(z) + U.mult(t)
-    Cv = Gv.mult(z) + V
+    Ca = z*A + Ma
+    Cx0 = z*X0 + U
+    Cx1 = z*X1 + t*U
+    Cv = z*Gv + V
 
     return RandomizedCredentials(z=z, z0=z0, Ca=Ca, Cx0=Cx0, Cx1=Cx1, Cv=Cv)
 
@@ -325,8 +325,8 @@ def prove_MAC_and_serial(
         commitments.Cx1
     )
     _, I = iparams
-    S = Gs.mult(attribute.r)
-    Z = I.mult(commitments.z)
+    S = attribute.r*Gs
+    Z = commitments.z*I
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
@@ -386,8 +386,8 @@ def verify_MAC_and_serial(
         commitments.Cx1,
         commitments.Cv,
     )
-    I = Gv - (X0.mult(x0) + X1.mult(x1) + A.mult(ya))
-    Z = Cv - (W.mult(w) + Cx0.mult(x0) + Cx1.mult(x1) + Ca.mult(ya))
+    I = Gv - (x0*X0 + x1*X1 + ya*A)
+    Z = Cv - (w*W + x0*Cx0 + x1*Cx1 + ya*Ca)
 
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
@@ -439,7 +439,7 @@ def prove_balance(
     r_sum = sum(r, Scalar(SCALAR_ZERO))
     r_sum_ = sum(r_, Scalar(SCALAR_ZERO))
 
-    B = A.mult(z_sum) + H.mult(r_sum) - H.mult(r_sum_)
+    B = z_sum*A + r_sum*H - r_sum_*H
 
     delta_r = r_sum - r_sum_
 
@@ -476,7 +476,7 @@ def verify_balance(
     """
 
     delta_a = Scalar(abs(delta_amount).to_bytes(32, 'big'))
-    B = -G.mult(delta_a) if delta_amount >= 0 else G.mult(delta_a)
+    B = -delta_a*G if delta_amount >= 0 else delta_a*G
     for Ca in commitments:
         B += Ca
     for Ma in attributes:
@@ -520,8 +520,8 @@ def prove_range(
     # B is the bit commitments vector
     B = []
     for b_i, r_i in zip(bits, bits_blinding_factors):
-        B.append(G + H.mult(r_i) if not b_i.is_zero
-            else H.mult(r_i)
+        B.append(G + r_i*H if not b_i.is_zero
+            else r_i*H
         )
 
     # Hadamard product between
@@ -550,9 +550,9 @@ def prove_range(
     # 1) This equation proves that Ma - Σ 2^i*B_i is a commitment to zero
     # But only the verifier calculates that separately with B and Ma
     # We (the prover) can provide V = r*H - Σ 2^i*r_i*H directly
-    V = H.mult(attribute.r)
+    V = attribute.r*H
     for K_i, r_i in zip(K, bits_blinding_factors):
-        V -= K_i.mult(r_i)
+        V -= r_i*K_i
 
     print("Range Proof:")
     print(f"{V.serialize(True).hex() = }")
@@ -613,7 +613,7 @@ def verify_range(
     V = Ma
     for i, B_i in enumerate(B):
         k = Scalar((1 << i).to_bytes(32, "big"))
-        V -= B_i.mult(k)
+        V -= k*B_i
     
     print("Verify Range:")
     print(f"{V.serialize(True).hex() = }")

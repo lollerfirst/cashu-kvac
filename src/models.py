@@ -55,17 +55,17 @@ class Attribute:
     @property
     def Ma(self):
         assert self.r and self.a
-        return generators.H.mult(self.r) + generators.G.mult(self.a)
+        return self.r * generators.H + self.a * generators.G
 
     @property
     def serial(self) -> GroupElement:
         assert self.r, "Serial preimage unknown"
-        return generators.Gs.mult(self.r)
+        return self.r * generators.Gs
 
     @classmethod
     def tweak_amount(cls, Ma: GroupElement, delta: int):
         d = Scalar(abs(delta).to_bytes(32, 'big'))
-        D = generators.G.mult(d) if delta >= 0 else -G.mult(d)
+        D = d * generators.G if delta >= 0 else -d * generators.G
         return Ma+D
 
 @dataclass
@@ -112,10 +112,10 @@ class MAC:
         Ma = attribute.Ma
         U = hash_to_curve(bytes.fromhex(t.serialize()))
         V = (
-            generators.W.mult(sk[0])
-            + U.mult(sk[2])
-            + U.mult(sk[3]).mult(t)
-            + Ma.mult(sk[4]) # + Ms.mult(sk[5])
+            sk[0] * generators.W
+            + sk[2] * U
+            + sk[3] * t * U
+            + sk[4] * Ma  # + sk[5] * Ms
         )
         return cls(t=t, V=V)
 

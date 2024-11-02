@@ -46,13 +46,15 @@ class Scalar(PrivateKey):
         else:
             raise TypeError(f"Cannot subtract {scalar2.__class__} and Scalar")
 
-    def __mul__(self, scalar2):
-        if isinstance(scalar2, Scalar):
-            if self.is_zero or scalar2.is_zero:
+    def __mul__(self, obj):
+        if isinstance(obj, Scalar):
+            if self.is_zero or obj.is_zero:
                 return Scalar(SCALAR_ZERO)
             else:
-                new_scalar = self.tweak_mul(scalar2.to_bytes())
+                new_scalar = self.tweak_mul(obj.to_bytes())
                 return Scalar(new_scalar)
+        elif isinstance(obj, GroupElement):
+            return obj.__mul__(self)
         else:
             raise TypeError(f"Cannot multiply {scalar2.__class__} and Scalar")
     
@@ -90,6 +92,15 @@ class GroupElement(PublicKey):
         else:
             raise TypeError("Can't add element and %s" % pubkey2.__class__)
 
+    def __mul__(self, scalar):
+        if isinstance(scalar, Scalar):
+            if scalar.is_zero:
+                return None
+            result = self.tweak_mul(scalar.to_bytes())
+            return GroupElement(result.serialize(True), raw=True)
+        else:
+            raise TypeError(f"Can't multiply GroupElement with {scalar.__class__}")
+    
     def mult(self, scalar):
         if isinstance(scalar, Scalar):
             if scalar.is_zero:
