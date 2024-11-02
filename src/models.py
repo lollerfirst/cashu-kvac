@@ -122,7 +122,7 @@ class MAC:
 @dataclass
 class Equation:
     value: Optional[GroupElement]
-    construction: List[Tuple[GroupElement, int]]
+    construction: List[GroupElement]
 
 Statement = List[Equation]
 

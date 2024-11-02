@@ -98,13 +98,11 @@ class LinearRelationProverVerifier:
             V = eq.value
 
             if self.mode.isProve:
-                for P, index in eq.construction:
-                    assert 0 <= index < len(self.random_terms), f"index {index} not within range"
-                    R += P.mult(self.random_terms[index])
+                for i, P in enumerate(eq.construction):
+                    R = (R + P.mult(self.random_terms[i])) if P else R
             elif self.mode.isVerify:
-                for P, index in eq.construction:
-                    assert 0 <= index < len(self.responses), f"index {index} not within range"
-                    R += P.mult(self.responses[index])
+                for i, P in enumerate(eq.construction):
+                    R = (R + P.mult(self.responses[i])) if P else R
                 R = (R - V.mult(self.c)) if V else R     # We treat V == None as point to infinity
 
             R -= G
@@ -201,26 +199,16 @@ def prove_iparams(
     prover.add_statement([
         Equation(                   # Cw = w*W  + w_*W_
             value=Cw,
-            construction=[
-                (W, 0),
-                (W_, 1),
-            ],
+            construction=[W, W_,]
         ),
         Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
             value=(-I)+Gv,          
-            construction=[
-                (X0, 2),
-                (X1, 3),
-                (A, 4)
-            ]
+            construction=[None] * 2 + [X0, X1, A]
         ),
         Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
             value=V,
             construction=[
-                (W, 0),
-                (U, 2),
-                (U.mult(t), 3),
-                (Ma, 4),
+                W, None, U, U.mult(t), Ma
             ]
         )
     ])
@@ -263,26 +251,16 @@ def verify_iparams(
     verifier.add_statement([
         Equation(                   # Cw = w*W  + w_*W_
             value=Cw,
-            construction=[
-                (W, 0),
-                (W_, 1),
-            ],
+            construction=[W, W_,]
         ),
         Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
             value=(-I)+Gv,          
-            construction=[
-                (X0, 2),
-                (X1, 3),
-                (A, 4)
-            ]
+            construction=[None] * 2 + [X0, X1, A]
         ),
         Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
             value=V,
             construction=[
-                (W, 0),
-                (U, 2),
-                (U.mult(t), 3),
-                (Ma, 4),
+                W, None, U, U.mult(t), Ma
             ]
         )
     ])
@@ -363,31 +341,19 @@ def prove_MAC_and_serial(
     prover.add_statement([
         Equation(           # Z = z*I
             value=Z,
-            construction=[
-                (I, 0)
-            ]
+            construction=[I]
         ),
         Equation(           # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
             value=Cx1,
-            construction=[
-                (Cx0, 2),
-                (X0, 1),
-                (X1, 0),
-            ]
+            construction=[X1, X0, Cx0]
         ),
         Equation(           # S = r*Gs
             value=S,
-            construction=[
-                (Gs, 3),
-            ]
+            construction=[None] * 3 + [Gs]
         ),
         Equation(           # Ca = z*A + r*H + a*G
             value=Ca,
-            construction=[
-                (A, 0),
-                (H, 3),
-                (G, 4),
-            ]
+            construction=[A, None, None, H, G]
         )
     ])
 
@@ -430,31 +396,19 @@ def verify_MAC_and_serial(
     verifier.add_statement([
         Equation(           # Z = z*I
             value=Z,
-            construction=[
-                (I, 0)
-            ]
+            construction=[I]
         ),
         Equation(           # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
             value=Cx1,
-            construction=[
-                (Cx0, 2),
-                (X0, 1),
-                (X1, 0),
-            ]
+            construction=[X1, X0, Cx0]
         ),
         Equation(           # S = r*Gs
             value=S,
-            construction=[
-                (Gs, 3),
-            ]
+            construction=[None] * 3 + [Gs]
         ),
         Equation(           # Ca = z*A + r*H + a*G
             value=Ca,
-            construction=[
-                (A, 0),
-                (H, 3),
-                (G, 4),
-            ]
+            construction=[A, None, None, H, G]
         )
     ])
 
@@ -495,10 +449,7 @@ def prove_balance(
     )
     prover.add_statement([Equation(             # B = z*A + 𝚫r*H
         value=B,
-        construction=[
-            (A, 0),
-            (H, 1),
-        ]
+        construction=[A, H]
     )])
 
     return prover.prove()
@@ -537,10 +488,7 @@ def verify_balance(
     )
     verifier.add_statement([Equation(             # B = z*A + 𝚫r*H
         value=B,
-        construction=[
-            (A, 0),
-            (H, 1),
-        ]
+        construction=[A, H]
     )])
 
     return verifier.verify()
@@ -609,20 +557,18 @@ def prove_range(
     print("Range Proof:")
     print(f"{V.serialize(True).hex() = }")
 
-    statement = [Equation(               # 0 = r*H - Σ 2^i*r_i*H - Ma + Σ (2^i)*B_i
+    statement = [Equation(               # 0 = r*H - Σ (2^i*r_i)*H - Ma + Σ (2^i)*B_i
         value=V,
-        construction=[(H, 0)] + 
-            [(-K[i-1], i) for i in range(1, len(bits)+1)]
+        construction=[H] + [-K[i] for i in range(len(bits))]
     )]
 
     # 2) This set of equations proves that we know the opening of B_i for every i
     # Namely B_i - b_i*G is a commitment to zero
     statement += [Equation(
         value=B_i,
-        construction=[
-            (G, i+1), # i+1 is the index of the corresponding witness b_i
-            (H, i+len(bits)+1), # i+len(bits)+1 is the index of corresponding witness r_i
-        ]
+        construction=[None] +
+            [None] * i + [G] +
+            [None] * (len(bits)-1) + [H]
     ) for i, B_i in enumerate(B)]
 
     # 3) This set of equations proves that each b_i is such that b_i^2 = b_i
@@ -633,14 +579,13 @@ def prove_range(
     # b_i^2cG - b_icG is a commitment to zero <==> b^2 = b <==> b = 0 or 1
     statement += [Equation(
         value=None, # To represent point at infinity
-        construction=[
-            (B_i+(-G), i+1),    # i+1 index of b_i witnesses
-            (H, i+len(bits)+len(bits_blinding_factors)+1)
-                                # i+len(bits)+len(bits_blinding_factors)+1 index of
-                                # rb_i witnesses (product between bits and their blinding_factors)
-        ]
-    ) for i, B_i in enumerate(B)]
-
+        construction=[None] + 
+            [None] * i +
+            [B_i-G] +
+            [None] * (2*len(bits)-1) + 
+            [H]
+        ) for i, B_i in enumerate(B)]
+    
     prover.add_statement(statement)
     zkp = prover.prove()
 
@@ -682,27 +627,28 @@ def verify_range(
     # 1)
     statement = [Equation(              
         value=V,
-        construction=([(H, 0)]+
-            [(-K[i-1], i) for i in range(1, proof.width+1)])
+        construction=[H] + [-K[i] for i in range(proof.width)]
     )]
 
     # 2)
     statement += [Equation(
         value=B_i,
-        construction=[
-            (G, i+1),
-            (H, i+proof.width+1),
-        ]
+        construction=[None] +
+            [None] * i +
+            [G] +
+            [None] * (proof.width-1) +
+            [H]
     ) for i, B_i in enumerate(B)]
 
     # 3)
     statement += [Equation(
-        value=None, # To represent point at infinity / do not use challenge               
-        construction=[
-            (B_i-G, i+1),
-            (H, i+2*proof.width+1),
-        ]
-    ) for i, B_i in enumerate(B)]
+        value=None, # To represent point at infinity
+        construction=[None] + 
+            [None] * i +
+            [B_i-G] +
+            [None] * (2*proof.width-1) + 
+            [H]
+        ) for i, B_i in enumerate(B)]
 
     verifier.add_statement(statement)
     return verifier.verify()
