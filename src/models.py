@@ -129,4 +129,3 @@ Statement = List[Equation]
 @dataclass
 class RangeZKP(ZKP):
     B: List[GroupElement]
-    width: int

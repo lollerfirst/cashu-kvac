@@ -22,7 +22,9 @@ RANGE_LIMIT = 1 << 51
 
 # Powers of two mult H
 # Used in range proofs.
-GROUP_ELEMENTS_POW2 = [(Scalar((1 << i).to_bytes(32, "big")))*H for i in range(51)]
+GROUP_ELEMENTS_POW2 = [
+    (Scalar((1 << i).to_bytes(32, "big")))*H
+for i in range(RANGE_LIMIT.bit_length())]
 
 class LinearRelationMode(Enum):
     PROVE = 0
@@ -507,10 +509,9 @@ def prove_range(
     K = GROUP_ELEMENTS_POW2
 
     # Decompose attribute's amount into bits.
-    # TODO: i ∈ [0, log2(RANGE_LIMIT)] (do not forget to change this back)
     amount = int.from_bytes(attribute.a.to_bytes(), "big")
     bits = []
-    while amount > 0:
+    for _ in range(RANGE_LIMIT.bit_length()):
         bits.append(Scalar((amount&1).to_bytes(32, "big")))
         amount >>= 1
 
@@ -520,7 +521,7 @@ def prove_range(
     # B is the bit commitments vector
     B = []
     for b_i, r_i in zip(bits, bits_blinding_factors):
-        B.append(G + r_i*H if not b_i.is_zero
+        B.append((G + r_i*H) if not b_i.is_zero
             else r_i*H
         )
 
@@ -557,9 +558,10 @@ def prove_range(
     print("Range Proof:")
     print(f"{V.serialize(True).hex() = }")
 
-    statement = [Equation(               # 0 = r*H - Σ (2^i*r_i)*H - Ma + Σ (2^i)*B_i
+    # Comm(0) = r*H - Σ (2^i*r_i)*H - Ma + Σ (2^i)*B_i
+    statement = [Equation(               
         value=V,
-        construction=[H] + [-K[i] for i in range(len(bits))]
+        construction=[H] + [-K[i] for i in range(len(B))]
     )]
 
     # 2) This set of equations proves that we know the opening of B_i for every i
@@ -568,7 +570,7 @@ def prove_range(
         value=B_i,
         construction=[None] +
             [None] * i + [G] +
-            [None] * (len(bits)-1) + [H]
+            [None] * (len(B)-1) + [H]
     ) for i, B_i in enumerate(B)]
 
     # 3) This set of equations proves that each b_i is such that b_i^2 = b_i
@@ -582,7 +584,7 @@ def prove_range(
         construction=[None] + 
             [None] * i +
             [B_i-G] +
-            [None] * (2*len(bits)-1) + 
+            [None] * (2*len(B)-1) + 
             [H]
         ) for i, B_i in enumerate(B)]
     
@@ -593,7 +595,6 @@ def prove_range(
     # and we return B the bit-commitments vector
     return RangeZKP(
         B=B,
-        width=len(bits),
         s=zkp.s,
         c=zkp.c
     )
@@ -608,8 +609,11 @@ def verify_range(
     # Get powers of 2 in H
     K = GROUP_ELEMENTS_POW2
 
+    # Verify the number of bits does not exceed log2(RANGE_LIMIT)
+    if len(B) > RANGE_LIMIT.bit_length():
+        return False
+
     # Calculate Ma - Σ 2^i*B_i
-    # TODO: i ∈ [0, log2(RANGE_LIMIT)] (do not forget to change this back)
     V = Ma
     for i, B_i in enumerate(B):
         k = Scalar((1 << i).to_bytes(32, "big"))
@@ -627,7 +631,7 @@ def verify_range(
     # 1)
     statement = [Equation(              
         value=V,
-        construction=[H] + [-K[i] for i in range(proof.width)]
+        construction=[H] + [-K[i] for i in range(len(B))]
     )]
 
     # 2)
@@ -636,7 +640,7 @@ def verify_range(
         construction=[None] +
             [None] * i +
             [G] +
-            [None] * (proof.width-1) +
+            [None] * (len(B)-1) +
             [H]
     ) for i, B_i in enumerate(B)]
 
@@ -646,7 +650,7 @@ def verify_range(
         construction=[None] + 
             [None] * i +
             [B_i-G] +
-            [None] * (2*proof.width-1) + 
+            [None] * (2*len(B)-1) + 
             [H]
         ) for i, B_i in enumerate(B)]
 
