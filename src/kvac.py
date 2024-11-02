@@ -580,9 +580,8 @@ def prove_range(
     # the blinding factors vector and the bits vector
     # We need to take the negation of this to obtain -r_i*b_i because
     # c*r_i*b_i*H will be the excess challenge term to cancel
-    minus_one = -Scalar(int(1).to_bytes(32, "big"))
     product_bits_and_blinding_factors = [
-        r*b
+        -(r*b)
         for r, b in zip(bits_blinding_factors, bits)
     ]
 
