@@ -1,4 +1,4 @@
-from secp import PrivateKey, PublicKey
+from secp import GroupElement, Scalar, SCALAR_ZERO, q
 from models import (
     ZKP,
     RangeZKP,
@@ -11,7 +11,6 @@ from models import (
 from generators import (
     hash_to_curve,
     W, W_, X0, X1, Gv, A, G, H, Gs,
-    q,
 )
 import hashlib
 
@@ -21,12 +20,9 @@ from enum import Enum
 # Maximum allowed for a single attribute
 RANGE_LIMIT = 1 << 51
 
-# PublicKey of powers of two mult H
+# Powers of two mult H
 # Used in range proofs.
-GROUP_ELEMENTS_POW2 = [H.mult(PrivateKey((1 << i).to_bytes(32, "big"))) for i in range(51)]
-
-# Constant scalar 0
-SCALAR_ZERO = b"\x00"*32
+GROUP_ELEMENTS_POW2 = [H.mult(Scalar((1 << i).to_bytes(32, "big"))) for i in range(51)]
 
 class LinearRelationMode(Enum):
     PROVE = 0
@@ -48,23 +44,23 @@ class LinearRelationProverVerifier:
     and for generating or verifying a zero-knowledge proof.
 
     Attributes:
-        random_terms (List[PrivateKey]): Random terms used in the proof.
+        random_terms (List[Scalar]): Random terms used in the proof.
         challenge_preimage (bytes): The preimage of the challenge used in the proof.
-        secrets (List[PrivateKey]): The secrets used to compute the proof.
-        responses (List[PrivateKey]): The responses used in the verification.
-        c (PrivateKey): The challenge extracted from the provided proof.
+        secrets (List[Scalar]): The secrets used to compute the proof.
+        responses (List[Scalar]): The responses used in the verification.
+        c (Scalar): The challenge extracted from the provided proof.
         mode (LinearRelationMode): The mode of the class, either PROVE or VERIFY.
     """
-    random_terms: List[PrivateKey]  # k1, k2, ...
+    random_terms: List[Scalar]  # k1, k2, ...
     challenge_preimage: bytes
     secrets: List[bytes]
-    responses: List[PrivateKey]
-    c: PrivateKey
+    responses: List[Scalar]
+    c: Scalar
     mode: LinearRelationMode
 
     def __init__(self,
         mode: LinearRelationMode,
-        secrets: Optional[Union[List[PrivateKey], List[bytes]]] = None,
+        secrets: Optional[List[Scalar]] = None,
         proof: Optional[ZKP] = None,
     ):
         """
@@ -72,21 +68,18 @@ class LinearRelationProverVerifier:
 
         Parameters:
             mode (LinearRelationMode): The mode of the class, either PROVE or VERIFY.
-            secrets (Optional[List[PrivateKey]]): The secrets used in the proof, required if mode is PROVE.
+            secrets (Optional[List[Scalar]]): The secrets used in the proof, required if mode is PROVE.
             proof (Optional[ZKP]): The proof used in the verification, required if mode is VERIFY.
         """
         match mode:
             case LinearRelationMode.PROVE:
                 assert secrets is not None, "mode is PROVE but no secrets provided"
-                if isinstance(secrets[0], bytes):
-                    self.secrets = secrets 
-                elif isinstance(secrets[0], PrivateKey):
-                    self.secrets = [sec.private_key for sec in secrets]
-                self.random_terms = [PrivateKey() for _ in secrets]
+                self.secrets = secrets
+                self.random_terms = [Scalar() for _ in secrets]
             case LinearRelationMode.VERIFY:
                 assert proof is not None, "mode is VERIFY but no ZKP provided"
-                self.responses = [PrivateKey(s, raw=True) for s in proof.s]
-                self.c = PrivateKey(proof.c, raw=True)
+                self.responses = [Scalar(s) for s in proof.s]
+                self.c = Scalar(proof.c)
             case _:
                 raise Exception("unrecognized mode")
 
@@ -112,9 +105,9 @@ class LinearRelationProverVerifier:
                 for P, index in eq.construction:
                     assert 0 <= index < len(self.responses), f"index {index} not within range"
                     R += P.mult(self.responses[index])
-                R = (R + -V.mult(self.c)) if V else R     # We treat V == None as point to infinity
+                R = (R - V.mult(self.c)) if V else R     # We treat V == None as point to infinity
 
-            R += -G
+            R -= G
             ## DEBUG
             print(f"{R.serialize(True).hex() = }")
             # NOTE: No domain separation?
@@ -124,13 +117,13 @@ class LinearRelationProverVerifier:
                 self.challenge_preimage += R.serialize(True)
     
     def prove(self,
-        add_to_challenge: Optional[List[PublicKey]] = None
+        add_to_challenge: Optional[List[GroupElement]] = None
     ) -> ZKP:
         """
         Generates a zero-knowledge proof.
 
         Parameters:
-            add_to_challenge (Optional[List[PublicKey]]): Additional public keys to add to the challenge.
+            add_to_challenge (Optional[List[GroupElement]]): Additional public keys to add to the challenge.
 
         Returns:
             ZKP: The generated zero-knowledge proof.
@@ -141,27 +134,23 @@ class LinearRelationProverVerifier:
             for E in add_to_challenge:
                 self.challenge_preimage += E.serialize(True)
 
-        c = PrivateKey(
-            hashlib.sha256(self.challenge_preimage).digest(),
-            raw=True
+        c = Scalar(
+            hashlib.sha256(self.challenge_preimage).digest()
         )
         
-        # sum c*s to k only if s is non-zero
-        # libsecp256k1 doesn't allow multiplication with 0
-        responses = [k.tweak_add(c.tweak_mul(s)) if s != SCALAR_ZERO
-            else k.private_key
+        responses = [(k + c*s).to_bytes()
             for k, s in zip(self.random_terms, self.secrets)]
         
-        return ZKP(s=responses, c=c.private_key)
+        return ZKP(s=responses, c=c.to_bytes())
 
     def verify(self,
-        add_to_challenge: Optional[List[PublicKey]] = None
+        add_to_challenge: Optional[List[GroupElement]] = None
     ) -> bool:
         """
         Verifies a zero-knowledge proof.
 
         Parameters:
-            add_to_challenge (Optional[List[PublicKey]]): Additional public keys to add to the challenge.
+            add_to_challenge (Optional[List[GroupElement]]): Additional public keys to add to the challenge.
 
         Returns:
             bool: True if the proof is valid, False otherwise.
@@ -172,15 +161,14 @@ class LinearRelationProverVerifier:
             for E in add_to_challenge:
                 self.challenge_preimage += E.serialize(True)
 
-        c_ = PrivateKey(
-            hashlib.sha256(self.challenge_preimage).digest(),
-            raw=True
+        c_ = Scalar(
+            hashlib.sha256(self.challenge_preimage).digest()
         )
 
-        return self.c.private_key == c_.private_key
+        return self.c == c_
 
 def prove_iparams(
-    sk: List[PrivateKey],
+    sk: List[Scalar],
     attribute: Attribute,
     mac: MAC,
 ) -> ZKP:
@@ -190,7 +178,7 @@ def prove_iparams(
     This function takes as input a secret key, an attribute, and a MAC, and returns a zero-knowledge proof that the MAC is valid for the given attribute and secret key.
 
     Parameters:
-        sk (List[PrivateKey]): The secret key.
+        sk (List[Scalar]): The secret key.
         attribute (Attribute): The attribute.
         mac (MAC): The MAC.
 
@@ -204,7 +192,7 @@ def prove_iparams(
 
     # Derive params from secret key
     Cw = W.mult(sk[0]) + W_.mult(sk[1])
-    I = Gv + -(X0.mult(sk[2]) + X1.mult(sk[3]) + A.mult(sk[4]))
+    I = Gv - (X0.mult(sk[2]) + X1.mult(sk[3]) + A.mult(sk[4]))
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
@@ -243,7 +231,7 @@ def prove_iparams(
 def verify_iparams(
     attribute: Attribute,
     mac: MAC,
-    iparams: Tuple[PublicKey, PublicKey],
+    iparams: Tuple[GroupElement, GroupElement],
     proof: ZKP,
 ) -> bool:
     """
@@ -256,7 +244,7 @@ def verify_iparams(
     Parameters:
         attribute (Attribute): The attribute.
         mac (MAC): The MAC.
-        iparams (Tuple[PublicKey, PublicKey]): The iparams.
+        iparams (Tuple[GroupElement, GroupElement]): The iparams.
         proof (ZKP): The proof.
 
     Returns:
@@ -266,7 +254,7 @@ def verify_iparams(
     Ma = attribute.Ma
     t = mac.t
     V = mac.V
-    U = hash_to_curve(t.private_key)
+    U = hash_to_curve(t.to_bytes())
 
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
@@ -321,12 +309,8 @@ def randomize_credentials(
     V = mac.V
     Ma = attribute.Ma
     U = hash_to_curve(t.private_key)
-    z = PrivateKey()
-
-    z_num = int.from_bytes(z.private_key, 'big')
-    t_num = int.from_bytes(t.private_key, 'big')
-    z0_num = q - ((z_num*t_num) % q)                        # z0 = -tz (mod q)
-    z0 = PrivateKey(z0_num.to_bytes(32, 'big'), raw=True)     
+    z = Scalar()
+    z0 = -(t*z)   
 
     Ca = A.mult(z) + Ma
     Cx0 = X0.mult(z) + U
@@ -337,7 +321,7 @@ def randomize_credentials(
 
 
 def prove_MAC_and_serial(
-    iparams: Tuple[PublicKey, PublicKey],
+    iparams: Tuple[GroupElement, GroupElement],
     commitments: RandomizedCredentials,
     mac: MAC,
     attribute: Attribute,
@@ -349,7 +333,7 @@ def prove_MAC_and_serial(
     Only who knows the opening of iparams can correctly verify this proof.
 
     Parameters:
-        iparams (Tuple[PublicKey, PublicKey]): The iparams.
+        iparams (Tuple[GroupElement, GroupElement]): The iparams.
         commitments (RandomizedCredentials): The commitments.
         mac (MAC): The MAC.
         attribute (Attribute): The attribute.
@@ -410,9 +394,9 @@ def prove_MAC_and_serial(
     return prover.prove()
 
 def verify_MAC_and_serial(
-    sk: List[PrivateKey],
+    sk: List[Scalar],
     commitments: RandomizedCredentials,
-    S: PublicKey,
+    S: GroupElement,
     proof: ZKP,
 ) -> bool:
     """
@@ -421,9 +405,9 @@ def verify_MAC_and_serial(
     This function takes as input a secret key, commitments, a public key S, and a zero-knowledge proof, and returns True if the proof is valid for the given commitments and secret key, and False otherwise.
 
     Parameters:
-        sk (List[PrivateKey]): The secret key.
+        sk (List[Scalar]): The secret key.
         commitments (RandomizedCredentials): The randomized commitments.
-        S (PublicKey): The serial number S.
+        S (GroupElement): The serial number S.
         proof (ZKP): The zero-knowledge proof.
 
     Returns:
@@ -436,8 +420,8 @@ def verify_MAC_and_serial(
         commitments.Cx1,
         commitments.Cv,
     )
-    I = Gv + -(X0.mult(x0) + X1.mult(x1) + A.mult(ya))
-    Z = Cv + -(W.mult(w) + Cx0.mult(x0) + Cx1.mult(x1) + Ca.mult(ya))
+    I = Gv - (X0.mult(x0) + X1.mult(x1) + A.mult(ya))
+    Z = Cv - (W.mult(w) + Cx0.mult(x0) + Cx1.mult(x1) + Ca.mult(ya))
 
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
@@ -497,21 +481,13 @@ def prove_balance(
     r = [att.r for att in old_attributes]
     r_ = [att.r for att in new_attributes]
 
-    z_sum = z[0]
-    for zz in z[1:]:
-        z_sum = PrivateKey(z_sum.tweak_add(zz.private_key), raw=True)
-    r_sum = r[0]
-    for rr in r[1:]:
-        r_sum = PrivateKey(r_sum.tweak_add(rr.private_key), raw=True)
-    r_sum_ = r_[0]
-    for rr_ in r_[1:]:
-        r_sum_ = PrivateKey(r_sum_.tweak_add(rr_.private_key), raw=True)
+    z_sum = sum(z, Scalar(SCALAR_ZERO))
+    r_sum = sum(r, Scalar(SCALAR_ZERO))
+    r_sum_ = sum(r_, Scalar(SCALAR_ZERO))
 
-    B = A.mult(z_sum) + H.mult(r_sum) + -H.mult(r_sum_)
+    B = A.mult(z_sum) + H.mult(r_sum) - H.mult(r_sum_)
 
-    delta_r_num = (int.from_bytes(r_sum.private_key, 'big')
-        - int.from_bytes(r_sum_.private_key, 'big')) % q
-    delta_r = PrivateKey(delta_r_num.to_bytes(32, 'big'), raw=True)
+    delta_r = r_sum - r_sum_
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
@@ -528,8 +504,8 @@ def prove_balance(
     return prover.prove()
 
 def verify_balance(
-    commitments: List[PublicKey],
-    attributes: List[PublicKey],
+    commitments: List[GroupElement],
+    attributes: List[GroupElement],
     balance_proof: ZKP,
     delta_amount: int,
 ) -> bool:
@@ -548,12 +524,12 @@ def verify_balance(
         bool: True if the proof is valid, False otherwise.
     """
 
-    delta_a = PrivateKey(abs(delta_amount).to_bytes(32, 'big'), raw=True)
+    delta_a = Scalar(abs(delta_amount).to_bytes(32, 'big'))
     B = -G.mult(delta_a) if delta_amount >= 0 else G.mult(delta_a)
     for Ca in commitments:
         B += Ca
     for Ma in attributes:
-        B += -Ma
+        B -= Ma
 
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
@@ -576,29 +552,27 @@ def prove_range(
     # https://github.com/WalletWasabi/WalletWasabi/pull/4429
     # This amounts to 6KB. Nasty.
 
-    # Get the attribute public point
+    # Get the attribute public point.
     Ma = attribute.Ma
 
-    # Get the powers of 2 as PrivateKeys
+    # Get the powers of 2 as PrivateKeys.
     K = GROUP_ELEMENTS_POW2
 
-    # Decompose attribute's amount into bits
-    amount = int.from_bytes(attribute.a.private_key, "big")
+    # Decompose attribute's amount into bits.
+    # TODO: i ∈ [0, log2(RANGE_LIMIT)] (do not forget to change this back)
+    amount = int.from_bytes(attribute.a.to_bytes(), "big")
     bits = []
     while amount > 0:
-        bits.append(amount & 1)
+        bits.append(Scalar((amount&1).to_bytes(32, "big")))
         amount >>= 1
 
-    ### DEBUG
-    print(f"{bits = }")
-
     # Get `r` vector for B_i = b_i*G + r_i*H
-    bits_blinding_factors = [PrivateKey() for _ in bits]
+    bits_blinding_factors = [Scalar() for _ in bits]
 
     # B is the bit commitments vector
     B = []
     for b_i, r_i in zip(bits, bits_blinding_factors):
-        B.append(G + H.mult(r_i) if b_i
+        B.append(G + H.mult(r_i) if not b_i.is_zero
             else H.mult(r_i)
         )
 
@@ -606,11 +580,9 @@ def prove_range(
     # the blinding factors vector and the bits vector
     # We need to take the negation of this to obtain -r_i*b_i because
     # c*r_i*b_i*H will be the excess challenge term to cancel
-    minus_one = PrivateKey((q-1).to_bytes(32, "big"), raw=True)
+    minus_one = -Scalar(int(1).to_bytes(32, "big"))
     product_bits_and_blinding_factors = [
-            r.tweak_mul(minus_one.private_key)
-            if b
-            else SCALAR_ZERO
+        r*b
         for r, b in zip(bits_blinding_factors, bits)
     ]
 
@@ -622,9 +594,9 @@ def prove_range(
     #   - -(r_i * b_i) <-- needed to cancel out an excess challenge term in the third set of eqns
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
-        secrets=[attribute.r.private_key] + 
-            [b.to_bytes(32, "big") for b in bits] +
-            [r.private_key for r in bits_blinding_factors] +
+        secrets=[attribute.r] + 
+            bits +
+            bits_blinding_factors +
             product_bits_and_blinding_factors,
     )
 
@@ -633,7 +605,7 @@ def prove_range(
     # We (the prover) can provide V = r*H - Σ 2^i*r_i*H directly
     V = H.mult(attribute.r)
     for K_i, r_i in zip(K, bits_blinding_factors):
-        V += -K_i.mult(r_i)
+        V -= K_i.mult(r_i)
 
     print("Range Proof:")
     print(f"{V.serialize(True).hex() = }")
@@ -683,7 +655,7 @@ def prove_range(
     )
 
 def verify_range(
-    Ma: PublicKey,
+    Ma: GroupElement,
     proof: RangeZKP
 ) -> bool:
 
@@ -693,10 +665,11 @@ def verify_range(
     K = GROUP_ELEMENTS_POW2
 
     # Calculate Ma - Σ 2^i*B_i
+    # TODO: i ∈ [0, log2(RANGE_LIMIT)] (do not forget to change this back)
     V = Ma
     for i, B_i in enumerate(B):
-        k = PrivateKey((1 << i).to_bytes(32, "big"), raw=True)
-        V += -B_i.mult(k)
+        k = Scalar((1 << i).to_bytes(32, "big"))
+        V -= B_i.mult(k)
     
     print("Verify Range:")
     print(f"{V.serialize(True).hex() = }")

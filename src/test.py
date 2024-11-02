@@ -13,13 +13,13 @@ from models import (
     Attribute,
     MAC
 )
-from secp import PrivateKey
+from secp import Scalar
 from generators import (
     W, W_, X0, X1, A, G, Gv
 )
 
 # Mint's secret key <w, w_, x0, x1, ya>
-w, w_, x0, x1, ya = [PrivateKey() for _ in range(5)]
+w, w_, x0, x1, ya = [Scalar() for _ in range(5)]
 sk = (w, w_, x0, x1, ya)
 
 # Mint iparams <Cw, I> 

@@ -1,4 +1,4 @@
-from secp import PrivateKey, PublicKey
+from secp import GroupElement, Scalar
 from typing import List, Optional, Dict, Tuple
 import generators
 from generators import hash_to_curve
@@ -15,8 +15,8 @@ class ZKP:
 # NOTE: Make separate classes for Private and Public stuff
 @dataclass
 class Attribute:
-    r: Optional[PrivateKey] = None
-    a: Optional[PrivateKey] = None
+    r: Optional[Scalar] = None
+    a: Optional[Scalar] = None
 
     @classmethod
     def create(
@@ -44,10 +44,10 @@ class Attribute:
         
         # NOTE: It seems like we would also have to remember the amount it was for.
         # Not ideal for recovery.
-        a = PrivateKey(amount.to_bytes(32, 'big'), raw=True)
+        a = Scalar(amount.to_bytes(32, 'big'))
         r = (
-            PrivateKey(blinding_factor, raw=True) if blinding_factor
-            else PrivateKey()
+            Scalar(blinding_factor) if blinding_factor
+            else Scalar()
         )
 
         return cls(r, a)
@@ -58,24 +58,24 @@ class Attribute:
         return generators.H.mult(self.r) + generators.G.mult(self.a)
 
     @property
-    def serial(self) -> PublicKey:
+    def serial(self) -> GroupElement:
         assert self.r, "Serial preimage unknown"
         return generators.Gs.mult(self.r)
 
     @classmethod
-    def tweak_amount(cls, Ma: PublicKey, delta: int):
-        d = PrivateKey(abs(delta).to_bytes(32, 'big'), raw=True)
+    def tweak_amount(cls, Ma: GroupElement, delta: int):
+        d = Scalar(abs(delta).to_bytes(32, 'big'))
         D = generators.G.mult(d) if delta >= 0 else -G.mult(d)
         return Ma+D
 
 @dataclass
 class RandomizedCredentials:
-    Ca: PublicKey
-    Cx0: PublicKey
-    Cx1: PublicKey
-    Cv: PublicKey
-    z: Optional[PrivateKey] = None
-    z0: Optional[PrivateKey] = None
+    Ca: GroupElement
+    Cx0: GroupElement
+    Cx1: GroupElement
+    Cv: GroupElement
+    z: Optional[Scalar] = None
+    z0: Optional[Scalar] = None
 
     def lose_secrets(self):
         return RandomizedCredentials(
@@ -87,14 +87,14 @@ class RandomizedCredentials:
 
 @dataclass
 class MAC:
-    t: PrivateKey
-    V: PublicKey
+    t: Scalar
+    V: GroupElement
 
     @classmethod
     def generate(
         cls,
         attribute: Attribute,
-        sk: List[PrivateKey]
+        sk: List[Scalar]
     ):
         """
         Generates a MAC for a given attribute and secret key.
@@ -103,12 +103,12 @@ class MAC:
 
         Parameters:
             attribute (Attribute): The attribute.
-            sk (List[PrivateKey]): The secret key.
+            sk (List[Scalar]): The secret key.
 
         Returns:
             MAC: The generated MAC.
         """
-        t = PrivateKey()
+        t = Scalar()
         Ma = attribute.Ma
         U = hash_to_curve(bytes.fromhex(t.serialize()))
         V = (
@@ -121,12 +121,12 @@ class MAC:
 
 @dataclass
 class Equation:
-    value: Optional[PublicKey]
-    construction: List[Tuple[PublicKey, int]]
+    value: Optional[GroupElement]
+    construction: List[Tuple[GroupElement, int]]
 
 Statement = List[Equation]
 
 @dataclass
 class RangeZKP(ZKP):
-    B: List[PublicKey]
+    B: List[GroupElement]
     width: int

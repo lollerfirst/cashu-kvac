@@ -1,19 +1,16 @@
 import hashlib
-from secp import PublicKey, PrivateKey
-import secp256k1
+from secp import GroupElement
 
 DOMAIN_SEPARATOR = b"Secp256k1_HashToCurve_Cashu_"
 
-q = int('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141', 16)
-
-def hash_to_curve(message: bytes) -> PublicKey:
+def hash_to_curve(message: bytes) -> GroupElement:
     msg_to_hash = hashlib.sha256(DOMAIN_SEPARATOR + message).digest()
     counter = 0
     while counter < 2**16:
         _hash = hashlib.sha256(msg_to_hash + counter.to_bytes(4, "little")).digest()
         try:
             # will error if point does not lie on curve
-            return PublicKey(b"\x02" + _hash, raw=True)
+            return GroupElement(b"\x02" + _hash, raw=True)
         except Exception:
             counter += 1
     # it should never reach this point
