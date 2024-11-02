@@ -521,9 +521,8 @@ def prove_range(
     # B is the bit commitments vector
     B = []
     for b_i, r_i in zip(bits, bits_blinding_factors):
-        B.append((G + r_i*H) if not b_i.is_zero
-            else r_i*H
-        )
+        R_i = r_i*H
+        B.append(R_i+G if not b_i.is_zero else R_i)
 
     # Hadamard product between
     # the blinding factors vector and the bits vector
