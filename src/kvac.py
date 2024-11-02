@@ -188,7 +188,7 @@ def prove_iparams(
     Ma = attribute.Ma
     V = mac.V
     t = mac.t
-    U = hash_to_curve(t.private_key)
+    U = hash_to_curve(t.to_bytes())
 
     # Derive params from secret key
     Cw = W.mult(sk[0]) + W_.mult(sk[1])
