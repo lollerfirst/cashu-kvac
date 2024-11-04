@@ -558,7 +558,6 @@ def prove_range(
     print(f"{V.serialize(True).hex() = }")
 
     # Com(0) = r*H - Σ (2^i*r_i)*H - Ma + Σ (2^i)*B_i
-    # R = k*H + c*r*H - Σ k_i*2^i*H - Σ c*r_i*2^i*H - 
     statement = [Equation(               
         value=V,
         construction=[H] +
