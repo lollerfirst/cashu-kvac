@@ -108,8 +108,6 @@ class LinearRelationProverVerifier:
                 R = (R - self.c*V) if V else R     # We treat V == None as point to infinity
 
             R -= G
-            ## DEBUG
-            print(f"{R.serialize(True).hex() = }")
             # NOTE: No domain separation?
             if V:
                 self.challenge_preimage += V.serialize(True) + R.serialize(True)
@@ -554,9 +552,6 @@ def prove_range(
     for K_i, r_i in zip(K, bits_blinding_factors):
         V -= r_i*K_i
 
-    print("Range Proof:")
-    print(f"{V.serialize(True).hex() = }")
-
     # Com(0) = r*H - Σ (2^i*r_i)*H - Ma + Σ (2^i)*B_i
     statement = [Equation(               
         value=V,
@@ -592,7 +587,6 @@ def prove_range(
     prover.add_statement(statement)
     zkp = prover.prove()
 
-    # We return the width (for simpler unpacking of responses)
     # and we return B the bit-commitments vector
     return RangeZKP(
         B=B,
@@ -619,9 +613,6 @@ def verify_range(
     for i, B_i in enumerate(B):
         k = Scalar((1 << i).to_bytes(32, "big"))
         V -= k*B_i
-    
-    print("Verify Range:")
-    print(f"{V.serialize(True).hex() = }")
 
     # Instantiate verifier with the proof
     verifier = LinearRelationProverVerifier(
