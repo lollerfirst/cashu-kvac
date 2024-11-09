@@ -2,6 +2,8 @@ from secp256k1 import PrivateKey, PublicKey
 
 # Constant scalar 0
 SCALAR_ZERO = b"\x00"*32
+# Constant point to infinity
+ELEMENT_ZERO = b"\x02" + b"\x00" * 32
 
 # Order of the curve
 q = int('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141', 16)
@@ -71,42 +73,52 @@ class Scalar(PrivateKey):
 # Picked from https://github.com/WTRMQDev/secp256k1-zkp-py/blob/master/secp256k1_zkp/__init__.py
 class GroupElement(PublicKey):
 
+    def __init__(self, data: bytes | None = None):
+        if data and data == ELEMENT_ZERO:
+            self.is_zero = True
+        else:
+            self.is_zero = False
+            super().__init__(data, raw=True)
+
     def __add__(self, pubkey2):
         if isinstance(pubkey2, GroupElement):
-            new_pub = GroupElement()
-            new_pub.combine([self.public_key, pubkey2.public_key])
-            return new_pub
+            if pubkey2.is_zero and not self.is_zero:
+                return GroupElement(self.serialize(True))
+            elif self.is_zero:
+                return GroupElement(pubkey2.serialize(True))
+            else:
+                new_pub = GroupElement()
+                new_pub.combine([self.public_key, pubkey2.public_key])
+                return new_pub
         else:
             raise TypeError("Cant add pubkey and %s" % pubkey2.__class__)
 
     def __neg__(self):
+        if self.is_zero:
+            return GroupElement(ELEMENT_ZERO)
         serialized = self.serialize()
         first_byte, remainder = serialized[:1], serialized[1:]
         # flip odd/even byte
         first_byte = {b"\x03": b"\x02", b"\x02": b"\x03"}[first_byte]
-        return GroupElement(first_byte + remainder, raw=True)
+        return GroupElement(first_byte + remainder)
 
     def __sub__(self, pubkey2):
         if isinstance(pubkey2, GroupElement):
-            return self + (-pubkey2)  # type: ignore
+            if pubkey2.is_zero and not self.is_zero:
+                return GroupElement(self.serialize(True))
+            elif self.is_zero:
+                return -pubkey2
+            else:
+                return self + (-pubkey2)  # type: ignore
         else:
             raise TypeError("Can't add element and %s" % pubkey2.__class__)
 
     def __mul__(self, scalar):
         if isinstance(scalar, Scalar):
-            if scalar.is_zero:
-                return None
+            if scalar.is_zero or self.is_zero:
+                return GroupElement(ELEMENT_ZERO)
             result = self.tweak_mul(scalar.to_bytes())
-            return GroupElement(result.serialize(True), raw=True)
-        else:
-            raise TypeError(f"Can't multiply GroupElement with {scalar.__class__}")
-    
-    def mult(self, scalar):
-        if isinstance(scalar, Scalar):
-            if scalar.is_zero:
-                return None
-            result = self.tweak_mul(scalar.to_bytes())
-            return GroupElement(result.serialize(True), raw=True)
+            return GroupElement(result.serialize(True))
         else:
             raise TypeError(f"Can't multiply GroupElement with {scalar.__class__}")
 
@@ -118,16 +130,14 @@ class GroupElement(PublicKey):
         else:
             raise TypeError("Can't compare pubkey and %s" % pubkey2.__class__)
 
+    def serialize(self, compressed = True):
+        if self.is_zero:
+            return ELEMENT_ZERO
+        else:
+            return super().serialize(compressed=compressed)
+
     def to_data(self):
+        if self.is_zero:
+            return b"\x00" * 64
         assert self.public_key
         return [self.public_key.data[i] for i in range(64)]
-
-'''
-# Horrible monkeypatching
-PublicKey.__add__ = PublicKeyExt.__add__  # type: ignore
-PublicKey.__neg__ = PublicKeyExt.__neg__  # type: ignore
-PublicKey.__sub__ = PublicKeyExt.__sub__  # type: ignore
-PublicKey.mult = PublicKeyExt.mult  # type: ignore
-PublicKey.__eq__ = PublicKeyExt.__eq__  # type: ignore
-PublicKey.to_data = PublicKeyExt.to_data  # type: ignore
-'''

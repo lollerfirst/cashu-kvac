@@ -1,4 +1,10 @@
-from secp import GroupElement, Scalar, SCALAR_ZERO, q
+from secp import (
+    GroupElement,
+    Scalar,
+    SCALAR_ZERO,
+    ELEMENT_ZERO,
+    q
+)
 from models import (
     ZKP,
     RangeZKP,
@@ -25,6 +31,9 @@ RANGE_LIMIT = 1 << 51
 GROUP_ELEMENTS_POW2 = [
     (Scalar((1 << i).to_bytes(32, "big")))*H
 for i in range(RANGE_LIMIT.bit_length())]
+
+# Point at infinity
+O = GroupElement(ELEMENT_ZERO)
 
 class LinearRelationMode(Enum):
     PROVE = 0
@@ -96,18 +105,17 @@ class LinearRelationProverVerifier:
             statement (Statement): The statement to be added.
         """
         for eq in statement:
-            R = G
+            R = O
             V = eq.value
 
             if self.mode.isProve:
                 for i, P in enumerate(eq.construction):
-                    R = (R + self.random_terms[i] * P) if P else R
+                    R += self.random_terms[i] * P
             elif self.mode.isVerify:
                 for i, P in enumerate(eq.construction):
-                    R = (R + self.responses[i] * P) if P else R
-                R = (R - self.c*V) if V else R     # We treat V == None as point to infinity
+                    R += self.responses[i] * P
+                R -= self.c*V
 
-            R -= G
             # NOTE: No domain separation?
             if V:
                 self.challenge_preimage += V.serialize(True) + R.serialize(True)
@@ -203,12 +211,12 @@ def prove_iparams(
         ),
         Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
             value=Gv-I,          
-            construction=[None] * 2 + [X0, X1, A]
+            construction=[O, O, X0, X1, A]
         ),
         Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
             value=V,
             construction=[
-                W, None, U, t*U, Ma
+                W, O, U, t*U, Ma
             ]
         )
     ])
@@ -251,16 +259,16 @@ def verify_iparams(
     verifier.add_statement([
         Equation(                   # Cw = w*W  + w_*W_
             value=Cw,
-            construction=[W, W_,]
+            construction=[W, W_]
         ),
         Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
             value=(-I)+Gv,          
-            construction=[None] * 2 + [X0, X1, A]
+            construction=[O] * 2 + [X0, X1, A]
         ),
         Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
             value=V,
             construction=[
-                W, None, U, t*U, Ma
+                W, O, U, t*U, Ma
             ]
         )
     ])
@@ -349,11 +357,11 @@ def prove_MAC_and_serial(
         ),
         Equation(           # S = r*Gs
             value=S,
-            construction=[None] * 3 + [Gs]
+            construction=[O, O, O, Gs]
         ),
         Equation(           # Ca = z*A + r*H + a*G
             value=Ca,
-            construction=[A, None, None, H, G]
+            construction=[A, O, O, H, G]
         )
     ])
 
@@ -404,11 +412,11 @@ def verify_MAC_and_serial(
         ),
         Equation(           # S = r*Gs
             value=S,
-            construction=[None] * 3 + [Gs]
+            construction=[O, O, O, Gs]
         ),
         Equation(           # Ca = z*A + r*H + a*G
             value=Ca,
-            construction=[A, None, None, H, G]
+            construction=[A, O, O, H, G]
         )
     ])
 
@@ -556,7 +564,7 @@ def prove_range(
     statement = [Equation(               
         value=V,
         construction=[H] +
-            [None] * len(B) +
+            [O] * len(B) +
             [-K[i] for i in range(len(B))]
     )]
 
@@ -564,9 +572,9 @@ def prove_range(
     # Namely B_i - b_i*G is a commitment to zero
     statement += [Equation(
         value=B_i,
-        construction=[None] +
-            [None] * i + [G] +
-            [None] * (len(B)-1) + [H]
+        construction=[O] +
+            [O] * i + [G] +
+            [O] * (len(B)-1) + [H]
     ) for i, B_i in enumerate(B)]
 
     # 3) This set of equations proves that each b_i is such that b_i^2 = b_i
@@ -576,11 +584,11 @@ def prove_range(
     # The only way the challenge terms cancel out is if
     # b_i^2cG - b_icG is a commitment to zero <==> b^2 = b <==> b = 0 or 1
     statement += [Equation(
-        value=None, # To represent point at infinity
-        construction=[None] + 
-            [None] * i +
+        value=O, # To represent point at infinity
+        construction=[O] + 
+            [O] * i +
             [B_i-G] +
-            [None] * (2*len(B)-1) + 
+            [O] * (2*len(B)-1) + 
             [H]
         ) for i, B_i in enumerate(B)]
     
@@ -624,27 +632,27 @@ def verify_range(
     statement = [Equation(              
         value=V,
         construction=[H] +
-            [None] * len(B) +
+            [O] * len(B) +
             [-K[i] for i in range(len(B))]
     )]
 
     # 2)
     statement += [Equation(
         value=B_i,
-        construction=[None] +
-            [None] * i +
+        construction=[O] +
+            [O] * i +
             [G] +
-            [None] * (len(B)-1) +
+            [O] * (len(B)-1) +
             [H]
     ) for i, B_i in enumerate(B)]
 
     # 3)
     statement += [Equation(
-        value=None, # To represent point at infinity
-        construction=[None] + 
-            [None] * i +
+        value=O, # To represent point at infinity
+        construction=[O] + 
+            [O] * i +
             [B_i-G] +
-            [None] * (2*len(B)-1) + 
+            [O] * (2*len(B)-1) + 
             [H]
         ) for i, B_i in enumerate(B)]
 

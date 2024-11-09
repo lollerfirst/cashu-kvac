@@ -10,7 +10,7 @@ def hash_to_curve(message: bytes) -> GroupElement:
         _hash = hashlib.sha256(msg_to_hash + counter.to_bytes(4, "little")).digest()
         try:
             # will error if point does not lie on curve
-            return GroupElement(b"\x02" + _hash, raw=True)
+            return GroupElement(b"\x02" + _hash)
         except Exception:
             counter += 1
     # it should never reach this point

@@ -23,8 +23,8 @@ w, w_, x0, x1, ya = [Scalar() for _ in range(5)]
 sk = (w, w_, x0, x1, ya)
 
 # Mint iparams <Cw, I> 
-Cw = W.mult(w) + W_.mult(w_)
-I = Gv + -(X0.mult(x0) + X1.mult(x1) + A.mult(ya))
+Cw = W*w + W_*(w_)
+I = Gv + -(X0*x0 + X1*x1 + A*ya)
 iparams = (Cw, I)
 
 # User creates 1 attribute worth 16
