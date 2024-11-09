@@ -505,8 +505,8 @@ def verify_balance(
 def prove_range(
     attribute: Attribute
 ):
-    # https://github.com/WalletWasabi/WalletWasabi/pull/4429
-    # This amounts to 6KB. Nasty.
+    # This is a naive range proof with bit-decomposition
+    # https://gist.github.com/lollerfirst/82644d9ef47cef15508054b9431b123b 
 
     # Get the attribute public point.
     Ma = attribute.Ma
@@ -648,7 +648,7 @@ def verify_range(
 
     # 3)
     statement += [Equation(
-        value=O, # To represent point at infinity
+        value=O,
         construction=[O] + 
             [O] * i +
             [B_i-G] +
