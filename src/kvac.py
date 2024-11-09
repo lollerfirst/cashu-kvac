@@ -26,11 +26,12 @@ from enum import Enum
 # Maximum allowed for a single attribute
 RANGE_LIMIT = 1 << 51
 
-# Powers of two mult H
+# Powers of two mult H.
 # Used in range proofs.
 GROUP_ELEMENTS_POW2 = [
-    (Scalar((1 << i).to_bytes(32, "big")))*H
-for i in range(RANGE_LIMIT.bit_length())]
+        (Scalar((1 << i).to_bytes(32, "big")))*H
+    for i in range(RANGE_LIMIT.bit_length())
+]
 
 # Point at infinity
 O = GroupElement(ELEMENT_ZERO)
@@ -62,7 +63,7 @@ class LinearRelationProverVerifier:
         c (Scalar): The challenge extracted from the provided proof.
         mode (LinearRelationMode): The mode of the class, either PROVE or VERIFY.
     """
-    random_terms: List[Scalar]  # k1, k2, ...
+    random_terms: List[Scalar]
     challenge_preimage: bytes
     secrets: List[bytes]
     responses: List[Scalar]
@@ -173,9 +174,64 @@ class LinearRelationProverVerifier:
 
         return self.c == c_
 
+def prove_bootstrap(
+    bootstrap: Attribute
+) -> ZKP:
+    """
+    Generates a zero-knowledge proofs that the bootstrap attribute does not encode value.
+
+    Parameters:
+        bootstrap (Attribute): the bootstrap attribute.
+
+    Returns:
+        ZKP: The generated zero-knowledge proof
+    """
+    Ma = bootstrap.Ma
+    r = bootstrap.r
+
+    prover = LinearRelationProverVerifier(
+        LinearRelationMode.PROVE,
+        secrets=[r]
+    )
+    prover.add_statement([
+        Equation(
+            value=Ma,
+            construction=[H]
+        )
+    ])
+    
+    return prover.prove()
+
+def verify_bootstrap(
+    bootstrap: GroupElement,
+    proof: ZKP,
+) -> bool:
+    """
+    Verifies that bootstrap does not encode value.
+
+    Parameters:
+        bootstrap (GroupElement): the bootstrap attribute.
+
+    Returns:
+        bool: True if verified successfully, False otherwise.
+    """
+    Ma = bootstrap
+    verifier = LinearRelationProverVerifier(
+        LinearRelationMode.VERIFY,
+        proof=proof,
+    )
+    verifier.add_statement([
+        Equation(
+            value=Ma,
+            construction=[H],
+        )
+    ])
+
+    return verifier.verify()
+
 def prove_iparams(
     sk: List[Scalar],
-    attribute: Attribute,
+    attribute: GroupElement,
     mac: MAC,
 ) -> ZKP:
     """
@@ -185,13 +241,13 @@ def prove_iparams(
 
     Parameters:
         sk (List[Scalar]): The secret key.
-        attribute (Attribute): The attribute.
+        attribute (GroupElement): The attribute.
         mac (MAC): The MAC.
 
     Returns:
         ZKP: The generated zero-knowledge proof.
     """
-    Ma = attribute.Ma
+    Ma = attribute
     V = mac.V
     t = mac.t
     U = hash_to_curve(t.to_bytes())
