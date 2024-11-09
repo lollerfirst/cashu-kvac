@@ -8,11 +8,43 @@ from dataclasses import dataclass
 RANGE_LIMIT = 1 << 51
 
 @dataclass
+class MintPrivateKey:
+    w: Scalar
+    w_: Scalar
+    x0: Scalar
+    x1: Scalar
+    ya: Scalar
+    yf: Scalar
+
+    @property
+    def sk(self):
+        return [
+            self.w,
+            self.w_,
+            self.x0,
+            self.x1,
+            self.ya,
+            #self.yf,
+        ]
+
+    @property
+    def Cw(self):
+        return generators.W*self.w + generators.W_*self.w_
+
+    @property
+    def I(self):
+        return generators.Gv - (
+            generators.X0*self.x0
+            + generators.X1*self.x1
+            + generators.A*self.ya
+            #+ generators.F*self.yf
+        )
+
+@dataclass
 class ZKP:
     s: List[bytes]
     c: bytes
 
-# NOTE: Make separate classes for Private and Public stuff
 @dataclass
 class Attribute:
     r: Optional[Scalar] = None
@@ -93,8 +125,9 @@ class MAC:
     @classmethod
     def generate(
         cls,
-        attribute: Attribute,
-        sk: List[Scalar]
+        attribute: GroupElement,
+        privkey: MintPrivateKey,
+        t: Optional[Scalar] = None,
     ):
         """
         Generates a MAC for a given attribute and secret key.
@@ -102,20 +135,24 @@ class MAC:
         This function takes as input an attribute and a secret key, and returns a MAC that can be used to authenticate the attribute.
 
         Parameters:
-            attribute (Attribute): The attribute.
-            sk (List[Scalar]): The secret key.
+            attribute (GroupElement): The attribute.
+            privkey (MintPrivateKey): The mint's secret parameters.
+            t (Optional[Scalar])
 
         Returns:
             MAC: The generated MAC.
         """
-        t = Scalar()
-        Ma = attribute.Ma
-        U = hash_to_curve(bytes.fromhex(t.serialize()))
+        if not t:
+            t = Scalar()
+        sk = privkey.sk
+        Ma = attribute
+        U = hash_to_curve(t.to_bytes())
         V = (
             sk[0] * generators.W
             + sk[2] * U
             + sk[3] * t * U
-            + sk[4] * Ma  # + sk[5] * Ms
+            + sk[4] * Ma 
+            #+ sk[5] * Ms
         )
         return cls(t=t, V=V)
 

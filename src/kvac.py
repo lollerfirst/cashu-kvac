@@ -13,6 +13,7 @@ from models import (
     MAC,
     Statement,
     Equation,
+    MintPrivateKey
 )
 from generators import (
     hash_to_curve,
@@ -230,7 +231,7 @@ def verify_bootstrap(
     return verifier.verify()
 
 def prove_iparams(
-    sk: List[Scalar],
+    privkey: MintPrivateKey,
     attribute: GroupElement,
     mac: MAC,
 ) -> ZKP:
@@ -240,7 +241,7 @@ def prove_iparams(
     This function takes as input a secret key, an attribute, and a MAC, and returns a zero-knowledge proof that the MAC is valid for the given attribute and secret key.
 
     Parameters:
-        sk (List[Scalar]): The secret key.
+        privkey (MintPrivateKey): The secret key.
         attribute (GroupElement): The attribute.
         mac (MAC): The MAC.
 
@@ -253,12 +254,12 @@ def prove_iparams(
     U = hash_to_curve(t.to_bytes())
 
     # Derive params from secret key
-    Cw = sk[0] * W + sk[1] * W_
-    I = Gv - (sk[2]*X0 + sk[3]*X1 + sk[4]*A)
+    Cw = privkey.Cw
+    I = privkey.I
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
-        secrets=sk,
+        secrets=privkey.sk,
     )
     prover.add_statement([
         Equation(                   # Cw = w*W  + w_*W_
@@ -277,11 +278,10 @@ def prove_iparams(
         )
     ])
 
-
     return prover.prove()
 
 def verify_iparams(
-    attribute: Attribute,
+    attribute: GroupElement,
     mac: MAC,
     iparams: Tuple[GroupElement, GroupElement],
     proof: ZKP,
@@ -294,7 +294,7 @@ def verify_iparams(
     and MAC, and False otherwise.
 
     Parameters:
-        attribute (Attribute): The attribute.
+        attribute (GroupElement): The attribute.
         mac (MAC): The MAC.
         iparams (Tuple[GroupElement, GroupElement]): The iparams.
         proof (ZKP): The proof.
@@ -303,7 +303,7 @@ def verify_iparams(
         bool: True if the proof is valid, False otherwise.
     """
     Cw, I = iparams
-    Ma = attribute.Ma
+    Ma = attribute
     t = mac.t
     V = mac.V
     U = hash_to_curve(t.to_bytes())
@@ -318,8 +318,8 @@ def verify_iparams(
             construction=[W, W_]
         ),
         Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
-            value=(-I)+Gv,          
-            construction=[O] * 2 + [X0, X1, A]
+            value=Gv-I,          
+            construction=[O, O, X0, X1, A]
         ),
         Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
             value=V,
@@ -424,7 +424,7 @@ def prove_MAC_and_serial(
     return prover.prove()
 
 def verify_MAC_and_serial(
-    sk: List[Scalar],
+    privkey: MintPrivateKey,
     commitments: RandomizedCredentials,
     S: GroupElement,
     proof: ZKP,
@@ -435,7 +435,7 @@ def verify_MAC_and_serial(
     This function takes as input a secret key, commitments, a public key S, and a zero-knowledge proof, and returns True if the proof is valid for the given commitments and secret key, and False otherwise.
 
     Parameters:
-        sk (List[Scalar]): The secret key.
+        privkey (MintPrivateKey): The mint secret key.
         commitments (RandomizedCredentials): The randomized commitments.
         S (GroupElement): The serial number S.
         proof (ZKP): The zero-knowledge proof.
@@ -443,15 +443,19 @@ def verify_MAC_and_serial(
     Returns:
         bool: True if the proof is valid, False otherwise.
     """
-    w, w_, x0, x1, ya = sk[:5]
     Ca, Cx0, Cx1, Cv = (
         commitments.Ca,
         commitments.Cx0,
         commitments.Cx1,
         commitments.Cv,
     )
-    I = Gv - (x0*X0 + x1*X1 + ya*A)
-    Z = Cv - (w*W + x0*Cx0 + x1*Cx1 + ya*Ca)
+    I = privkey.I
+    Z = Cv - (
+        privkey.w*W
+        + privkey.x0*Cx0
+        + privkey.x1*Cx1
+        + privkey.ya*Ca
+    )
 
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
@@ -476,7 +480,6 @@ def verify_MAC_and_serial(
         )
     ])
 
-    
     return verifier.verify()
 
 def prove_balance(

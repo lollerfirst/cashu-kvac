@@ -11,31 +11,25 @@ from kvac import (
 )
 from models import (
     Attribute,
-    MAC
+    MAC,
+    MintPrivateKey,
 )
 from secp import Scalar
-from generators import (
-    W, W_, X0, X1, A, G, Gv
-)
 
-# Mint's secret key <w, w_, x0, x1, ya>
-w, w_, x0, x1, ya = [Scalar() for _ in range(5)]
-sk = (w, w_, x0, x1, ya)
-
-# Mint iparams <Cw, I> 
-Cw = W*w + W_*(w_)
-I = Gv + -(X0*x0 + X1*x1 + A*ya)
-iparams = (Cw, I)
+# Mint's secret key
+sk = [Scalar() for _ in range(6)]
+mint_privkey = MintPrivateKey(*sk)
+iparams = (mint_privkey.Cw, mint_privkey.I)
 
 # User creates 1 attribute worth 16
 attribute = Attribute.create(16)
 
 # Mint verifies: range proof, balance proof and issues a MAC with a proof of iparams. 
-mac = MAC.generate(attribute, sk)
-proof = prove_iparams(sk, attribute, mac)
+mac = MAC.generate(attribute.Ma, mint_privkey)
+proof = prove_iparams(mint_privkey, attribute.Ma, mac)
 
 # User verifies iparams for issued attribute (no tagging plz)
-assert verify_iparams(attribute, mac, iparams, proof)
+assert verify_iparams(attribute.Ma, mac, iparams, proof)
 
 print("iparams successfully verified!")
 
@@ -43,7 +37,7 @@ print("iparams successfully verified!")
 credentials = randomize_credentials(attribute, mac)
 proof_MAC_serial = prove_MAC_and_serial(iparams, credentials, mac, attribute)
 serial = attribute.serial
-assert verify_MAC_and_serial(sk, credentials, serial, proof_MAC_serial)
+assert verify_MAC_and_serial(mint_privkey, credentials, serial, proof_MAC_serial)
 
 print("MAC and Serial successfully verified")
 
