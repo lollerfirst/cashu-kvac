@@ -8,6 +8,8 @@ from kvac import (
     verify_balance,
     prove_range,
     verify_range,
+    prove_bootstrap,
+    verify_bootstrap,
 )
 from models import (
     Attribute,
@@ -60,3 +62,9 @@ range_proof = prove_range(attribute)
 assert verify_range(attribute.Ma, range_proof)
 
 print("Range proof successfully verified")
+
+bootstrap = Attribute.create(0)
+proof_bootstrap = prove_bootstrap(bootstrap)
+assert verify_bootstrap(bootstrap.Ma, proof_bootstrap)
+
+print("Bootstrap attribute successfully verified")

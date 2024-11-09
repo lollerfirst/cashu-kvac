@@ -74,8 +74,6 @@ class Attribute:
         if not 0 <= amount < RANGE_LIMIT:
             raise Exception("how about no?")
         
-        # NOTE: It seems like we would also have to remember the amount it was for.
-        # Not ideal for recovery.
         a = Scalar(amount.to_bytes(32, 'big'))
         r = (
             Scalar(blinding_factor) if blinding_factor
