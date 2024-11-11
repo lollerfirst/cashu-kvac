@@ -186,8 +186,8 @@ class IparamsStatement(Statement):
                 value=Cw,
                 construction=[W, W_,]
             ),
-            Equation(                   # I = G_mac - x0*X0 - x1*X1 - ya*Gz_attribute - ys*Gz_script
-                value=G_mac-I,          
+            Equation(                   # I = Gz_mac - x0*X0 - x1*X1 - ya*Gz_attribute - ys*Gz_script
+                value=Gz_mac-I,          
                 construction=[O, O, X0, X1, Gz_attribute, Gz_script]
             ),
             Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma + ys*Ms
@@ -426,7 +426,7 @@ def randomize_credentials(
     Cs = z*Gz_script + Ms
     Cx0 = z*X0 + U
     Cx1 = z*X1 + t*U
-    Cv = z*G_mac + V
+    Cv = z*Gz_mac + V
 
     return RandomizedCredentials(z=z, z0=z0, Ca=Ca, Cs=Cs, Cx0=Cx0, Cx1=Cx1, Cv=Cv)
 

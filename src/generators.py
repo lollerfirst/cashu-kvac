@@ -17,12 +17,12 @@ def hash_to_curve(message: bytes) -> GroupElement:
     raise ValueError("No valid point found")
 
 # Generators drawn with NUMS
-W, W_, X0, X1, G_mac, Gz_attribute, Gz_script, G_amount, G_script, G_blind, G_serial = (
+W, W_, X0, X1, Gz_mac, Gz_attribute, Gz_script, G_amount, G_script, G_blind, G_serial = (
     hash_to_curve(b"W"),
     hash_to_curve(b"W_"),
     hash_to_curve(b"X0"),
     hash_to_curve(b"X1"),
-    hash_to_curve(b"G_mac"),
+    hash_to_curve(b"Gz_mac"),
     hash_to_curve(b"Gz_attribute"),
     hash_to_curve(b"Gz_script"),
     hash_to_curve(b"G_amount"),

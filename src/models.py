@@ -32,7 +32,7 @@ class MintPrivateKey:
 
     @property
     def I(self):
-        return G_mac - (
+        return Gz_mac - (
             X0*self.x0
             + X1*self.x1
             + Gz_attribute*self.ya  # amount
