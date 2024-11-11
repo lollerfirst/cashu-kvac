@@ -22,9 +22,6 @@ GROUP_ELEMENTS_POW2 = [
     for i in range(RANGE_LIMIT.bit_length())
 ]
 
-# Point at infinity
-O = GroupElement(ELEMENT_ZERO)
-
 class LinearRelationMode(Enum):
     PROVE = 0
     VERIFY = 1
@@ -167,7 +164,7 @@ class BootstrapStatement(Statement):
 
     def __init__(self, Ma: GroupElement):
         self = [
-            Equation(                   # Mb = r*G_blind
+            Equation(                   # Ma = r*G_blind
                 value=Ma,
                 construction=[G_blind]
             )
@@ -179,7 +176,8 @@ class IparamsStatement(Statement):
         Cw: GroupElement,
         I: GroupElement,
         V: GroupElement,
-        attributes: List[GroupElement],
+        Ma: GroupElement,
+        Ms: GroupElement,
         t: Scalar,
     ):
         U = hash_to_curve(t.to_bytes())
@@ -188,13 +186,13 @@ class IparamsStatement(Statement):
                 value=Cw,
                 construction=[W, W_,]
             ),
-            Equation(                   # I = G_mac - x0*X0 - x1*X1 - ya*G_rand
+            Equation(                   # I = G_mac - x0*X0 - x1*X1 - ya*Gz_attribute - ys*Gz_script
                 value=G_mac-I,          
-                construction=[O, O, X0, X1] + [G_rand] * len(attributes)
+                construction=[O, O, X0, X1, Gz_attribute, Gz_script]
             ),
-            Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
+            Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma + ys*Ms
                 value=V,
-                construction=[W, O, U, t*U] + attributes
+                construction=[W, O, U, t*U, Ma, Ms]
             )
         ]
 
@@ -220,18 +218,18 @@ class CredentialsStatement(Statement):
                 value=S,
                 construction=[O, O, O, G_serial]
             ),
-            Equation(           # Ca = z*G_rand + r*G_blind + a*G_amount
+            Equation(           # Ca = z*Gz_attribute + r*G_blind + a*G_amount
                 value=Ca,
-                construction=[G_rand, O, O, G_blind, G_amount]
+                construction=[Gz_attribute, O, O, G_blind, G_amount]
             )
         ]
 
 class BalanceStatement(Statement):
 
     def __init__(self, B: GroupElement):
-        self = [Equation(             # B = z*G_rand + 𝚫r*G_blind
+        self = [Equation(             # B = z*Gz_attribute + 𝚫r*G_blind
             value=B,
-            construction=[G_rand, G_blind]
+            construction=[Gz_attribute, G_blind]
         )]
 
 class RangeStatement(Statement):
@@ -280,13 +278,13 @@ class RangeStatement(Statement):
         self = statement
 
 def prove_bootstrap(
-    bootstrap: Attribute
+    bootstrap: AmountAttribute
 ) -> ZKP:
     """
     Generates a zero-knowledge proofs that the bootstrap attribute does not encode value.
 
     Parameters:
-        bootstrap (Attribute): the bootstrap attribute.
+        bootstrap (AmountAttribute): the bootstrap attribute.
 
     Returns:
         ZKP: The generated zero-knowledge proof
@@ -326,8 +324,9 @@ def verify_bootstrap(
 
 def prove_iparams(
     privkey: MintPrivateKey,
-    attribute: GroupElement,
     mac: MAC,
+    attribute: GroupElement,
+    script: Optional[GroupElement] = None,
 ) -> ZKP:
     """
     Generates a zero-knowledge proof that mac was generated from attribute and sk.
@@ -336,13 +335,15 @@ def prove_iparams(
 
     Parameters:
         privkey (MintPrivateKey): The secret key.
-        attribute (GroupElement): The attribute.
         mac (MAC): The MAC.
-
+        attribute (GroupElement): The amount attribute.
+        script (Optional[GroupElement]): Optional script attribute.
+        
     Returns:
         ZKP: The generated zero-knowledge proof.
     """
     Ma = attribute
+    Ms = script if script else O
     V = mac.V
     t = mac.t
 
@@ -353,34 +354,37 @@ def prove_iparams(
         mode=LinearRelationMode.PROVE,
         secrets=privkey.sk,
     )
-    prover.add_statement(IparamsStatement(Cw, I, V, [Ma], t))
+    prover.add_statement(IparamsStatement(Cw, I, V, Ma, Ms, t))
 
     return prover.prove()
 
 def verify_iparams(
-    attribute: GroupElement,
     mac: MAC,
     iparams: Tuple[GroupElement, GroupElement],
     proof: ZKP,
+    attribute: GroupElement,
+    script: Optional[GroupElement] = None,
 ) -> bool:
     """
-    Verifies that MAC was generated from Attribute using iparams.
+    Verifies that MAC was generated from AmountAttribute using iparams.
 
     This function takes as input an attribute, a MAC, iparams, and a
     proof, and returns True if the proof is valid for the given attribute
     and MAC, and False otherwise.
 
     Parameters:
-        attribute (GroupElement): The attribute.
         mac (MAC): The MAC.
         iparams (Tuple[GroupElement, GroupElement]): The iparams.
         proof (ZKP): The proof.
+        attribute (GroupElement): The amount attribute.
+        script (Optional[GroupElement]): The script attribute.
 
     Returns:
         bool: True if the proof is valid, False otherwise.
     """
     Cw, I = iparams
     Ma = attribute
+    Ms = script if script else O
     t = mac.t
     V = mac.V
 
@@ -388,13 +392,14 @@ def verify_iparams(
         mode=LinearRelationMode.VERIFY,
         proof=proof,
     )
-    verifier.add_statement(IparamsStatement(Cw, I, V, [Ma], t))
+    verifier.add_statement(IparamsStatement(Cw, I, V, Ma, Ms, t))
 
     return verifier.verify()
 
 def randomize_credentials(
-    attribute: Attribute,
     mac: MAC,
+    attribute: AmountAttribute,
+    script: Optional[ScriptAttribute] = None,
 ) -> RandomizedCredentials:
     """
     Produces randomized commitments for the given attribute and MAC.
@@ -402,8 +407,9 @@ def randomize_credentials(
     This function takes as input an attribute and a MAC, and returns a randomized commitment set.
 
     Parameters:
-        attribute (Attribute): The attribute.
-        mac (MAC): The MAC.
+        mac (MAC): The MAC. 
+        attribute (AmountAttribute): The amount attribute.
+        script (Optional[ScriptAttribute]): The optional script attribute (use if you don't want to reveal the script)
 
     Returns:
         RandomizedCredentials: The randomized commitment set.
@@ -411,23 +417,26 @@ def randomize_credentials(
     t = mac.t
     V = mac.V
     Ma = attribute.Ma
-    U = hash_to_curve(t.private_key)
+    Ms = script.Ms if script else O
+    U = hash_to_curve(t.to_bytes())
     z = Scalar()
     z0 = -(t*z)   
 
-    Ca = z*G_rand + Ma
+    Ca = z*Gz_attribute + Ma
+    Cs = z*Gz_script + Ms
     Cx0 = z*X0 + U
     Cx1 = z*X1 + t*U
     Cv = z*G_mac + V
 
-    return RandomizedCredentials(z=z, z0=z0, Ca=Ca, Cx0=Cx0, Cx1=Cx1, Cv=Cv)
+    return RandomizedCredentials(z=z, z0=z0, Ca=Ca, Cs=Cs, Cx0=Cx0, Cx1=Cx1, Cv=Cv)
 
 
 def prove_MAC_and_serial(
     iparams: Tuple[GroupElement, GroupElement],
     commitments: RandomizedCredentials,
     mac: MAC,
-    attribute: Attribute,
+    attribute: AmountAttribute,
+    script: Optional[ScriptAttribute] = None,
 ) -> ZKP:
     """
     Generates a zero-knowledge proof that the given commitments where derived
@@ -439,7 +448,8 @@ def prove_MAC_and_serial(
         iparams (Tuple[GroupElement, GroupElement]): The iparams.
         commitments (RandomizedCredentials): The commitments.
         mac (MAC): The MAC.
-        attribute (Attribute): The attribute.
+        attribute (AmountAttribute): The amount attribute.
+        script (Optional[ScriptAttribute]): The script attribute.
 
     Returns:
         ZKP: The generated zero-knowledge proof.
@@ -460,7 +470,7 @@ def prove_MAC_and_serial(
             commitments.z0,
             mac.t,
             attribute.r,
-            attribute.a
+            attribute.a,
         ]
     )
     prover.add_statement(CredentialsStatement(Z, I, Ca, Cx0, Cx1, S))
@@ -472,6 +482,7 @@ def verify_MAC_and_serial(
     commitments: RandomizedCredentials,
     S: GroupElement,
     proof: ZKP,
+    script: Optional[GroupElement] = None,
 ) -> bool:
     """
     Verifies a zero-knowledge proof for the given MAC, serial, and commitments.
@@ -483,22 +494,26 @@ def verify_MAC_and_serial(
         commitments (RandomizedCredentials): The randomized commitments.
         S (GroupElement): The serial number S.
         proof (ZKP): The zero-knowledge proof.
+        script (Optional[GroupElement]): The script commitment if it is revealed
 
     Returns:
         bool: True if the proof is valid, False otherwise.
     """
-    Ca, Cx0, Cx1, Cv = (
+    Ca, Cs, Cx0, Cx1, Cv = (
         commitments.Ca,
+        commitments.Cs,
         commitments.Cx0,
         commitments.Cx1,
         commitments.Cv,
     )
     I = privkey.I
+    Ms = script or O
     Z = Cv - (
         privkey.w*W
         + privkey.x0*Cx0
         + privkey.x1*Cx1
         + privkey.ya*Ca
+        + privkey.ys*(Cs+Ms)
     )
 
     verifier = LinearRelationProverVerifier(
@@ -511,16 +526,16 @@ def verify_MAC_and_serial(
 
 def prove_balance(
     commitment_sets: List[RandomizedCredentials],
-    old_attributes: List[Attribute],                   
-    new_attributes: List[Attribute],
+    old_attributes: List[AmountAttribute],                   
+    new_attributes: List[AmountAttribute],
 ) -> ZKP:
     """
     This function takes as input a list of commitment sets, a list of old attributes, and a list of new attributes, and returns a zero-knowledge proof that the balance is valid for the given commitment sets and attributes.
 
     Parameters:
         commitment_sets (List[RandomizedCredentials]): The list of commitment sets.
-        old_attributes (List[Attribute]): The list of old attributes.
-        new_attributes (List[Attribute]): The list of new attributes.
+        old_attributes (List[AmountAttribute]): The list of old amount attributes.
+        new_attributes (List[AmountAttribute]): The list of new amount attributes.
 
     Returns:
         ZKP: The generated zero-knowledge proof.
@@ -534,7 +549,7 @@ def prove_balance(
     r_sum_ = sum(r_, Scalar(SCALAR_ZERO))
 
     delta_r = r_sum - r_sum_
-    B = z_sum*G_rand + delta_r*G_blind
+    B = z_sum*Gz_attribute + delta_r*G_blind
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
@@ -557,7 +572,7 @@ def verify_balance(
 
     Parameters:
         commitments (List[RandomizedCredentials]): The list of commitment sets.
-        attributes (List[Attribute]): The list of attributes.
+        attributes (List[AmountAttribute]): The list of attributes.
         balance_proof (ZKP): The zero-knowledge proof.
         delta_amount (int): The delta amount.
 
@@ -582,7 +597,7 @@ def verify_balance(
 
 
 def prove_range(
-    attribute: Attribute
+    attribute: AmountAttribute
 ):
     # This is a naive range proof with bit-decomposition
     # https://gist.github.com/lollerfirst/82644d9ef47cef15508054b9431b123b 

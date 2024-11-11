@@ -1,21 +1,5 @@
-from kvac import (
-    prove_iparams,
-    verify_iparams,
-    randomize_credentials,
-    prove_MAC_and_serial,
-    verify_MAC_and_serial,
-    prove_balance,
-    verify_balance,
-    prove_range,
-    verify_range,
-    prove_bootstrap,
-    verify_bootstrap,
-)
-from models import (
-    Attribute,
-    MAC,
-    MintPrivateKey,
-)
+from kvac import *
+from models import *
 from secp import Scalar
 
 # Mint's secret key
@@ -24,27 +8,27 @@ mint_privkey = MintPrivateKey(*sk)
 iparams = (mint_privkey.Cw, mint_privkey.I)
 
 # User creates 1 attribute worth 16
-attribute = Attribute.create(16)
+attribute = AmountAttribute.create(16)
 
 # Mint verifies: range proof, balance proof and issues a MAC with a proof of iparams. 
-mac = MAC.generate(attribute.Ma, mint_privkey)
-proof = prove_iparams(mint_privkey, attribute.Ma, mac)
+mac = MAC.generate(mint_privkey, attribute.Ma)
+proof = prove_iparams(mint_privkey, mac, attribute.Ma)
 
 # User verifies iparams for issued attribute (no tagging plz)
-assert verify_iparams(attribute.Ma, mac, iparams, proof)
+assert verify_iparams(mac, iparams, proof, attribute.Ma)
 
 print("iparams successfully verified!")
 
 # User randomizes commitment and produces proof of MAC for it
-credentials = randomize_credentials(attribute, mac)
+credentials = randomize_credentials(mac, attribute)
 proof_MAC_serial = prove_MAC_and_serial(iparams, credentials, mac, attribute)
 serial = attribute.serial
 assert verify_MAC_and_serial(mint_privkey, credentials, serial, proof_MAC_serial)
 
 print("MAC and Serial successfully verified")
 
-# Compute another credential worth 32 and have it signed
-new_attribute = Attribute.create(8)
+# Compute another credential worth 8
+new_attribute = AmountAttribute.create(8)
 
 # Prove the balance between randomized commitments and new attributes
 balance_proof = prove_balance([credentials], [attribute], [new_attribute])
@@ -63,7 +47,7 @@ assert verify_range(attribute.Ma, range_proof)
 
 print("Range proof successfully verified")
 
-bootstrap = Attribute.create(0)
+bootstrap = AmountAttribute.create(0)
 proof_bootstrap = prove_bootstrap(bootstrap)
 assert verify_bootstrap(bootstrap.Ma, proof_bootstrap)
 

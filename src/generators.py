@@ -1,5 +1,5 @@
 import hashlib
-from secp import GroupElement
+from secp import GroupElement, ELEMENT_ZERO
 
 DOMAIN_SEPARATOR = b"Secp256k1_HashToCurve_Cashu_"
 
@@ -17,15 +17,19 @@ def hash_to_curve(message: bytes) -> GroupElement:
     raise ValueError("No valid point found")
 
 # Generators drawn with NUMS
-W, W_, X0, X1, G_mac, G_rand, G_script, G_amount, G_blind, G_serial = (
+W, W_, X0, X1, G_mac, Gz_attribute, Gz_script, G_amount, G_script, G_blind, G_serial = (
     hash_to_curve(b"W"),
     hash_to_curve(b"W_"),
     hash_to_curve(b"X0"),
     hash_to_curve(b"X1"),
     hash_to_curve(b"G_mac"),
-    hash_to_curve(b"G_rand"),
-    hash_to_curve(b"G_script"),
+    hash_to_curve(b"Gz_attribute"),
+    hash_to_curve(b"Gz_script"),
     hash_to_curve(b"G_amount"),
+    hash_to_curve(b"G_script"),
     hash_to_curve(b"G_blind"),
     hash_to_curve(b"G_serial"),
 )
+
+# Point at infinity
+O = GroupElement(ELEMENT_ZERO)

@@ -13,7 +13,7 @@ class MintPrivateKey:
     x0: Scalar
     x1: Scalar
     ya: Scalar
-    yf: Scalar
+    ys: Scalar
 
     @property
     def sk(self):
@@ -23,7 +23,7 @@ class MintPrivateKey:
             self.x0,
             self.x1,
             self.ya,
-            #self.yf,
+            self.ys,
         ]
 
     @property
@@ -35,8 +35,8 @@ class MintPrivateKey:
         return G_mac - (
             X0*self.x0
             + X1*self.x1
-            + G_rand*self.ya  # satoshis
-            #+ generators.F*self.yf  # script
+            + Gz_attribute*self.ya  # amount
+            + Gz_script*self.ys     # script
         )
 
 @dataclass
@@ -45,7 +45,48 @@ class ZKP:
     c: bytes
 
 @dataclass
-class Attribute:
+class ScriptAttribute:
+    r: Optional[Scalar] = None
+    s: Optional[Scalar] = None
+
+    @classmethod
+    def create(
+        cls,
+        amount: int,
+        blinding_factor: Optional[bytes] = None,
+    ):
+        """
+        Creates a script attribute that encodes the hash of a given script.
+
+        This function takes as input an array of bytes and returns an attribute.
+
+        Parameters:
+            script (bytes): The script
+            blinding_factor (Optional[bytes]): Optionally a blinding_factor derived from a BIP32 derivation path
+
+        Returns:
+            ScriptAttribute: The created attribute.
+        """        
+        s = Scalar(hashlib.sha256(script).digest())
+        r = (
+            Scalar(blinding_factor) if blinding_factor
+            else Scalar()
+        )
+
+        return cls(r, s)
+    
+    @property
+    def Ms(self):
+        assert self.r and self.s
+        return self.r * G_blind + self.s * G_script
+
+    @property
+    def serial(self) -> GroupElement:
+        assert self.r, "Serial preimage unknown"
+        return self.r * G_serial
+
+@dataclass
+class AmountAttribute:
     r: Optional[Scalar] = None
     a: Optional[Scalar] = None
 
@@ -65,7 +106,7 @@ class Attribute:
             blinding_factor (Optional[bytes]): Optionally a blinding_factor derived from a BIP32 derivation path
 
         Returns:
-            Attribute: The created attribute.
+            AmountAttribute: The created attribute.
 
         Raises:
             Exception: If the amount is not within the valid range.
@@ -92,7 +133,7 @@ class Attribute:
         return self.r * G_serial
 
     @classmethod
-    def tweak_amount(cls, Ma: GroupElement, delta: int):
+    def tweak_amount(cls, Ma: GroupElement, delta: int) -> GroupElement:
         d = Scalar(abs(delta).to_bytes(32, 'big'))
         D = d * G_amount if delta >= 0 else -d * G_amount
         return Ma+D
@@ -100,6 +141,7 @@ class Attribute:
 @dataclass
 class RandomizedCredentials:
     Ca: GroupElement
+    Cs: GroupElement
     Cx0: GroupElement
     Cx1: GroupElement
     Cv: GroupElement
@@ -109,6 +151,7 @@ class RandomizedCredentials:
     def lose_secrets(self):
         return RandomizedCredentials(
             Ca=self.Ca,
+            Cs=self.Cs,
             Cx0=self.Cx0,
             Cx1=self.Cx1,
             Cv=self.Cv,
@@ -122,8 +165,9 @@ class MAC:
     @classmethod
     def generate(
         cls,
-        attribute: GroupElement,
         privkey: MintPrivateKey,
+        attribute: GroupElement,
+        script: Optional[GroupElement] = None,
         t: Optional[Scalar] = None,
     ):
         """
@@ -132,10 +176,11 @@ class MAC:
         This function takes as input an attribute and a secret key, and returns a MAC that can be used to authenticate the attribute.
 
         Parameters:
-            attribute (GroupElement): The attribute.
             privkey (MintPrivateKey): The mint's secret parameters.
+            attribute (GroupElement): The amount attribute.
+            script (GroupElement): The script attribute.
             t (Optional[Scalar])
-
+             
         Returns:
             MAC: The generated MAC.
         """
@@ -143,13 +188,14 @@ class MAC:
             t = Scalar()
         sk = privkey.sk
         Ma = attribute
+        Ms = script if script else O
         U = hash_to_curve(t.to_bytes())
         V = (
             sk[0] * W
             + sk[2] * U
             + sk[3] * t * U
             + sk[4] * Ma 
-            #+ sk[5] * Ms
+            + sk[5] * Ms
         )
         return cls(t=t, V=V)
 
