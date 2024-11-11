@@ -36,8 +36,8 @@ class MintPrivateKey:
         return generators.Gv - (
             generators.X0*self.x0
             + generators.X1*self.x1
-            + generators.A*self.ya
-            #+ generators.F*self.yf
+            + generators.A*self.ya  # satoshis
+            #+ generators.F*self.yf  # script
         )
 
 @dataclass

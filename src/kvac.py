@@ -5,20 +5,8 @@ from secp import (
     ELEMENT_ZERO,
     q
 )
-from models import (
-    ZKP,
-    RangeZKP,
-    Attribute,
-    RandomizedCredentials,
-    MAC,
-    Statement,
-    Equation,
-    MintPrivateKey
-)
-from generators import (
-    hash_to_curve,
-    W, W_, X0, X1, Gv, A, G, H, Gs,
-)
+from models import *
+from generators import *
 import hashlib
 
 from typing import Tuple, List, Optional, Union
@@ -175,6 +163,119 @@ class LinearRelationProverVerifier:
 
         return self.c == c_
 
+class BootstrapStatement(Statement):
+
+    def __init__(self, Ma: GroupElement):
+        self = [
+            Equation(
+                value=Ma,
+                construction=[H]
+            )
+        ]
+
+class IparamsStatement(Statement):
+
+    def __init__(self,
+        Cw: GroupElement,
+        I: GroupElement,
+        V: GroupElement,
+        attributes: List[GroupElement],
+        t: Scalar,
+    ):
+        U = hash_to_curve(t.to_bytes())
+        self = [
+            Equation(                   # Cw = w*W  + w_*W_
+                value=Cw,
+                construction=[W, W_,]
+            ),
+            Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
+                value=Gv-I,          
+                construction=[O, O, X0, X1] + [A] * len(attributes)
+            ),
+            Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
+                value=V,
+                construction=[W, O, U, t*U] + attributes
+            )
+        ]
+
+class CredentialsStatement(Statement):
+    def __init__(self,
+        Z: GroupElement,
+        I: GroupElement,
+        Ca: GroupElement,
+        Cx0: GroupElement,
+        Cx1: GroupElement,
+        S: GroupElement,
+    ):
+        self = [
+            Equation(           # Z = z*I
+                value=Z,
+                construction=[I]
+            ),
+            Equation(           # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
+                value=Cx1,
+                construction=[X1, X0, Cx0]
+            ),
+            Equation(           # S = r*Gs
+                value=S,
+                construction=[O, O, O, Gs]
+            ),
+            Equation(           # Ca = z*A + r*H + a*G
+                value=Ca,
+                construction=[A, O, O, H, G]
+            )
+        ]
+
+class BalanceStatement(Statement):
+
+    def __init__(self, B: GroupElement):
+        self = [Equation(             # B = z*A + 𝚫r*H
+            value=B,
+            construction=[A, H]
+        )]
+
+class RangeStatement(Statement):
+    
+    def __init__(self,
+        B: List[GroupElement],
+        V: GroupElement,
+    ):
+        K = GROUP_ELEMENTS_POW2
+
+        # 1) This equation proves that Ma - Σ 2^i*B_i is a commitment to zero
+        statement = [Equation(               
+            value=V,
+            construction=[H] +
+                [O] * len(B) +
+                [-K[i] for i in range(len(B))]
+        )]
+
+        # 2) This set of equations proves that we know the opening of B_i for every i
+        # Namely B_i - b_i*G is a commitment to zero
+        statement += [Equation(
+            value=B_i,
+            construction=[O] +
+                [O] * i + [G] +
+                [O] * (len(B)-1) + [H]
+        ) for i, B_i in enumerate(B)]
+
+        # 3) This set of equations proves that each b_i is such that b_i^2 = b_i
+        # NOTE: This is a little different because
+        # the verifier does not use the challenge to verify these.
+        # Instead they just use the same responses from (2) and multiply them against (B_i - G).
+        # The only way the challenge terms cancel out is if
+        # b_i^2cG - b_icG is a commitment to zero <==> b^2 = b <==> b = 0 or 1
+        statement += [Equation(
+            value=O,
+            construction=[O] + 
+                [O] * i +
+                [B_i-G] +
+                [O] * (2*len(B)-1) + 
+                [H]
+            ) for i, B_i in enumerate(B)]
+
+        self = statement
+
 def prove_bootstrap(
     bootstrap: Attribute
 ) -> ZKP:
@@ -194,12 +295,7 @@ def prove_bootstrap(
         LinearRelationMode.PROVE,
         secrets=[r]
     )
-    prover.add_statement([
-        Equation(
-            value=Ma,
-            construction=[H]
-        )
-    ])
+    prover.add_statement(BootstrapStatement(Ma))
     
     return prover.prove()
 
@@ -221,12 +317,7 @@ def verify_bootstrap(
         LinearRelationMode.VERIFY,
         proof=proof,
     )
-    verifier.add_statement([
-        Equation(
-            value=Ma,
-            construction=[H],
-        )
-    ])
+    verifier.add_statement(BootstrapStatement(Ma))
 
     return verifier.verify()
 
@@ -251,9 +342,7 @@ def prove_iparams(
     Ma = attribute
     V = mac.V
     t = mac.t
-    U = hash_to_curve(t.to_bytes())
 
-    # Derive params from secret key
     Cw = privkey.Cw
     I = privkey.I
 
@@ -261,22 +350,7 @@ def prove_iparams(
         mode=LinearRelationMode.PROVE,
         secrets=privkey.sk,
     )
-    prover.add_statement([
-        Equation(                   # Cw = w*W  + w_*W_
-            value=Cw,
-            construction=[W, W_,]
-        ),
-        Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
-            value=Gv-I,          
-            construction=[O, O, X0, X1, A]
-        ),
-        Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
-            value=V,
-            construction=[
-                W, O, U, t*U, Ma
-            ]
-        )
-    ])
+    prover.add_statement(IparamsStatement(Cw, I, V, [Ma], t))
 
     return prover.prove()
 
@@ -306,28 +380,12 @@ def verify_iparams(
     Ma = attribute
     t = mac.t
     V = mac.V
-    U = hash_to_curve(t.to_bytes())
 
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
         proof=proof,
     )
-    verifier.add_statement([
-        Equation(                   # Cw = w*W  + w_*W_
-            value=Cw,
-            construction=[W, W_]
-        ),
-        Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
-            value=Gv-I,          
-            construction=[O, O, X0, X1, A]
-        ),
-        Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
-            value=V,
-            construction=[
-                W, O, U, t*U, Ma
-            ]
-        )
-    ])
+    verifier.add_statement(IparamsStatement(Cw, I, V, [Ma], t))
 
     return verifier.verify()
 
@@ -389,7 +447,7 @@ def prove_MAC_and_serial(
         commitments.Cx1
     )
     _, I = iparams
-    S = attribute.r*Gs
+    S = attribute.serial
     Z = commitments.z*I
 
     prover = LinearRelationProverVerifier(
@@ -402,24 +460,7 @@ def prove_MAC_and_serial(
             attribute.a
         ]
     )
-    prover.add_statement([
-        Equation(           # Z = z*I
-            value=Z,
-            construction=[I]
-        ),
-        Equation(           # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
-            value=Cx1,
-            construction=[X1, X0, Cx0]
-        ),
-        Equation(           # S = r*Gs
-            value=S,
-            construction=[O, O, O, Gs]
-        ),
-        Equation(           # Ca = z*A + r*H + a*G
-            value=Ca,
-            construction=[A, O, O, H, G]
-        )
-    ])
+    prover.add_statement(CredentialsStatement(Z, I, Ca, Cx0, Cx1, S))
 
     return prover.prove()
 
@@ -461,24 +502,7 @@ def verify_MAC_and_serial(
         mode=LinearRelationMode.VERIFY,
         proof=proof,
     )
-    verifier.add_statement([
-        Equation(           # Z = z*I
-            value=Z,
-            construction=[I]
-        ),
-        Equation(           # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
-            value=Cx1,
-            construction=[X1, X0, Cx0]
-        ),
-        Equation(           # S = r*Gs
-            value=S,
-            construction=[O, O, O, Gs]
-        ),
-        Equation(           # Ca = z*A + r*H + a*G
-            value=Ca,
-            construction=[A, O, O, H, G]
-        )
-    ])
+    verifier.add_statement(CredentialsStatement(Z, I, Ca, Cx0, Cx1, S))
 
     return verifier.verify()
 
@@ -507,17 +531,13 @@ def prove_balance(
     r_sum_ = sum(r_, Scalar(SCALAR_ZERO))
 
     B = z_sum*A + r_sum*H - r_sum_*H
-
     delta_r = r_sum - r_sum_
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
         secrets=[z_sum, delta_r]
     )
-    prover.add_statement([Equation(             # B = z*A + 𝚫r*H
-        value=B,
-        construction=[A, H]
-    )])
+    prover.add_statement(BalanceStatement(B))
 
     return prover.prove()
 
@@ -553,10 +573,7 @@ def verify_balance(
         mode=LinearRelationMode.VERIFY,
         proof=balance_proof,
     )
-    verifier.add_statement([Equation(             # B = z*A + 𝚫r*H
-        value=B,
-        construction=[A, H]
-    )])
+    verifier.add_statement(BalanceStatement(B))
 
     return verifier.verify()
 
@@ -598,6 +615,10 @@ def prove_range(
         for r, b in zip(bits_blinding_factors, bits)
     ]
 
+    V = attribute.r*H
+    for K_i, r_i in zip(K, bits_blinding_factors):
+        V -= r_i*K_i
+
     # Instantiate linear prover
     # Witnesses are:
     #   - r (attribute.r)
@@ -611,47 +632,8 @@ def prove_range(
             bits_blinding_factors +
             product_bits_and_blinding_factors,
     )
-
-    # 1) This equation proves that Ma - Σ 2^i*B_i is a commitment to zero
-    # But only the verifier calculates that separately with B and Ma
-    # We (the prover) can provide V = r*H - Σ 2^i*r_i*H directly
-    V = attribute.r*H
-    for K_i, r_i in zip(K, bits_blinding_factors):
-        V -= r_i*K_i
-
-    # Com(0) = r*H - Σ (2^i*r_i)*H - Ma + Σ (2^i)*B_i
-    statement = [Equation(               
-        value=V,
-        construction=[H] +
-            [O] * len(B) +
-            [-K[i] for i in range(len(B))]
-    )]
-
-    # 2) This set of equations proves that we know the opening of B_i for every i
-    # Namely B_i - b_i*G is a commitment to zero
-    statement += [Equation(
-        value=B_i,
-        construction=[O] +
-            [O] * i + [G] +
-            [O] * (len(B)-1) + [H]
-    ) for i, B_i in enumerate(B)]
-
-    # 3) This set of equations proves that each b_i is such that b_i^2 = b_i
-    # NOTE: This is a little different because
-    # the verifier does not use the challenge to verify these.
-    # Instead they just use the same responses from (2) and multiply them against (B_i - G).
-    # The only way the challenge terms cancel out is if
-    # b_i^2cG - b_icG is a commitment to zero <==> b^2 = b <==> b = 0 or 1
-    statement += [Equation(
-        value=O, # To represent point at infinity
-        construction=[O] + 
-            [O] * i +
-            [B_i-G] +
-            [O] * (2*len(B)-1) + 
-            [H]
-        ) for i, B_i in enumerate(B)]
     
-    prover.add_statement(statement)
+    prover.add_statement(RangeStatement(B, V))
     zkp = prover.prove()
 
     # and we return B the bit-commitments vector
@@ -687,33 +669,5 @@ def verify_range(
         proof=proof
     )
 
-    # 1)
-    statement = [Equation(              
-        value=V,
-        construction=[H] +
-            [O] * len(B) +
-            [-K[i] for i in range(len(B))]
-    )]
-
-    # 2)
-    statement += [Equation(
-        value=B_i,
-        construction=[O] +
-            [O] * i +
-            [G] +
-            [O] * (len(B)-1) +
-            [H]
-    ) for i, B_i in enumerate(B)]
-
-    # 3)
-    statement += [Equation(
-        value=O,
-        construction=[O] + 
-            [O] * i +
-            [B_i-G] +
-            [O] * (2*len(B)-1) + 
-            [H]
-        ) for i, B_i in enumerate(B)]
-
-    verifier.add_statement(statement)
+    verifier.add_statement(RangeStatement(B, V))
     return verifier.verify()
