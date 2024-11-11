@@ -232,6 +232,29 @@ class BalanceStatement(Statement):
             construction=[Gz_attribute, G_blind]
         )]
 
+class ScriptEqualityStatement(Statement):
+
+    def __init__(self, creds: List[GroupElement], attr: List[GroupElement]):
+        statement = [
+            Equation(             
+                value=Cs,
+                construction=[G_script]+
+                    [O] * i +
+                    [Gz_script] +
+                    [O] * (len(creds)-1-i) + 
+                    [G_blind]
+            )
+        for i, Cs in enumerate(creds)]
+        statement += [
+            Equation(
+                value=Ms,
+                construction=[G_script]+
+                    [O] * (2*len(creds)+i) +
+                    [G_blind]
+            )
+        for i, Ms in enumerate(attr)]
+        self = statement
+
 class RangeStatement(Statement):
     
     def __init__(self,
@@ -668,7 +691,7 @@ def verify_range(
 
     # Get the bit commitments
     B = proof.B
-    # Get powers of 2 in H
+    # Get powers of 2 in G_blind
     K = GROUP_ELEMENTS_POW2
 
     # Verify the number of bits does not exceed log2(RANGE_LIMIT)
@@ -688,4 +711,65 @@ def verify_range(
     )
 
     verifier.add_statement(RangeStatement(B, V))
+    return verifier.verify()
+
+def prove_script_equality(
+    randomized_credentials: List[RandomizedCredentials],
+    script_attributes: List[ScriptAttribute],
+    new_script_attributes: List[ScriptAttribute],
+) -> ZKP:
+    """
+    Produces a proof of same secret used in `script_commitment` and `script_attribute`
+
+    Parameters:
+        randomized_credentials (List[RandomizedCredentials]): The previous randomized script commitment's Cs
+        script_attributes (List[ScriptAttribute]): The previous script attribute
+        new_script_attributes (List[ScriptAttribute]): The current script attribute
+    Returns:
+        (ZKP) Proof that `s` is the same in the old `Cs` and new `Ms`
+    """
+    s = new_script_attribute[0].s
+    assert all([att.s == s for att in new_script_attributes+script_attributes]), (
+        "Scripts are not equal!"
+    )
+
+    z_list = [creds.z for creds in randomized_credentials]
+    r_list = [att.r for att in script_attributes]
+    new_r_list = [att.r for att in new_script_attributes]
+
+    prover = LinearRelationProverVerifier(
+        LinearRelationMode.PROVE,
+        secrets=[s]+z_list+r_list+new_r_list,
+    )
+    prover.add_statement(ScriptEqualityStatement(
+        [creds.Cs for creds in randomized_credentials],
+        [att.Ms for att in script_attributes]
+    ))    
+    
+    return prover.prove()
+
+def verify_script_equality(
+    randomized_script_attributes: List[GroupElement],
+    new_script_attributes: List[GroupElement],
+    proof: ZKP,
+) -> bool:
+    """
+    Verifies a proof of same script used across all `randomized_script_attributes` and `new_script_attributes`
+
+    Parameters:
+        randomized_credentials (List[GroupElement]): Randomized attributes
+        new_script_attributes (List[GroupElement]): New script attributes
+    Returns:
+        (bool) True if successfully verified, False otherwise
+    """
+
+    verifier = LinearRelationProverVerifier(
+        LinearRelationMode.VERIFY,
+        proof=proof,
+    )
+    verifier.add_statement(ScriptEqualityStatement(
+        randomized_script_attributes,
+        new_script_attributes,
+    ))
+
     return verifier.verify()
