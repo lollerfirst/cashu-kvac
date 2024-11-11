@@ -18,7 +18,7 @@ RANGE_LIMIT = 1 << 51
 # Powers of two mult H.
 # Used in range proofs.
 GROUP_ELEMENTS_POW2 = [
-        (Scalar((1 << i).to_bytes(32, "big")))*H
+        (Scalar((1 << i).to_bytes(32, "big")))*G_blind
     for i in range(RANGE_LIMIT.bit_length())
 ]
 
@@ -167,9 +167,9 @@ class BootstrapStatement(Statement):
 
     def __init__(self, Ma: GroupElement):
         self = [
-            Equation(
+            Equation(                   # Mb = r*G_blind
                 value=Ma,
-                construction=[H]
+                construction=[G_blind]
             )
         ]
 
@@ -188,9 +188,9 @@ class IparamsStatement(Statement):
                 value=Cw,
                 construction=[W, W_,]
             ),
-            Equation(                   # I = Gv - x0*X0 - x1*X1 - ya*A
-                value=Gv-I,          
-                construction=[O, O, X0, X1] + [A] * len(attributes)
+            Equation(                   # I = G_mac - x0*X0 - x1*X1 - ya*G_rand
+                value=G_mac-I,          
+                construction=[O, O, X0, X1] + [G_rand] * len(attributes)
             ),
             Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma
                 value=V,
@@ -216,22 +216,22 @@ class CredentialsStatement(Statement):
                 value=Cx1,
                 construction=[X1, X0, Cx0]
             ),
-            Equation(           # S = r*Gs
+            Equation(           # S = r*G_serial
                 value=S,
-                construction=[O, O, O, Gs]
+                construction=[O, O, O, G_serial]
             ),
-            Equation(           # Ca = z*A + r*H + a*G
+            Equation(           # Ca = z*G_rand + r*G_blind + a*G_amount
                 value=Ca,
-                construction=[A, O, O, H, G]
+                construction=[G_rand, O, O, G_blind, G_amount]
             )
         ]
 
 class BalanceStatement(Statement):
 
     def __init__(self, B: GroupElement):
-        self = [Equation(             # B = z*A + 𝚫r*H
+        self = [Equation(             # B = z*G_rand + 𝚫r*G_blind
             value=B,
-            construction=[A, H]
+            construction=[G_rand, G_blind]
         )]
 
 class RangeStatement(Statement):
@@ -245,7 +245,7 @@ class RangeStatement(Statement):
         # 1) This equation proves that Ma - Σ 2^i*B_i is a commitment to zero
         statement = [Equation(               
             value=V,
-            construction=[H] +
+            construction=[G_blind] +
                 [O] * len(B) +
                 [-K[i] for i in range(len(B))]
         )]
@@ -254,9 +254,12 @@ class RangeStatement(Statement):
         # Namely B_i - b_i*G is a commitment to zero
         statement += [Equation(
             value=B_i,
-            construction=[O] +
-                [O] * i + [G] +
-                [O] * (len(B)-1) + [H]
+            construction=
+                [O] +
+                [O] * i +
+                [G_amount] +
+                [O] * (len(B)-1) +
+                [G_blind]
         ) for i, B_i in enumerate(B)]
 
         # 3) This set of equations proves that each b_i is such that b_i^2 = b_i
@@ -269,9 +272,9 @@ class RangeStatement(Statement):
             value=O,
             construction=[O] + 
                 [O] * i +
-                [B_i-G] +
+                [B_i-G_amount] +
                 [O] * (2*len(B)-1) + 
-                [H]
+                [G_blind]
             ) for i, B_i in enumerate(B)]
 
         self = statement
@@ -412,10 +415,10 @@ def randomize_credentials(
     z = Scalar()
     z0 = -(t*z)   
 
-    Ca = z*A + Ma
+    Ca = z*G_rand + Ma
     Cx0 = z*X0 + U
     Cx1 = z*X1 + t*U
-    Cv = z*Gv + V
+    Cv = z*G_mac + V
 
     return RandomizedCredentials(z=z, z0=z0, Ca=Ca, Cx0=Cx0, Cx1=Cx1, Cv=Cv)
 
@@ -530,8 +533,8 @@ def prove_balance(
     r_sum = sum(r, Scalar(SCALAR_ZERO))
     r_sum_ = sum(r_, Scalar(SCALAR_ZERO))
 
-    B = z_sum*A + r_sum*H - r_sum_*H
     delta_r = r_sum - r_sum_
+    B = z_sum*G_rand + delta_r*G_blind
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
@@ -563,7 +566,7 @@ def verify_balance(
     """
 
     delta_a = Scalar(abs(delta_amount).to_bytes(32, 'big'))
-    B = -delta_a*G if delta_amount >= 0 else delta_a*G
+    B = -delta_a*G_amount if delta_amount >= 0 else delta_a*G_amount
     for Ca in commitments:
         B += Ca
     for Ma in attributes:
@@ -603,8 +606,8 @@ def prove_range(
     # B is the bit commitments vector
     B = []
     for b_i, r_i in zip(bits, bits_blinding_factors):
-        R_i = r_i*H
-        B.append(R_i+G if not b_i.is_zero else R_i)
+        R_i = r_i*G_blind
+        B.append(R_i+G_amount if not b_i.is_zero else R_i)
 
     # Hadamard product between
     # the blinding factors vector and the bits vector
@@ -615,7 +618,7 @@ def prove_range(
         for r, b in zip(bits_blinding_factors, bits)
     ]
 
-    V = attribute.r*H
+    V = attribute.r*G_blind
     for K_i, r_i in zip(K, bits_blinding_factors):
         V -= r_i*K_i
 

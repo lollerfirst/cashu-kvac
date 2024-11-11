@@ -1,7 +1,6 @@
 from secp import GroupElement, Scalar
 from typing import List, Optional, Dict, Tuple
-import generators
-from generators import hash_to_curve
+from generators import *
 
 from dataclasses import dataclass
 
@@ -29,14 +28,14 @@ class MintPrivateKey:
 
     @property
     def Cw(self):
-        return generators.W*self.w + generators.W_*self.w_
+        return W*self.w + W_*self.w_
 
     @property
     def I(self):
-        return generators.Gv - (
-            generators.X0*self.x0
-            + generators.X1*self.x1
-            + generators.A*self.ya  # satoshis
+        return G_mac - (
+            X0*self.x0
+            + X1*self.x1
+            + G_rand*self.ya  # satoshis
             #+ generators.F*self.yf  # script
         )
 
@@ -85,17 +84,17 @@ class Attribute:
     @property
     def Ma(self):
         assert self.r and self.a
-        return self.r * generators.H + self.a * generators.G
+        return self.r * G_blind + self.a * G_amount
 
     @property
     def serial(self) -> GroupElement:
         assert self.r, "Serial preimage unknown"
-        return self.r * generators.Gs
+        return self.r * G_serial
 
     @classmethod
     def tweak_amount(cls, Ma: GroupElement, delta: int):
         d = Scalar(abs(delta).to_bytes(32, 'big'))
-        D = d * generators.G if delta >= 0 else -d * generators.G
+        D = d * G_amount if delta >= 0 else -d * G_amount
         return Ma+D
 
 @dataclass
@@ -146,7 +145,7 @@ class MAC:
         Ma = attribute
         U = hash_to_curve(t.to_bytes())
         V = (
-            sk[0] * generators.W
+            sk[0] * W
             + sk[2] * U
             + sk[3] * t * U
             + sk[4] * Ma 
