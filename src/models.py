@@ -52,7 +52,7 @@ class ScriptAttribute:
     @classmethod
     def create(
         cls,
-        amount: int,
+        script: bytes,
         blinding_factor: Optional[bytes] = None,
     ):
         """

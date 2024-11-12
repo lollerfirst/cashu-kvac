@@ -548,7 +548,7 @@ def verify_MAC_and_serial(
     return verifier.verify()
 
 def prove_balance(
-    commitment_sets: List[RandomizedCredentials],
+    randomized_creds: List[RandomizedCredentials],
     old_attributes: List[AmountAttribute],                   
     new_attributes: List[AmountAttribute],
 ) -> ZKP:
@@ -556,14 +556,14 @@ def prove_balance(
     This function takes as input a list of commitment sets, a list of old attributes, and a list of new attributes, and returns a zero-knowledge proof that the balance is valid for the given commitment sets and attributes.
 
     Parameters:
-        commitment_sets (List[RandomizedCredentials]): The list of commitment sets.
+        randomized_creds (List[RandomizedCredentials]): The list of commitment sets.
         old_attributes (List[AmountAttribute]): The list of old amount attributes.
         new_attributes (List[AmountAttribute]): The list of new amount attributes.
 
     Returns:
         ZKP: The generated zero-knowledge proof.
     """
-    z = [comm.z for comm in commitment_sets]
+    z = [comm.z for comm in randomized_creds]
     r = [att.r for att in old_attributes]
     r_ = [att.r for att in new_attributes]
 
@@ -728,7 +728,7 @@ def prove_script_equality(
     Returns:
         (ZKP) Proof that `s` is the same in the old `Cs` and new `Ms`
     """
-    s = new_script_attribute[0].s
+    s = new_script_attributes[0].s
     assert all([att.s == s for att in new_script_attributes+script_attributes]), (
         "Scripts are not equal!"
     )
