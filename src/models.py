@@ -112,7 +112,7 @@ class AmountAttribute:
             Exception: If the amount is not within the valid range.
         """
         if not 0 <= amount < RANGE_LIMIT:
-            raise Exception("how about no?")
+            raise Exception("amount not within range")
         
         a = Scalar(amount.to_bytes(32, 'big'))
         r = (
