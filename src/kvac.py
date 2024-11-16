@@ -160,19 +160,21 @@ class LinearRelationProverVerifier:
 
         return self.c == c_
 
-class BootstrapStatement(Statement):
+class BootstrapStatement:
 
-    def __init__(self, Ma: GroupElement):
-        self = [
+    @classmethod
+    def create(cls, Ma: GroupElement):
+        return [
             Equation(                   # Ma = r*G_blind
                 value=Ma,
                 construction=[G_blind]
             )
         ]
 
-class IparamsStatement(Statement):
+class IparamsStatement:
 
-    def __init__(self,
+    @classmethod
+    def create(cls,
         Cw: GroupElement,
         I: GroupElement,
         V: GroupElement,
@@ -181,7 +183,7 @@ class IparamsStatement(Statement):
         t: Scalar,
     ):
         U = hash_to_curve(t.to_bytes())
-        self = [
+        return [
             Equation(                   # Cw = w*W  + w_*W_
                 value=Cw,
                 construction=[W, W_,]
@@ -196,14 +198,16 @@ class IparamsStatement(Statement):
             )
         ]
 
-class CredentialsStatement(Statement):
-    def __init__(self,
+class CredentialsStatement:
+
+    @classmethod
+    def create(cls,
         Z: GroupElement,
         I: GroupElement,
         Cx0: GroupElement,
         Cx1: GroupElement,
     ):
-        self = [
+        return [
             Equation(           # Z = r*I
                 value=Z,
                 construction=[I]
@@ -214,24 +218,26 @@ class CredentialsStatement(Statement):
             ),
         ]
 
-class BalanceStatement(Statement):
+class BalanceStatement:
 
-    def __init__(self, B: GroupElement):
-        self = [Equation(             # B = r*Gz_attribute + 𝚫r*G_blind
+    @classmethod
+    def create(cls, B: GroupElement):
+        return [Equation(             # B = r*Gz_attribute + 𝚫r*G_blind
             value=B,
             construction=[Gz_attribute, G_blind]
         )]
 
-class ScriptEqualityStatement(Statement):
+class ScriptEqualityStatement:
 
-    def __init__(self, creds: List[GroupElement], attr: List[GroupElement]):
+    @classmethod
+    def create(cls, creds: List[GroupElement], attr: List[GroupElement]):
         statement = [
             Equation(             
                 value=Cs,
                 construction=[G_script]+
                     [O] * i +
                     [Gz_script] +
-                    [O] * (len(creds)-1-i) + 
+                    [O] * (len(creds)-1) + 
                     [G_blind]
             )
         for i, Cs in enumerate(creds)]
@@ -243,11 +249,12 @@ class ScriptEqualityStatement(Statement):
                     [G_blind]
             )
         for i, Ms in enumerate(attr)]
-        self = statement
+        return statement
 
-class RangeStatement(Statement):
+class RangeStatement:
     
-    def __init__(self,
+    @classmethod
+    def create(cls,
         B: List[GroupElement],
         V: GroupElement,
     ):
@@ -288,7 +295,7 @@ class RangeStatement(Statement):
                 [G_blind]
             ) for i, B_i in enumerate(B)]
 
-        self = statement
+        return statement
 
 def prove_bootstrap(
     bootstrap: AmountAttribute
@@ -309,7 +316,7 @@ def prove_bootstrap(
         LinearRelationMode.PROVE,
         secrets=[r]
     )
-    prover.add_statement(BootstrapStatement(Ma))
+    prover.add_statement(BootstrapStatement.create(Ma))
     
     return prover.prove()
 
@@ -331,7 +338,7 @@ def verify_bootstrap(
         LinearRelationMode.VERIFY,
         proof=proof,
     )
-    verifier.add_statement(BootstrapStatement(Ma))
+    verifier.add_statement(BootstrapStatement.create(Ma))
 
     return verifier.verify()
 
@@ -367,7 +374,7 @@ def prove_iparams(
         mode=LinearRelationMode.PROVE,
         secrets=privkey.sk,
     )
-    prover.add_statement(IparamsStatement(Cw, I, V, Ma, Ms, t))
+    prover.add_statement(IparamsStatement.create(Cw, I, V, Ma, Ms, t))
 
     return prover.prove()
 
@@ -405,7 +412,7 @@ def verify_iparams(
         mode=LinearRelationMode.VERIFY,
         proof=proof,
     )
-    verifier.add_statement(IparamsStatement(Cw, I, V, Ma, Ms, t))
+    verifier.add_statement(IparamsStatement.create(Cw, I, V, Ma, Ms, t))
 
     return verifier.verify()
 
@@ -486,7 +493,7 @@ def prove_MAC(
         mode=LinearRelationMode.PROVE,
         secrets=[r, r0, t]
     )
-    prover.add_statement(CredentialsStatement(Z, I, Cx0, Cx1))
+    prover.add_statement(CredentialsStatement.create(Z, I, Cx0, Cx1))
 
     return prover.prove()
 
@@ -534,7 +541,7 @@ def verify_MAC(
         mode=LinearRelationMode.VERIFY,
         proof=proof,
     )
-    verifier.add_statement(CredentialsStatement(Z, I, Cx0, Cx1))
+    verifier.add_statement(CredentialsStatement.create(Z, I, Cx0, Cx1))
 
     return verifier.verify()
 
@@ -565,7 +572,7 @@ def prove_balance(
         mode=LinearRelationMode.PROVE,
         secrets=[r_sum, delta_r]
     )
-    prover.add_statement(BalanceStatement(B))
+    prover.add_statement(BalanceStatement.create(B))
 
     return prover.prove()
 
@@ -601,7 +608,7 @@ def verify_balance(
         mode=LinearRelationMode.VERIFY,
         proof=balance_proof,
     )
-    verifier.add_statement(BalanceStatement(B))
+    verifier.add_statement(BalanceStatement.create(B))
 
     return verifier.verify()
 
@@ -661,7 +668,7 @@ def prove_range(
             product_bits_and_blinding_factors,
     )
     
-    prover.add_statement(RangeStatement(B, V))
+    prover.add_statement(RangeStatement.create(B, V))
     zkp = prover.prove()
 
     # and we return B the bit-commitments vector
@@ -697,28 +704,23 @@ def verify_range(
         proof=proof
     )
 
-    verifier.add_statement(RangeStatement(B, V))
+    verifier.add_statement(RangeStatement.create(B, V))
     return verifier.verify()
 
 def prove_script_equality(
-    credentials: List[RandomizedCredentials],
     old_amount_attributes: List[AmountAttribute],
     old_script_attributes: List[ScriptAttribute],
     new_script_attributes: List[ScriptAttribute],
 ) -> ZKP:
     """
     Parameters:
-        credentials (List[RandomizedCredentials]): The old randomized credentials
-        script_attributes (List[ScriptAttribute]): The old script attributes
+        old_amount_attributes(List[AmountAttribute]):
+        old_script_attributes (List[ScriptAttribute]): The old script attributes
         new_script_attributes (List[ScriptAttribute]): The new script attributes
     Returns:
         (ZKP) Proof that `s` is the same in the old `Cs` and new `Ms`
     """
     s = new_script_attributes[0].s
-    assert all([att.s == s for att in new_script_attributes+old_script_attributes]), (
-        "Scripts are not equal!"
-    )
-
     ar_list = [att.r for att in old_amount_attributes]
     r_list = [att.r for att in old_script_attributes]
     new_r_list = [att.r for att in new_script_attributes]
@@ -727,8 +729,9 @@ def prove_script_equality(
         LinearRelationMode.PROVE,
         secrets=[s]+ar_list+r_list+new_r_list,
     )
-    prover.add_statement(ScriptEqualityStatement(
-        [cred.Cs for cred in credentials],
+    prover.add_statement(ScriptEqualityStatement.create(
+        [script_att.Ms + amount_att.r*Gz_script
+        for amount_att, script_att in zip(old_amount_attributes, old_script_attributes)],
         [att.Ms for att in new_script_attributes]
     ))
     
@@ -753,7 +756,7 @@ def verify_script_equality(
         LinearRelationMode.VERIFY,
         proof=proof,
     )
-    verifier.add_statement(ScriptEqualityStatement(
+    verifier.add_statement(ScriptEqualityStatement.create(
         [cred.Cs for cred in old_credentials],
         new_script_attributes,
     ))

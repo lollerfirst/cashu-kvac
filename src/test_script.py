@@ -72,7 +72,7 @@ MAC_proof = prove_MAC(mint_pubkey, randomized_creds, mac_0, bootstrap)
 balance_proof = prove_balance([bootstrap], [attr_16])
 
 # Prove the script is the same
-script_proof = prove_script_equality([randomized_creds], [bootstrap], [script_attr], [new_script_attr])
+script_proof = prove_script_equality([bootstrap], [script_attr], [new_script_attr])
 
 ## SEND(
 # randomized_creds,
@@ -89,13 +89,13 @@ assert verify_MAC(
 assert verify_range(attr_16.Ma, range_proof), (
     "Couldn't verify range proof"
 )
-delta_amount = 16
+delta_amount = -16
 assert verify_balance([randomized_creds], [attr_16.Ma], balance_proof, delta_amount), (
     f"Couldn't verify balance proof for {delta_amount}"
 )
 assert verify_script_equality([randomized_creds], [new_script_attr.Ms], script_proof), (
     "Couldn't verify script equality"
-) == True
+)
 
 # Then Mint can safely issue new credentials now
 mac_16 = MAC.generate(mint_privkey, attr_16.Ma, new_script_attr.Ms)
