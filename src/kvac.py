@@ -570,7 +570,7 @@ def prove_balance(
     return prover.prove()
 
 def verify_balance(
-    credentials: List[GroupElement],
+    credentials: List[RandomizedCredentials],
     new_attributes: List[GroupElement],
     balance_proof: ZKP,
     delta_amount: int,
