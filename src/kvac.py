@@ -423,6 +423,7 @@ def randomize_credentials(
     mac: MAC,
     attribute: AmountAttribute,
     script: Optional[ScriptAttribute] = None,
+    reveal_script: bool = False,
 ) -> RandomizedCredentials:
     """
     Produces randomized commitments for the given attribute and MAC.
@@ -432,7 +433,8 @@ def randomize_credentials(
     Parameters:
         mac (MAC): The MAC. 
         attribute (AmountAttribute): The amount attribute.
-        script (Optional[ScriptAttribute]): The optional script attribute (use if you don't want to reveal the script)
+        script (Optional[ScriptAttribute], optional): The optional script attribute (use if you don't want to reveal the script)
+        reveal_script (bool, optional): If True, only randomize blinding factor for the script commitment. Defaults to False
 
     Returns:
         RandomizedCredentials: The randomized commitment set.
@@ -440,7 +442,13 @@ def randomize_credentials(
     t = mac.t
     V = mac.V
     Ma = attribute.Ma
-    Ms = script.Ms if script else O
+    Ms = O
+    if script:
+        if reveal_script:
+            Ms = script.r*G_blind
+        else:
+            Ms = script.Ms
+
     U = hash_to_curve(t.to_bytes())
     z = Scalar()
     z0 = -(t*z)   
@@ -505,7 +513,7 @@ def verify_MAC_and_serial(
     commitments: RandomizedCredentials,
     S: GroupElement,
     proof: ZKP,
-    script: Optional[GroupElement] = None,
+    script: Optional[bytes] = None,
 ) -> bool:
     """
     Verifies a zero-knowledge proof for the given MAC, serial, and commitments.
@@ -517,7 +525,7 @@ def verify_MAC_and_serial(
         commitments (RandomizedCredentials): The randomized commitments.
         S (GroupElement): The serial number S.
         proof (ZKP): The zero-knowledge proof.
-        script (Optional[GroupElement]): The script commitment if it is revealed
+        script (Optional[bytes], optional): The script if revealed
 
     Returns:
         bool: True if the proof is valid, False otherwise.
@@ -530,13 +538,16 @@ def verify_MAC_and_serial(
         commitments.Cv,
     )
     I = privkey.I
-    Ms = script or O
+    Scr = O
+    if script:
+        s = Scalar(hashlib.sha256(script).digest())
+        Scr = s*G_script
     Z = Cv - (
         privkey.w*W
         + privkey.x0*Cx0
         + privkey.x1*Cx1
         + privkey.ya*Ca
-        + privkey.ys*(Cs+Ms)
+        + privkey.ys*(Cs+Scr)
     )
 
     verifier = LinearRelationProverVerifier(
