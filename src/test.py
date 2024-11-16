@@ -21,9 +21,8 @@ print("iparams successfully verified!")
 
 # User randomizes commitment and produces proof of MAC for it
 credentials = randomize_credentials(mac, attribute)
-proof_MAC_serial = prove_MAC_and_serial(iparams, credentials, mac, attribute)
-serial = attribute.serial
-assert verify_MAC_and_serial(mint_privkey, credentials, serial, proof_MAC_serial)
+proof_MAC = prove_MAC(iparams, credentials, mac, attribute)
+assert verify_MAC(mint_privkey, credentials, proof_MAC)
 
 print("MAC and Serial successfully verified")
 
@@ -31,7 +30,7 @@ print("MAC and Serial successfully verified")
 new_attribute = AmountAttribute.create(8)
 
 # Prove the balance between randomized commitments and new attributes
-balance_proof = prove_balance([credentials], [attribute], [new_attribute])
+balance_proof = prove_balance([attribute], [new_attribute])
 
 assert verify_balance(
     [credentials.Ca],

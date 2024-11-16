@@ -702,12 +702,11 @@ def verify_range(
 
 def prove_script_equality(
     credentials: List[RandomizedCredentials],
-    script_attributes: List[ScriptAttribute],
+    old_amount_attributes: List[AmountAttribute],
+    old_script_attributes: List[ScriptAttribute],
     new_script_attributes: List[ScriptAttribute],
 ) -> ZKP:
     """
-    Produces a proof of same secret used in `script_commitment` and `script_attribute`
-
     Parameters:
         credentials (List[RandomizedCredentials]): The old randomized credentials
         script_attributes (List[ScriptAttribute]): The old script attributes
@@ -716,16 +715,17 @@ def prove_script_equality(
         (ZKP) Proof that `s` is the same in the old `Cs` and new `Ms`
     """
     s = new_script_attributes[0].s
-    assert all([att.s == s for att in new_script_attributes+script_attributes]), (
+    assert all([att.s == s for att in new_script_attributes+old_script_attributes]), (
         "Scripts are not equal!"
     )
 
-    r_list = [att.r for att in script_attributes]
+    ar_list = [att.r for att in old_amount_attributes]
+    r_list = [att.r for att in old_script_attributes]
     new_r_list = [att.r for att in new_script_attributes]
 
     prover = LinearRelationProverVerifier(
         LinearRelationMode.PROVE,
-        secrets=[s]+r_list+r_list+new_r_list,
+        secrets=[s]+ar_list+r_list+new_r_list,
     )
     prover.add_statement(ScriptEqualityStatement(
         [cred.Cs for cred in credentials],
