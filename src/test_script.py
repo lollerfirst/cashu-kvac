@@ -66,36 +66,34 @@ range_proof = prove_range(attr_16)
 randomized_creds = randomize_credentials(mac_0, bootstrap, script_attr)
 
 # Prove MAC was generated from mint and binds the attributes
-MAC_serial_proof = prove_MAC_and_serial(mint_pubkey, randomized_creds, mac_0, bootstrap, script_attr)
+MAC_proof = prove_MAC(mint_pubkey, randomized_creds, mac_0, bootstrap)
 
 # Prove the 𝚫 between bootstrap and attr_16 is in fact 16
-balance_proof = prove_balance([randomized_creds], [bootstrap], [attr_16])
+balance_proof = prove_balance([bootstrap], [attr_16])
 
 # Prove the script is the same
 script_proof = prove_script_equality([randomized_creds], [script_attr], [new_script_attr])
 
 ## SEND(
 # randomized_creds,
-# attr_16.serial,
 # attr_16.Ma,
 # script_attr.Ms,
-# range_proof, balance_proof, script_proof, MAC_serial_proof)
+# range_proof, balance_proof, script_proof, MAC_proof)
 
 # Mint verifies all of the proofs
-assert verify_MAC_and_serial(
+assert verify_MAC(
     mint_privkey,
     randomized_creds,
-    attr_16.serial,
-    MAC_serial_proof
-), "Couldn't verify MAC and Serial number proof"
+    MAC_proof
+), "Couldn't verify MAC"
 assert verify_range(attr_16.Ma, range_proof), (
     "Couldn't verify range proof"
 )
 delta_amount = 16
-assert verify_balance([randomized_creds.Ca], [attr_16.Ma], balance_proof, delta_amount), (
+assert verify_balance([randomized_creds], [attr_16.Ma], balance_proof, delta_amount), (
     f"Couldn't verify balance proof for {delta_amount}"
 )
-assert verify_script_equality([randomized_creds.Cs], [new_script_attr.Ms], script_proof), (
+assert verify_script_equality([randomized_creds], [new_script_attr.Ms], script_proof), (
     "Couldn't verify script equality"
 )
 

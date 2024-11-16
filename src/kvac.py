@@ -200,34 +200,24 @@ class CredentialsStatement(Statement):
     def __init__(self,
         Z: GroupElement,
         I: GroupElement,
-        Ca: GroupElement,
         Cx0: GroupElement,
         Cx1: GroupElement,
-        S: GroupElement,
     ):
         self = [
-            Equation(           # Z = z*I
+            Equation(           # Z = r*I
                 value=Z,
                 construction=[I]
             ),
-            Equation(           # Cx1 = t*Cx0 + (-tz)*X0 + z*X1
+            Equation(           # Cx1 = t*Cx0 + (-tr)*X0 + r*X1
                 value=Cx1,
                 construction=[X1, X0, Cx0]
             ),
-            Equation(           # S = r*G_serial
-                value=S,
-                construction=[O, O, O, G_serial]
-            ),
-            Equation(           # Ca = z*Gz_attribute + r*G_blind + a*G_amount
-                value=Ca,
-                construction=[Gz_attribute, O, O, G_blind, G_amount]
-            )
         ]
 
 class BalanceStatement(Statement):
 
     def __init__(self, B: GroupElement):
-        self = [Equation(             # B = z*Gz_attribute + 𝚫r*G_blind
+        self = [Equation(             # B = r*Gz_attribute + 𝚫r*G_blind
             value=B,
             construction=[Gz_attribute, G_blind]
         )]
@@ -450,24 +440,22 @@ def randomize_credentials(
             Ms = script.Ms
 
     U = hash_to_curve(t.to_bytes())
-    z = Scalar()
-    z0 = -(t*z)   
+    r = attribute.r  
 
-    Ca = z*Gz_attribute + Ma
-    Cs = z*Gz_script + Ms
-    Cx0 = z*X0 + U
-    Cx1 = z*X1 + t*U
-    Cv = z*Gz_mac + V
+    Ca = r*Gz_attribute + Ma
+    Cs = r*Gz_script + Ms
+    Cx0 = r*X0 + U
+    Cx1 = r*X1 + t*U
+    Cv = r*Gz_mac + V
 
-    return RandomizedCredentials(z=z, z0=z0, Ca=Ca, Cs=Cs, Cx0=Cx0, Cx1=Cx1, Cv=Cv)
+    return RandomizedCredentials(Ca=Ca, Cs=Cs, Cx0=Cx0, Cx1=Cx1, Cv=Cv)
 
 
-def prove_MAC_and_serial(
-    iparams: Tuple[GroupElement, GroupElement],
-    commitments: RandomizedCredentials,
+def prove_MAC(
+    mint_pubkey: Tuple[GroupElement, GroupElement],
+    credentials: RandomizedCredentials,
     mac: MAC,
     attribute: AmountAttribute,
-    script: Optional[ScriptAttribute] = None,
 ) -> ZKP:
     """
     Generates a zero-knowledge proof that the given commitments where derived
@@ -476,42 +464,35 @@ def prove_MAC_and_serial(
     Only who knows the opening of iparams can correctly verify this proof.
 
     Parameters:
-        iparams (Tuple[GroupElement, GroupElement]): The iparams.
-        commitments (RandomizedCredentials): The commitments.
+        mint_pubkey (Tuple[GroupElement, GroupElement]): The public key tuple of the Mint.
+        credentials (RandomizedCredentials): The randomized credentials.
         mac (MAC): The MAC.
         attribute (AmountAttribute): The amount attribute.
-        script (Optional[ScriptAttribute]): The script attribute.
 
     Returns:
         ZKP: The generated zero-knowledge proof.
     """
-    Ca, Cx0, Cx1 = (
-        commitments.Ca, 
-        commitments.Cx0,
-        commitments.Cx1
+    Cx0, Cx1 = ( 
+        credentials.Cx0,
+        credentials.Cx1
     )
-    _, I = iparams
-    S = attribute.serial
-    Z = commitments.z*I
+    _, I = mint_pubkey
+    r = attribute.r
+    t = mac.t
+    r0 = -(t*r)
+    Z = r*I
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
-        secrets=[
-            commitments.z,
-            commitments.z0,
-            mac.t,
-            attribute.r,
-            attribute.a,
-        ]
+        secrets=[r, r0, t]
     )
-    prover.add_statement(CredentialsStatement(Z, I, Ca, Cx0, Cx1, S))
+    prover.add_statement(CredentialsStatement(Z, I, Cx0, Cx1))
 
     return prover.prove()
 
-def verify_MAC_and_serial(
+def verify_MAC(
     privkey: MintPrivateKey,
-    commitments: RandomizedCredentials,
-    S: GroupElement,
+    credentials: RandomizedCredentials,
     proof: ZKP,
     script: Optional[bytes] = None,
 ) -> bool:
@@ -522,8 +503,7 @@ def verify_MAC_and_serial(
 
     Parameters:
         privkey (MintPrivateKey): The mint secret key.
-        commitments (RandomizedCredentials): The randomized commitments.
-        S (GroupElement): The serial number S.
+        credentials (RandomizedCredentials): The randomized commitments.
         proof (ZKP): The zero-knowledge proof.
         script (Optional[bytes], optional): The script if revealed
 
@@ -531,71 +511,67 @@ def verify_MAC_and_serial(
         bool: True if the proof is valid, False otherwise.
     """
     Ca, Cs, Cx0, Cx1, Cv = (
-        commitments.Ca,
-        commitments.Cs,
-        commitments.Cx0,
-        commitments.Cx1,
-        commitments.Cv,
+        credentials.Ca,
+        credentials.Cs,
+        credentials.Cx0,
+        credentials.Cx1,
+        credentials.Cv,
     )
     I = privkey.I
-    Scr = O
+    S = O
     if script:
         s = Scalar(hashlib.sha256(script).digest())
-        Scr = s*G_script
+        S = s*G_script
     Z = Cv - (
         privkey.w*W
         + privkey.x0*Cx0
         + privkey.x1*Cx1
         + privkey.ya*Ca
-        + privkey.ys*(Cs+Scr)
+        + privkey.ys*(Cs+S)
     )
 
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
         proof=proof,
     )
-    verifier.add_statement(CredentialsStatement(Z, I, Ca, Cx0, Cx1, S))
+    verifier.add_statement(CredentialsStatement(Z, I, Cx0, Cx1))
 
     return verifier.verify()
 
 def prove_balance(
-    randomized_creds: List[RandomizedCredentials],
     old_attributes: List[AmountAttribute],                   
     new_attributes: List[AmountAttribute],
 ) -> ZKP:
     """
-    This function takes as input a list of commitment sets, a list of old attributes, and a list of new attributes, and returns a zero-knowledge proof that the balance is valid for the given commitment sets and attributes.
+    This function takes as input a list of old attributes and a list of new attributes, and returns a zero-knowledge proof of the balance between them.
 
     Parameters:
-        randomized_creds (List[RandomizedCredentials]): The list of commitment sets.
         old_attributes (List[AmountAttribute]): The list of old amount attributes.
         new_attributes (List[AmountAttribute]): The list of new amount attributes.
 
     Returns:
         ZKP: The generated zero-knowledge proof.
     """
-    z = [comm.z for comm in randomized_creds]
     r = [att.r for att in old_attributes]
     r_ = [att.r for att in new_attributes]
 
-    z_sum = sum(z, Scalar(SCALAR_ZERO))
     r_sum = sum(r, Scalar(SCALAR_ZERO))
     r_sum_ = sum(r_, Scalar(SCALAR_ZERO))
 
     delta_r = r_sum - r_sum_
-    B = z_sum*Gz_attribute + delta_r*G_blind
+    B = r_sum*Gz_attribute + delta_r*G_blind
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
-        secrets=[z_sum, delta_r]
+        secrets=[r_sum, delta_r]
     )
     prover.add_statement(BalanceStatement(B))
 
     return prover.prove()
 
 def verify_balance(
-    commitments: List[GroupElement],
-    attributes: List[GroupElement],
+    credentials: List[GroupElement],
+    new_attributes: List[GroupElement],
     balance_proof: ZKP,
     delta_amount: int,
 ) -> bool:
@@ -605,10 +581,10 @@ def verify_balance(
     then verifies zero-knowledge balance proof and returns True if the proof is valid, and False otherwise.
 
     Parameters:
-        commitments (List[RandomizedCredentials]): The list of commitment sets.
-        attributes (List[AmountAttribute]): The list of attributes.
+        credentials (List[RandomizedCredentials]): The list of randomized credentials.
+        new_attributes (List[AmountAttribute]): The list of new attributes.
         balance_proof (ZKP): The zero-knowledge proof.
-        delta_amount (int): The delta amount.
+        delta_amount (int): The amount by which credentials and new attributes supposedly differ.
 
     Returns:
         bool: True if the proof is valid, False otherwise.
@@ -616,9 +592,9 @@ def verify_balance(
 
     delta_a = Scalar(abs(delta_amount).to_bytes(32, 'big'))
     B = -delta_a*G_amount if delta_amount >= 0 else delta_a*G_amount
-    for Ca in commitments:
-        B += Ca
-    for Ma in attributes:
+    for creds in credentials:
+        B += creds.Ca
+    for Ma in new_attributes:
         B -= Ma
 
     verifier = LinearRelationProverVerifier(
@@ -725,7 +701,7 @@ def verify_range(
     return verifier.verify()
 
 def prove_script_equality(
-    randomized_credentials: List[RandomizedCredentials],
+    credentials: List[RandomizedCredentials],
     script_attributes: List[ScriptAttribute],
     new_script_attributes: List[ScriptAttribute],
 ) -> ZKP:
@@ -733,9 +709,9 @@ def prove_script_equality(
     Produces a proof of same secret used in `script_commitment` and `script_attribute`
 
     Parameters:
-        randomized_credentials (List[RandomizedCredentials]): The previous randomized script commitment's Cs
-        script_attributes (List[ScriptAttribute]): The previous script attribute
-        new_script_attributes (List[ScriptAttribute]): The current script attribute
+        credentials (List[RandomizedCredentials]): The old randomized credentials
+        script_attributes (List[ScriptAttribute]): The old script attributes
+        new_script_attributes (List[ScriptAttribute]): The new script attributes
     Returns:
         (ZKP) Proof that `s` is the same in the old `Cs` and new `Ms`
     """
@@ -744,23 +720,22 @@ def prove_script_equality(
         "Scripts are not equal!"
     )
 
-    z_list = [creds.z for creds in randomized_credentials]
     r_list = [att.r for att in script_attributes]
     new_r_list = [att.r for att in new_script_attributes]
 
     prover = LinearRelationProverVerifier(
         LinearRelationMode.PROVE,
-        secrets=[s]+z_list+r_list+new_r_list,
+        secrets=[s]+r_list+r_list+new_r_list,
     )
     prover.add_statement(ScriptEqualityStatement(
-        [creds.Cs for creds in randomized_credentials],
-        [att.Ms for att in script_attributes]
-    ))    
+        [cred.Cs for cred in credentials],
+        [att.Ms for att in new_script_attributes]
+    ))
     
     return prover.prove()
 
 def verify_script_equality(
-    randomized_script_attributes: List[GroupElement],
+    old_credentials: List[RandomizedCredentials],
     new_script_attributes: List[GroupElement],
     proof: ZKP,
 ) -> bool:
@@ -768,7 +743,7 @@ def verify_script_equality(
     Verifies a proof of same script used across all `randomized_script_attributes` and `new_script_attributes`
 
     Parameters:
-        randomized_credentials (List[GroupElement]): Randomized attributes
+        randomized_credentials (List[RandomizedCredentials]): The old randomized credentials
         new_script_attributes (List[GroupElement]): New script attributes
     Returns:
         (bool) True if successfully verified, False otherwise
@@ -779,7 +754,7 @@ def verify_script_equality(
         proof=proof,
     )
     verifier.add_statement(ScriptEqualityStatement(
-        randomized_script_attributes,
+        [cred.Cs for cred in old_credentials],
         new_script_attributes,
     ))
 

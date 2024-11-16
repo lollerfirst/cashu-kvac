@@ -127,11 +127,6 @@ class AmountAttribute:
         assert self.r and self.a
         return self.r * G_blind + self.a * G_amount
 
-    @property
-    def serial(self) -> GroupElement:
-        assert self.r, "Serial preimage unknown"
-        return self.r * G_serial
-
     @classmethod
     def tweak_amount(cls, Ma: GroupElement, delta: int) -> GroupElement:
         d = Scalar(abs(delta).to_bytes(32, 'big'))
@@ -145,17 +140,6 @@ class RandomizedCredentials:
     Cx0: GroupElement
     Cx1: GroupElement
     Cv: GroupElement
-    z: Optional[Scalar] = None
-    z0: Optional[Scalar] = None
-
-    def lose_secrets(self):
-        return RandomizedCredentials(
-            Ca=self.Ca,
-            Cs=self.Cs,
-            Cx0=self.Cx0,
-            Cx1=self.Cx1,
-            Cv=self.Cv,
-        )
 
 @dataclass
 class MAC:
