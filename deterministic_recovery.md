@@ -1,4 +1,4 @@
-# Deterministic recovery of HMACs
+# Deterministic recovery of Amount Attributes
 
 ### Normal execution:
 
