@@ -42,7 +42,7 @@ assert verify_balance(
 
 print("Balance proof successfully verified")
 
-wrong_range_attr = AmountAttribute.create(2**52)
+wrong_range_attr = AmountAttribute.create(RANGE_LIMIT)
 range_proof = prove_range(attribute)
 wrong_range_proof = prove_range(wrong_range_attr)
 assert verify_range(attribute.Ma, range_proof)

@@ -13,7 +13,7 @@ from typing import Tuple, List, Optional, Union
 from enum import Enum
 
 # Maximum allowed for a single attribute
-RANGE_LIMIT = 1 << 51
+RANGE_LIMIT = 1 << 32
 
 # Powers of two mult H.
 # Used in range proofs.
@@ -652,7 +652,7 @@ def prove_range(
     # Decompose attribute's amount into bits.
     amount = int.from_bytes(attribute.a.to_bytes(), "big")
     bits = []
-    for _ in range(RANGE_LIMIT.bit_length()):
+    for _ in range((RANGE_LIMIT-1).bit_length()):
         bits.append(Scalar((amount&1).to_bytes(32, "big")))
         amount >>= 1
 
@@ -712,8 +712,8 @@ def verify_range(
     # Get powers of 2 in G_blind
     K = GROUP_ELEMENTS_POW2
 
-    # Verify the number of bits does not exceed log2(RANGE_LIMIT)
-    if len(B) > RANGE_LIMIT.bit_length():
+    # Verify the number of bits does not exceed log2(RANGE_LIMIT-1)
+    if len(B) >= RANGE_LIMIT.bit_length():
         return False
 
     # Calculate Ma - Σ 2^i*B_i
@@ -745,9 +745,9 @@ def prove_script_equality(
         (ZKP) Proof that `s` is the same in the old `Cs` and new `Ms`
     """
     s = new_script_attributes[0].s
-    ar_list = [att.r for att in old_amount_attributes]
-    r_list = [att.r for att in old_script_attributes]
-    new_r_list = [att.r for att in new_script_attributes]
+    ar_list = [att.r for att in old_amount_attributes]      # `AmountAttribute`s blinding factors
+    r_list = [att.r for att in old_script_attributes]       # `ScriptAttribute`s blinding factors
+    new_r_list = [att.r for att in new_script_attributes]   # new `ScriptAttribute`s blinding factors
 
     prover = LinearRelationProverVerifier(
         LinearRelationMode.PROVE,
