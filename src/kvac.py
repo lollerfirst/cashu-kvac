@@ -159,7 +159,7 @@ class LinearRelationProverVerifier:
             for E in add_to_challenge:
                 self.challenge_preimage += E.serialize(True)
 
-        # NOTE: Use Merlin to generate Fiat-Shamir challenges
+        # NOTE: Use Merlin?
         # Are there any libraries for python? Don't think so.
         c_ = Scalar(
             hashlib.sha256(self.challenge_preimage).digest()

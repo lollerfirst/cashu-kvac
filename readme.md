@@ -14,6 +14,10 @@ Experimental implementation of the core crypto behind a anonymous credentials en
   - Benefit: no $\pi_\text{serial}$ because not needed anymore.
   - $C_a$ becomes the serial
 
+### Range proofs:
+* BULLETPROOFS: https://eprint.iacr.org/2017/1066.pdf
+* Sharp: https://eprint.iacr.org/2022/1153.pdf
+
 ### Basic Protocol Diagram:
 
 Will surely change nor it is particularly accurate.
