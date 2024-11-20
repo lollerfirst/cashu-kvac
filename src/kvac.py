@@ -78,6 +78,8 @@ class LinearRelationProverVerifier:
                 assert proof is not None, "mode is VERIFY but no ZKP provided"
                 self.responses = [Scalar(s) for s in proof.s]
                 self.c = Scalar(proof.c)
+                if self.c.is_zero:
+                    raise Exception("provided proof has a scalar zero challenge")
             case _:
                 raise Exception("unrecognized mode")
 
@@ -96,18 +98,21 @@ class LinearRelationProverVerifier:
             V = eq.value
 
             if self.mode.isProve:
-                for i, P in enumerate(eq.construction):
-                    R += self.random_terms[i] * P
+                for row in eq.construction:
+                    for i, P in enumerate(row):
+                        R += self.random_terms[i] * P
             elif self.mode.isVerify:
-                for i, P in enumerate(eq.construction):
-                    R += self.responses[i] * P
+                for row in eq.construction:
+                    for i, P in enumerate(row):
+                        R += self.responses[i] * P
                 R -= self.c*V
 
             # NOTE: No domain separation?
-            if V:
-                self.challenge_preimage += V.serialize(True) + R.serialize(True)
-            else:
-                self.challenge_preimage += R.serialize(True)
+            self.challenge_preimage += V.serialize(True) + R.serialize(True)
+        
+        # Check that nothing strange is happening
+        if self.challenge_preimage == b"":
+            raise Exception("add_statement: empty challenge preimage")
     
     def prove(self,
         add_to_challenge: Optional[List[GroupElement]] = None
@@ -167,7 +172,7 @@ class BootstrapStatement:
         return [
             Equation(                   # Ma = r*G_blind
                 value=Ma,
-                construction=[G_blind]
+                construction=[[G_blind]]
             )
         ]
 
@@ -186,15 +191,15 @@ class IparamsStatement:
         return [
             Equation(                   # Cw = w*W  + w_*W_
                 value=Cw,
-                construction=[W, W_,]
+                construction=[[W, W_,]]
             ),
             Equation(                   # I = Gz_mac - x0*X0 - x1*X1 - ya*Gz_attribute - ys*Gz_script
                 value=Gz_mac-I,          
-                construction=[O, O, X0, X1, Gz_attribute, Gz_script]
+                construction=[[O, O, X0, X1, Gz_attribute, Gz_script]]
             ),
             Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma + ys*Ms
                 value=V,
-                construction=[W, O, U, t*U, Ma, Ms]
+                construction=[[W, O, U, t*U, Ma, Ms]]
             )
         ]
 
@@ -206,16 +211,24 @@ class CredentialsStatement:
         I: GroupElement,
         Cx0: GroupElement,
         Cx1: GroupElement,
+        Ca: GroupElement,
     ):
         return [
             Equation(           # Z = r*I
                 value=Z,
-                construction=[I]
+                construction=[[I]]
             ),
             Equation(           # Cx1 = t*Cx0 + (-tr)*X0 + r*X1
                 value=Cx1,
-                construction=[X1, X0, Cx0]
+                construction=[[X1, X0, Cx0]]
             ),
+            Equation(           # Ca = r*Gz_amount + r*G_blind + a*G_amount
+                value=Ca,       # MULTI-ROW: `r` witness is used twice for Gz_amount and G_blind
+                construction=[
+                    [Gz_attribute, O, O, G_amount],
+                    [G_blind]
+                ]
+            )
         ]
 
 class BalanceStatement:
@@ -224,7 +237,7 @@ class BalanceStatement:
     def create(cls, B: GroupElement):
         return [Equation(             # B = r*Gz_attribute + 𝚫r*G_blind
             value=B,
-            construction=[Gz_attribute, G_blind]
+            construction=[[Gz_attribute, G_blind]]
         )]
 
 class ScriptEqualityStatement:
@@ -234,19 +247,23 @@ class ScriptEqualityStatement:
         statement = [
             Equation(             
                 value=Cs,
-                construction=[G_script]+
+                construction=[
+                    [G_script]+
                     [O] * i +
                     [Gz_script] +
                     [O] * (len(creds)-1) + 
                     [G_blind]
+                ]
             )
         for i, Cs in enumerate(creds)]
         statement += [
             Equation(
                 value=Ms,
-                construction=[G_script]+
+                construction=[
+                    [G_script] +
                     [O] * (2*len(creds)+i) +
                     [G_blind]
+                ]
             )
         for i, Ms in enumerate(attr)]
         return statement
@@ -263,21 +280,24 @@ class RangeStatement:
         # 1) This equation proves that Ma - Σ 2^i*B_i is a commitment to zero
         statement = [Equation(               
             value=V,
-            construction=[G_blind] +
+            construction=[
+                [G_blind] +
                 [O] * len(B) +
                 [-K[i] for i in range(len(B))]
+            ]
         )]
 
         # 2) This set of equations proves that we know the opening of B_i for every i
         # Namely B_i - b_i*G is a commitment to zero
         statement += [Equation(
             value=B_i,
-            construction=
+            construction=[
                 [O] +
                 [O] * i +
                 [G_amount] +
                 [O] * (len(B)-1) +
                 [G_blind]
+            ]
         ) for i, B_i in enumerate(B)]
 
         # 3) This set of equations proves that each b_i is such that b_i^2 = b_i
@@ -288,11 +308,13 @@ class RangeStatement:
         # b_i^2cG - b_icG is a commitment to zero <==> b^2 = b <==> b = 0 or 1
         statement += [Equation(
             value=O,
-            construction=[O] + 
+            construction=[
+                [O] + 
                 [O] * i +
                 [B_i-G_amount] +
                 [O] * (2*len(B)-1) + 
                 [G_blind]
+            ]
             ) for i, B_i in enumerate(B)]
 
         return statement
@@ -479,21 +501,23 @@ def prove_MAC(
     Returns:
         ZKP: The generated zero-knowledge proof.
     """
-    Cx0, Cx1 = ( 
+    Ca, Cx0, Cx1 = ( 
+        credentials.Ca,
         credentials.Cx0,
         credentials.Cx1
     )
     _, I = mint_pubkey
     r = attribute.r
+    a = attribute.a
     t = mac.t
     r0 = -(t*r)
     Z = r*I
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
-        secrets=[r, r0, t]
+        secrets=[r, r0, t, a]
     )
-    prover.add_statement(CredentialsStatement.create(Z, I, Cx0, Cx1))
+    prover.add_statement(CredentialsStatement.create(Z, I, Cx0, Cx1, Ca))
 
     return prover.prove()
 

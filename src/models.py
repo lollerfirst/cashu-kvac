@@ -181,7 +181,7 @@ class MAC:
 @dataclass
 class Equation:
     value: Optional[GroupElement]
-    construction: List[GroupElement]
+    construction: List[List[GroupElement]]
 
 Statement = List[Equation]
 
