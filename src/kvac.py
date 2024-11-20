@@ -565,7 +565,7 @@ def verify_MAC(
         mode=LinearRelationMode.VERIFY,
         proof=proof,
     )
-    verifier.add_statement(CredentialsStatement.create(Z, I, Cx0, Cx1))
+    verifier.add_statement(CredentialsStatement.create(Z, I, Cx0, Cx1, Ca))
 
     return verifier.verify()
 
