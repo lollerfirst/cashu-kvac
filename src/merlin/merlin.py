@@ -40,7 +40,7 @@ class MerlinTranscript:
         )
         return bytes(ffi.buffer(buffer, size))
 
-
+'''
 # Testing
 
 import random
