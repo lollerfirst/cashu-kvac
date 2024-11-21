@@ -10,6 +10,7 @@ readme = "README.md"
 python = "^3.12"
 secp256k1 = "^0.14.0"
 bitcoinlib = "^0.7.0"
+cffi = "^1.17.1"
 
 
 [tool.poetry.group.dev.dependencies]
