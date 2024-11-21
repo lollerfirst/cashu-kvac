@@ -65,20 +65,20 @@ assert verify_iparams(client_tscr, mac_0, mint_pubkey, proof_iparams, bootstrap.
 attr_16 = AmountAttribute.create(16)    # <-- different value attribute
 new_script_attr = ScriptAttribute.create(script.as_bytes())  # <-- same script, but differently blinded.
 
-# Prove attr_16 encodes an amount within [0, 2**51-1]
-range_proof = prove_range(attr_16)
+# Prove attr_16 encodes an amount within [0, 2**32-1]
+range_proof = prove_range(client_tscr, attr_16)
 
 # Randomize previous credentials
 randomized_creds = randomize_credentials(mac_0, bootstrap, script_attr)
 
 # Prove MAC was generated from mint and binds the attributes
-MAC_proof = prove_MAC(mint_pubkey, randomized_creds, mac_0, bootstrap)
+MAC_proof = prove_MAC(client_tscr, mint_pubkey, randomized_creds, mac_0, bootstrap)
 
 # Prove the 𝚫 between bootstrap and attr_16 is in fact 16
-balance_proof = prove_balance([bootstrap], [attr_16])
+balance_proof = prove_balance(client_tscr, [bootstrap], [attr_16])
 
 # Prove the script is the same
-script_proof = prove_script_equality([bootstrap], [script_attr], [new_script_attr])
+script_proof = prove_script_equality(client_tscr, [bootstrap], [script_attr], [new_script_attr])
 
 ## SEND(
 # randomized_creds,
@@ -87,25 +87,26 @@ script_proof = prove_script_equality([bootstrap], [script_attr], [new_script_att
 # range_proof, balance_proof, script_proof, MAC_proof)
 
 # Mint verifies all of the proofs
+assert verify_range(mint_tscr, attr_16.Ma, range_proof), (
+    "Couldn't verify range proof"
+)
 assert verify_MAC(
+    mint_tscr,
     mint_privkey,
     randomized_creds,
     MAC_proof
 ), "Couldn't verify MAC"
-assert verify_range(attr_16.Ma, range_proof), (
-    "Couldn't verify range proof"
-)
 delta_amount = -16
-assert verify_balance([randomized_creds], [attr_16.Ma], balance_proof, delta_amount), (
+assert verify_balance(mint_tscr, [randomized_creds], [attr_16.Ma], balance_proof, delta_amount), (
     f"Couldn't verify balance proof for {delta_amount}"
 )
-assert verify_script_equality([randomized_creds], [new_script_attr.Ms], script_proof), (
+assert verify_script_equality(mint_tscr, [randomized_creds], [new_script_attr.Ms], script_proof), (
     "Couldn't verify script equality"
 )
 
 # Then Mint can safely issue new credentials now
 mac_16 = MAC.generate(mint_privkey, attr_16.Ma, new_script_attr.Ms)
-proof_iparams = prove_iparams(mint_privkey, mac_16, attr_16.Ma, new_script_attr.Ms)
+proof_iparams = prove_iparams(mint_tscr, mint_privkey, mac_16, attr_16.Ma, new_script_attr.Ms)
 
 ## RECEIVE(mac_16, proof_iparams)
-assert verify_iparams(mac_16, mint_pubkey, proof_iparams, attr_16.Ma, new_script_attr.Ms)
+assert verify_iparams(client_tscr, mac_16, mint_pubkey, proof_iparams, attr_16.Ma, new_script_attr.Ms)
