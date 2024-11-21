@@ -40,7 +40,7 @@ class MerlinTranscript:
         )
         return bytes(ffi.buffer(buffer, size))
 
-'''
+
 # Testing
 
 import random
@@ -65,7 +65,7 @@ with MerlinTranscript(label) as transcript:
     
     # Request challenge bytes
     challenge_bytes = transcript.get_challenge_bytes(commit_label, size)
-    print(f"Challenge bytes: {challenge_bytes}")
+    print(f"Challenge bytes: {challenge_bytes.hex()}")
 
 print("Test completed successfully.")
 '''
