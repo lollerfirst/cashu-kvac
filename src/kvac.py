@@ -7,6 +7,7 @@ from secp import (
 )
 from models import *
 from generators import *
+from merlin.merlin import MerlinTranscript
 import hashlib
 
 from typing import Tuple, List, Optional, Union
@@ -21,6 +22,25 @@ GROUP_ELEMENTS_POW2 = [
         (Scalar((1 << i).to_bytes(32, "big")))*G_blind
     for i in range(RANGE_LIMIT.bit_length())
 ]
+
+class CashuTranscript:
+    t: MerlinTranscript
+
+    def __init__(self):
+        self.t = MerlinTranscript(b"Secp256k1_Cashu_")
+
+    def domain_sep(self, label: bytes, message: bytes):
+        self.t.commit_bytes(label, message)
+    
+    def append(self, label: bytes, element: GroupElement):
+        message = element.serialize(True)
+        self.t.commit_bytes(label, message)
+
+    def get_challenge(self, label: bytes) -> Scalar:
+        challenge_bytes = self.t.get_challenge_bytes(label, 32)
+        c = Scalar(challenge_bytes)
+        assert not c.is_zero, "got challenge == SCALAR_ZERO"
+        return c
 
 class LinearRelationMode(Enum):
     PROVE = 0
@@ -50,14 +70,15 @@ class LinearRelationProverVerifier:
         mode (LinearRelationMode): The mode of the class, either PROVE or VERIFY.
     """
     random_terms: List[Scalar]
-    challenge_preimage: bytes
     secrets: List[bytes]
     responses: List[Scalar]
     c: Scalar
     mode: LinearRelationMode
+    transcript: CashuTranscript
 
     def __init__(self,
         mode: LinearRelationMode,
+        transcript: CashuTranscript,
         secrets: Optional[List[Scalar]] = None,
         proof: Optional[ZKP] = None,
     ):
@@ -66,6 +87,7 @@ class LinearRelationProverVerifier:
 
         Parameters:
             mode (LinearRelationMode): The mode of the class, either PROVE or VERIFY.
+            transcript (CashuTranscript):
             secrets (Optional[List[Scalar]]): The secrets used in the proof, required if mode is PROVE.
             proof (Optional[ZKP]): The proof used in the verification, required if mode is VERIFY.
         """
@@ -83,7 +105,7 @@ class LinearRelationProverVerifier:
             case _:
                 raise Exception("unrecognized mode")
 
-        self.challenge_preimage = b""
+        self.transcript = transcript
         self.mode = mode
 
     def add_statement(self, statement: Statement):
@@ -93,7 +115,11 @@ class LinearRelationProverVerifier:
         Parameters:
             statement (Statement): The statement to be added.
         """
-        for eq in statement:
+
+        # Append proof-specific domain separator
+        self.transcript.domain_sep(b"dom-sep", statement.domain_separator)
+
+        for eq in statement.equations:
             R = O
             V = eq.value
 
@@ -106,64 +132,38 @@ class LinearRelationProverVerifier:
                     for i, P in enumerate(row):
                         R += self.responses[i] * P
                 R -= self.c*V
-
-            # NOTE: No domain separation?
-            self.challenge_preimage += V.serialize(True) + R.serialize(True)
-        
-        # Check that nothing strange is happening
-        if self.challenge_preimage == b"":
-            raise Exception("add_statement: empty challenge preimage")
+            
+            # Append nonce-commitment and public input
+            # to the running transcript
+            self.transcript.append(b"R_", R)
+            self.transcript.append(b"V_", V)
     
-    def prove(self,
-        add_to_challenge: Optional[List[GroupElement]] = None
-    ) -> ZKP:
+    def prove(self) -> ZKP:
         """
         Generates a zero-knowledge proof.
-
-        Parameters:
-            add_to_challenge (Optional[List[GroupElement]]): Additional public keys to add to the challenge.
 
         Returns:
             ZKP: The generated zero-knowledge proof.
         """
         assert self.mode.isProve, "mode is not PROVE!"
-
-        if add_to_challenge is not None:
-            for E in add_to_challenge:
-                self.challenge_preimage += E.serialize(True)
-
-        c = Scalar(
-            hashlib.sha256(self.challenge_preimage).digest()
-        )
         
+        c = self.transcript.get_challenge(b"chall_")
+
         responses = [(k + c*s).to_bytes()
             for k, s in zip(self.random_terms, self.secrets)]
         
         return ZKP(s=responses, c=c.to_bytes())
 
-    def verify(self,
-        add_to_challenge: Optional[List[GroupElement]] = None
-    ) -> bool:
+    def verify(self) -> bool:
         """
         Verifies a zero-knowledge proof.
-
-        Parameters:
-            add_to_challenge (Optional[List[GroupElement]]): Additional public keys to add to the challenge.
 
         Returns:
             bool: True if the proof is valid, False otherwise.
         """
         assert self.mode.isVerify, "mode is not VERIFY!"
 
-        if add_to_challenge is not None:
-            for E in add_to_challenge:
-                self.challenge_preimage += E.serialize(True)
-
-        # NOTE: Use Merlin?
-        # Are there any libraries for python? Don't think so.
-        c_ = Scalar(
-            hashlib.sha256(self.challenge_preimage).digest()
-        )
+        c_ = self.transcript.get_challenge(b"chall_")
 
         return self.c == c_
 
@@ -171,12 +171,15 @@ class BootstrapStatement:
 
     @classmethod
     def create(cls, Ma: GroupElement):
-        return [
-            Equation(                   # Ma = r*G_blind
-                value=Ma,
-                construction=[[G_blind]]
-            )
-        ]
+        return Statement(
+            domain_separator=b"Bootstrap_Statement_",
+            equations=[
+                Equation(                   # Ma = r*G_blind
+                    value=Ma,
+                    construction=[[G_blind]]
+                )
+            ]
+        )
 
 class IparamsStatement:
 
@@ -190,20 +193,23 @@ class IparamsStatement:
         t: Scalar,
     ):
         U = hash_to_curve(t.to_bytes())
-        return [
-            Equation(                   # Cw = w*W  + w_*W_
-                value=Cw,
-                construction=[[W, W_,]]
-            ),
-            Equation(                   # I = Gz_mac - x0*X0 - x1*X1 - ya*Gz_attribute - ys*Gz_script
-                value=Gz_mac-I,          
-                construction=[[O, O, X0, X1, Gz_attribute, Gz_script]]
-            ),
-            Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma + ys*Ms
-                value=V,
-                construction=[[W, O, U, t*U, Ma, Ms]]
-            )
-        ]
+        return Statement(
+            domain_separator=b"Iparams_Statement_",
+            equations=[
+                Equation(                   # Cw = w*W  + w_*W_
+                    value=Cw,
+                    construction=[[W, W_,]]
+                ),
+                Equation(                   # I = Gz_mac - x0*X0 - x1*X1 - ya*Gz_attribute - ys*Gz_script
+                    value=Gz_mac-I,          
+                    construction=[[O, O, X0, X1, Gz_attribute, Gz_script]]
+                ),
+                Equation(                   # V = w*W + x0*U + x1*t*U + ya*Ma + ys*Ms
+                    value=V,
+                    construction=[[W, O, U, t*U, Ma, Ms]]
+                )
+            ]
+        )
 
 class CredentialsStatement:
 
@@ -215,38 +221,46 @@ class CredentialsStatement:
         Cx1: GroupElement,
         Ca: GroupElement,
     ):
-        return [
-            Equation(           # Z = r*I
-                value=Z,
-                construction=[[I]]
-            ),
-            Equation(           # Cx1 = t*Cx0 + (-tr)*X0 + r*X1
-                value=Cx1,
-                construction=[[X1, X0, Cx0]]
-            ),
-            Equation(           # Ca = r*Gz_amount + r*G_blind + a*G_amount
-                value=Ca,       # MULTI-ROW: `r` witness is used twice for Gz_amount and G_blind
-                construction=[
-                    [Gz_attribute, O, O, G_amount],
-                    [G_blind]
-                ]
-            )
-        ]
+        return Statement(
+            domain_separator=b"Credentials_Statement_",
+            equations=[
+                Equation(           # Z = r*I
+                    value=Z,
+                    construction=[[I]]
+                ),
+                Equation(           # Cx1 = t*Cx0 + (-tr)*X0 + r*X1
+                    value=Cx1,
+                    construction=[[X1, X0, Cx0]]
+                ),
+                Equation(           # Ca = r*Gz_amount + r*G_blind + a*G_amount
+                    value=Ca,       # MULTI-ROW: `r` witness is used twice for Gz_amount and G_blind
+                    construction=[
+                        [Gz_attribute, O, O, G_amount],
+                        [G_blind]
+                    ]
+                )
+            ]
+        )
 
 class BalanceStatement:
 
     @classmethod
     def create(cls, B: GroupElement):
-        return [Equation(             # B = r*Gz_attribute + 𝚫r*G_blind
-            value=B,
-            construction=[[Gz_attribute, G_blind]]
-        )]
+        return Statement(
+            domain_separator=b"Balance_Statement_",
+            equations=[
+                Equation(             # B = r*Gz_attribute + 𝚫r*G_blind
+                    value=B,
+                    construction=[[Gz_attribute, G_blind]]
+                )
+            ]
+        )
 
 class ScriptEqualityStatement:
 
     @classmethod
     def create(cls, creds: List[GroupElement], attr: List[GroupElement]):
-        statement = [
+        equations = [
             Equation(             
                 value=Cs,
                 construction=[
@@ -258,7 +272,7 @@ class ScriptEqualityStatement:
                 ]
             )
         for i, Cs in enumerate(creds)]
-        statement += [
+        equations += [
             Equation(
                 value=Ms,
                 construction=[
@@ -268,7 +282,10 @@ class ScriptEqualityStatement:
                 ]
             )
         for i, Ms in enumerate(attr)]
-        return statement
+        return Statement(
+            domain_separator=b"Script_Equality_Statement_",
+            equations=equations
+        )
 
 class RangeStatement:
     
@@ -280,7 +297,7 @@ class RangeStatement:
         K = GROUP_ELEMENTS_POW2
 
         # 1) This equation proves that Ma - Σ 2^i*B_i is a commitment to zero
-        statement = [Equation(               
+        equations = [Equation(               
             value=V,
             construction=[
                 [G_blind] +
@@ -291,7 +308,7 @@ class RangeStatement:
 
         # 2) This set of equations proves that we know the opening of B_i for every i
         # Namely B_i - b_i*G is a commitment to zero
-        statement += [Equation(
+        equations += [Equation(
             value=B_i,
             construction=[
                 [O] +
@@ -308,7 +325,7 @@ class RangeStatement:
         # Instead they just use the same responses from (2) and multiply them against (B_i - G).
         # The only way the challenge terms cancel out is if
         # b_i^2cG - b_icG is a commitment to zero <==> b^2 = b <==> b = 0 or 1
-        statement += [Equation(
+        equations += [Equation(
             value=O,
             construction=[
                 [O] + 
@@ -317,17 +334,22 @@ class RangeStatement:
                 [O] * (2*len(B)-1) + 
                 [G_blind]
             ]
-            ) for i, B_i in enumerate(B)]
+        ) for i, B_i in enumerate(B)]
 
-        return statement
+        return Statement(
+            domain_separator=b"Range_Statement_",
+            equations=equations,
+        )
 
 def prove_bootstrap(
+    transcript: CashuTranscript,
     bootstrap: AmountAttribute
 ) -> ZKP:
     """
     Generates a zero-knowledge proofs that the bootstrap attribute does not encode value.
 
     Parameters:
+        transcript (CashuTranscript): 
         bootstrap (AmountAttribute): the bootstrap attribute.
 
     Returns:
@@ -338,6 +360,7 @@ def prove_bootstrap(
 
     prover = LinearRelationProverVerifier(
         LinearRelationMode.PROVE,
+        transcript,
         secrets=[r]
     )
     prover.add_statement(BootstrapStatement.create(Ma))
@@ -345,6 +368,7 @@ def prove_bootstrap(
     return prover.prove()
 
 def verify_bootstrap(
+    transcript: CashuTranscript,
     bootstrap: GroupElement,
     proof: ZKP,
 ) -> bool:
@@ -360,6 +384,7 @@ def verify_bootstrap(
     Ma = bootstrap
     verifier = LinearRelationProverVerifier(
         LinearRelationMode.VERIFY,
+        transcript,
         proof=proof,
     )
     verifier.add_statement(BootstrapStatement.create(Ma))
@@ -367,6 +392,7 @@ def verify_bootstrap(
     return verifier.verify()
 
 def prove_iparams(
+    transcript: CashuTranscript,
     privkey: MintPrivateKey,
     mac: MAC,
     attribute: GroupElement,
@@ -396,6 +422,7 @@ def prove_iparams(
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
+        transcript=transcript,
         secrets=privkey.sk,
     )
     prover.add_statement(IparamsStatement.create(Cw, I, V, Ma, Ms, t))
@@ -403,6 +430,7 @@ def prove_iparams(
     return prover.prove()
 
 def verify_iparams(
+    transcript: CashuTranscript,
     mac: MAC,
     iparams: Tuple[GroupElement, GroupElement],
     proof: ZKP,
@@ -434,6 +462,7 @@ def verify_iparams(
 
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
+        transcript=transcript,
         proof=proof,
     )
     verifier.add_statement(IparamsStatement.create(Cw, I, V, Ma, Ms, t))
@@ -483,6 +512,7 @@ def randomize_credentials(
 
 
 def prove_MAC(
+    transcript: CashuTranscript,
     mint_pubkey: Tuple[GroupElement, GroupElement],
     credentials: RandomizedCredentials,
     mac: MAC,
@@ -517,6 +547,7 @@ def prove_MAC(
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
+        transcript=transcript,
         secrets=[r, r0, t, a]
     )
     prover.add_statement(CredentialsStatement.create(Z, I, Cx0, Cx1, Ca))
@@ -524,6 +555,7 @@ def prove_MAC(
     return prover.prove()
 
 def verify_MAC(
+    transcript: CashuTranscript,
     privkey: MintPrivateKey,
     credentials: RandomizedCredentials,
     proof: ZKP,
@@ -565,6 +597,7 @@ def verify_MAC(
 
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
+        transcript=transcript,
         proof=proof,
     )
     verifier.add_statement(CredentialsStatement.create(Z, I, Cx0, Cx1, Ca))
@@ -572,6 +605,7 @@ def verify_MAC(
     return verifier.verify()
 
 def prove_balance(
+    transcript: CashuTranscript,
     old_attributes: List[AmountAttribute],                   
     new_attributes: List[AmountAttribute],
 ) -> ZKP:
@@ -596,6 +630,7 @@ def prove_balance(
 
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
+        transcript=transcript,
         secrets=[r_sum, delta_r]
     )
     prover.add_statement(BalanceStatement.create(B))
@@ -603,6 +638,7 @@ def prove_balance(
     return prover.prove()
 
 def verify_balance(
+    transcript: CashuTranscript,
     credentials: List[RandomizedCredentials],
     new_attributes: List[GroupElement],
     balance_proof: ZKP,
@@ -632,6 +668,7 @@ def verify_balance(
 
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
+        transcript=transcript,
         proof=balance_proof,
     )
     verifier.add_statement(BalanceStatement.create(B))
@@ -640,6 +677,7 @@ def verify_balance(
 
 
 def prove_range(
+    transcript: CashuTranscript,
     attribute: AmountAttribute
 ):
     # This is a naive range proof with bit-decomposition
@@ -688,6 +726,7 @@ def prove_range(
     #   - -(r_i * b_i) <-- needed to cancel out an excess challenge term in the third set of eqns
     prover = LinearRelationProverVerifier(
         mode=LinearRelationMode.PROVE,
+        transcript=transcript,
         secrets=[attribute.r] + 
             bits +
             bits_blinding_factors +
@@ -705,6 +744,7 @@ def prove_range(
     )
 
 def verify_range(
+    transcript: CashuTranscript,
     Ma: GroupElement,
     proof: RangeZKP
 ) -> bool:
@@ -727,6 +767,7 @@ def verify_range(
     # Instantiate verifier with the proof
     verifier = LinearRelationProverVerifier(
         mode=LinearRelationMode.VERIFY,
+        transcript=transcript,
         proof=proof
     )
 
@@ -734,6 +775,7 @@ def verify_range(
     return verifier.verify()
 
 def prove_script_equality(
+    transcript: CashuTranscript,
     old_amount_attributes: List[AmountAttribute],
     old_script_attributes: List[ScriptAttribute],
     new_script_attributes: List[ScriptAttribute],
@@ -753,6 +795,7 @@ def prove_script_equality(
 
     prover = LinearRelationProverVerifier(
         LinearRelationMode.PROVE,
+        transcript,
         secrets=[s]+ar_list+r_list+new_r_list,
     )
     prover.add_statement(ScriptEqualityStatement.create(
@@ -764,6 +807,7 @@ def prove_script_equality(
     return prover.prove()
 
 def verify_script_equality(
+    transcript: CashuTranscript,
     old_credentials: List[RandomizedCredentials],
     new_script_attributes: List[GroupElement],
     proof: ZKP,
@@ -780,6 +824,7 @@ def verify_script_equality(
 
     verifier = LinearRelationProverVerifier(
         LinearRelationMode.VERIFY,
+        transcript=transcript,
         proof=proof,
     )
     verifier.add_statement(ScriptEqualityStatement.create(

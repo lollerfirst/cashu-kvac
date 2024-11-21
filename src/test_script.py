@@ -36,22 +36,28 @@ print("\nScript %s" % script)
 print("\nSigScript %s" % sigscript)
 '''
 
+# Client's transcript
+client_tscr = CashuTranscript()
+
+# Mint's transcript
+mint_tscr = CashuTranscript()
+
 # Create attributes with 0 value that commit to a script
 bootstrap = AmountAttribute.create(0)
 script_attr = ScriptAttribute.create(script.as_bytes())
-proof_bootstrap = prove_bootstrap(bootstrap)
+proof_bootstrap = prove_bootstrap(client_tscr, bootstrap)
 
 ## SEND(bootstrap.Ma, script_attr.Ms)
 
 # Mint generates MAC after verifying the bootstrap attribute
-assert verify_bootstrap(bootstrap.Ma, proof_bootstrap), (
+assert verify_bootstrap(mint_tscr, bootstrap.Ma, proof_bootstrap), (
     "Couldn't verify bootstrap attr"
 )
 mac_0 = MAC.generate(mint_privkey, bootstrap.Ma, script_attr.Ms)
-proof_iparams = prove_iparams(mint_privkey, mac_0, bootstrap.Ma, script_attr.Ms)
+proof_iparams = prove_iparams(mint_tscr, mint_privkey, mac_0, bootstrap.Ma, script_attr.Ms)
 
 ## RECEIVE(mac_0, proof_iparams)
-assert verify_iparams(mac_0, mint_pubkey, proof_iparams, bootstrap.Ma, script_attr.Ms), (
+assert verify_iparams(client_tscr, mac_0, mint_pubkey, proof_iparams, bootstrap.Ma, script_attr.Ms), (
     "Couldn't verify iparams"
 )
 

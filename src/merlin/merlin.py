@@ -1,4 +1,4 @@
-from extension._merlin import ffi, lib
+from .extension._merlin import ffi, lib
 
 class MerlinTranscript:
     

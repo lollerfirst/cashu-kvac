@@ -183,7 +183,10 @@ class Equation:
     value: Optional[GroupElement]
     construction: List[List[GroupElement]]
 
-Statement = List[Equation]
+@dataclass
+class Statement:
+    domain_separator: bytes
+    equations: List[Equation]
 
 @dataclass
 class RangeZKP(ZKP):
