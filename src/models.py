@@ -1,6 +1,6 @@
-from secp import GroupElement, Scalar
+from .secp import GroupElement, Scalar
 from typing import List, Optional, Dict, Tuple
-from generators import *
+from .generators import *
 
 from dataclasses import dataclass
 

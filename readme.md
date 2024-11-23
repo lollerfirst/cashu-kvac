@@ -1,6 +1,6 @@
 # Anonymous Credentials for Cashu
 
-Experimental implementation of the core crypto behind a anonymous credentials enabled Mint.
+Experimental implementation of the core crypto behind an anonymous credentials enabled Mint.
 
 ### KVAC Scheme:
 * Paper on KVAC used for CoinJoins: https://eprint.iacr.org/2021/206.pdf
@@ -21,9 +21,3 @@ Experimental implementation of the core crypto behind a anonymous credentials en
 ### Range proofs:
 * BULLETPROOFS: https://eprint.iacr.org/2017/1066.pdf
 * Sharp: https://eprint.iacr.org/2022/1153.pdf
-
-### Basic Protocol Diagram:
-
-Will surely change nor it is particularly accurate.
-
-![](kvac.devcall.diagram.png)
