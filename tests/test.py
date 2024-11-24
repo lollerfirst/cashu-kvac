@@ -110,15 +110,48 @@ def test_balance(transcripts, mint_privkey):
         8
     )
 
-'''
+def test_wrong_balance(transcripts, mint_privkey):
+    mint_publickey = (mint_privkey.Cw, mint_privkey.I)
+    cli_transcript, mint_transcript = transcripts
 
-wrong_range_attr = AmountAttribute.create(RANGE_LIMIT)
-range_proof = prove_range(attribute)
-wrong_range_proof = prove_range(wrong_range_attr)
-assert verify_range(attribute.Ma, range_proof)
-assert not verify_range(wrong_range_attr.Ma, wrong_range_proof)
+    # User creates 1 attribute worth 16
+    attribute = AmountAttribute.create(16)
 
-print("Range proof successfully verified")
+    mac = MAC.generate(mint_privkey, attribute.Ma)
+    credentials = randomize_credentials(mac, attribute)
+    
+    # Compute another credential worth 8
+    new_attribute = AmountAttribute.create(8)
+
+    # Prove the balance between randomized commitments and new attributes
+    balance_proof = prove_balance(cli_transcript, [attribute], [new_attribute])
+
+    assert not verify_balance(mint_transcript,
+        [credentials],
+        [new_attribute.Ma],
+        balance_proof,
+        7
+    )
+
+def test_range(transcripts, mint_privkey):
+    mint_publickey = (mint_privkey.Cw, mint_privkey.I)
+    cli_transcript, mint_transcript = transcripts
+
+    # User creates 1 attribute worth 16
+    attribute = AmountAttribute.create(16)
+
+    range_proof = prove_range(cli_transcript, attribute)
+    assert verify_range(mint_transcript, attribute.Ma, range_proof)
+
+def test_wrong_range(transcripts, mint_privkey):
+    mint_publickey = (mint_privkey.Cw, mint_privkey.I)
+    cli_transcript, mint_transcript = transcripts
+
+    # User creates 1 attribute worth 16
+    attribute = AmountAttribute.create(2**51)
+
+    range_proof = prove_range(cli_transcript, attribute)
+    assert not verify_range(mint_transcript, attribute.Ma, range_proof)
 
 bootstrap = AmountAttribute.create(0)
 wrong_bootstrap = AmountAttribute.create(1)
@@ -127,6 +160,7 @@ wrong_proof_bootstrap = prove_bootstrap(wrong_bootstrap)
 assert verify_bootstrap(bootstrap.Ma, proof_bootstrap)
 assert not verify_bootstrap(wrong_bootstrap.Ma, wrong_proof_bootstrap)
 
+'''
 print("Bootstrap attribute successfully verified")
 
 # Script
