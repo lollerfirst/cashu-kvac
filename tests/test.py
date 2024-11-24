@@ -153,27 +153,39 @@ def test_wrong_range(transcripts, mint_privkey):
     range_proof = prove_range(cli_transcript, attribute)
     assert not verify_range(mint_transcript, attribute.Ma, range_proof)
 
-bootstrap = AmountAttribute.create(0)
-wrong_bootstrap = AmountAttribute.create(1)
-proof_bootstrap = prove_bootstrap(bootstrap)
-wrong_proof_bootstrap = prove_bootstrap(wrong_bootstrap)
-assert verify_bootstrap(bootstrap.Ma, proof_bootstrap)
-assert not verify_bootstrap(wrong_bootstrap.Ma, wrong_proof_bootstrap)
+def test_bootstrap(transcripts):
+    cli_transcript, mint_transcript = transcripts
 
-'''
-print("Bootstrap attribute successfully verified")
+    bootstrap = AmountAttribute.create(0)
+    proof_bootstrap = prove_bootstrap(cli_transcript, bootstrap)
+    assert verify_bootstrap(mint_transcript, bootstrap.Ma, proof_bootstrap)
 
-# Script
-script = random.randbytes(32)
-script_attr = ScriptAttribute.create(script)
-new_script_attr = [ScriptAttribute.create(script) for _ in range(6)]
-wrong_script_attr = ScriptAttribute.create(b"\x99")
-mac = MAC.generate(mint_privkey, bootstrap.Ma, script_attr.Ms)
-randomized_creds = randomize_credentials(mac, bootstrap, script_attr)
-script_proof = prove_script_equality([bootstrap], [script_attr], new_script_attr)
-wrong_script_proof = prove_script_equality([bootstrap], [script_attr], [wrong_script_attr])
-assert verify_script_equality([randomized_creds], [att.Ms for att in new_script_attr], script_proof)
-assert not verify_script_equality([randomized_creds], [wrong_script_attr.Ms], wrong_script_proof)
+def test_wrong_bootstrap(transcripts):
+    cli_transcript, mint_transcript = transcripts
 
-print("Script equality proof successfully verified")
-'''
+    wrong_bootstrap = AmountAttribute.create(1)
+    wrong_proof_bootstrap = prove_bootstrap(cli_transcript, wrong_bootstrap)
+    assert not verify_bootstrap(mint_transcript, wrong_bootstrap.Ma, wrong_proof_bootstrap)
+    
+
+def test_script(transcripts, mint_privkey):
+    cli_transcript, mint_transcript = transcripts
+    amount_attr = AmountAttribute.create(10)
+    script = random.randbytes(32)
+    script_attr = ScriptAttribute.create(script)
+    new_script_attr = [ScriptAttribute.create(script) for _ in range(6)]
+    mac = MAC.generate(mint_privkey, amount_attr.Ma, script_attr.Ms)
+    randomized_creds = randomize_credentials(mac, amount_attr, script_attr)
+    script_proof = prove_script_equality(cli_transcript, [amount_attr], [script_attr], new_script_attr)
+    assert verify_script_equality(mint_transcript, [randomized_creds], [att.Ms for att in new_script_attr], script_proof)
+
+def test_wrong_script(transcripts, mint_privkey):
+    cli_transcript, mint_transcript = transcripts
+    amount_attr = AmountAttribute.create(10)
+    script = random.randbytes(32)
+    script_attr = ScriptAttribute.create(script)
+    new_script_attr = [ScriptAttribute.create(b'\x99') for _ in range(6)]
+    mac = MAC.generate(mint_privkey, amount_attr.Ma, script_attr.Ms)
+    randomized_creds = randomize_credentials(mac, amount_attr, script_attr)
+    script_proof = prove_script_equality(cli_transcript, [amount_attr], [script_attr], new_script_attr)
+    assert not verify_script_equality(mint_transcript, [randomized_creds], [att.Ms for att in new_script_attr], script_proof)
