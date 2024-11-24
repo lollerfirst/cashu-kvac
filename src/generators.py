@@ -1,5 +1,5 @@
 import hashlib
-from secp import GroupElement, ELEMENT_ZERO
+from .secp import GroupElement, ELEMENT_ZERO
 
 DOMAIN_SEPARATOR = b"Secp256k1_HashToCurve_Cashu_"
 

@@ -1,13 +1,13 @@
-from secp import (
+from .secp import (
     GroupElement,
     Scalar,
     SCALAR_ZERO,
     ELEMENT_ZERO,
     q
 )
-from models import *
-from generators import *
-from merlin.merlin import MerlinTranscript
+from .models import *
+from .generators import *
+from .merlin.merlin import MerlinTranscript
 import hashlib
 
 from typing import Tuple, List, Optional, Union
