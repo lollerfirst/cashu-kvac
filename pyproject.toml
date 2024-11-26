@@ -16,6 +16,7 @@ setuptools = "^75.6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"
+pyperf = "^2.8.1"
 
 [build-system]
 requires = ["poetry-core"]
