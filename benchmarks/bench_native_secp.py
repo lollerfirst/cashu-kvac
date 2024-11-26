@@ -1,7 +1,6 @@
 import timeit
 import random
 from secp256k1 import PrivateKey, PublicKey
-from src.generators import hash_to_curve
 
 scalar_bytes = random.randbytes(32)
 scalar_bytes1 = random.randbytes(32)
