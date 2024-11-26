@@ -18,31 +18,61 @@ script_attr = ScriptAttribute.create(b"\x00"*32)
 mac_0 = MAC.generate(mint_privkey, bootstrap.Ma, script_attr.Ms)
 
 attr_16 = AmountAttribute.create(16)
+new_script_attr = ScriptAttribute.create(b"\x00"*32)
+randomized_creds = randomize_credentials(mac_0, bootstrap, script_attr)
 
-proof = None
+proof = []
 
 def bench_bootstrap_prove():
-    global proof
-    proof = prove_bootstrap(client_tscr, bootstrap)
+    proof.append(prove_bootstrap(client_tscr, bootstrap))
 
 def bench_bootstrap_verify():
-    verify_bootstrap(mint_tscr, bootstrap.Ma, proof)
+    global proof
+    assert verify_bootstrap(mint_tscr, bootstrap.Ma, proof[0])
+    proof = proof[1:]
 
 def bench_iparams_prove():
-    global proof
-    proof = prove_iparams(mint_tscr, mint_privkey, mac_0, bootstrap.Ma, script_attr.Ms)
+    proof.append(prove_iparams(mint_tscr, mint_privkey, mac_0, bootstrap.Ma, script_attr.Ms))
 
 def bench_iparams_verify():
-    verify_iparams(client_tscr, mac_0, mint_pubkey, proof, bootstrap.Ma, script_attr.Ms)
+    global proof
+    assert verify_iparams(client_tscr, mac_0, mint_pubkey, proof[0], bootstrap.Ma, script_attr.Ms)
+    proof = proof[1:]
 
 def bench_range_prove():
-    global proof
-    proof = prove_range(client_tscr, attr_16)
+    proof.append(prove_range(client_tscr, attr_16))
 
 def bench_range_verify():
-    verify_range(mint_tscr, attr_16.Ma, proof)
+    global proof 
+    assert verify_range(mint_tscr, attr_16.Ma, proof[0])
+    proof = proof[1:]
 
-def run_benchmark(func_name, repeat=1000, number=1):
+def bench_mac_prove():
+    proof.append(prove_MAC(client_tscr, mint_pubkey, randomized_creds, mac_0, bootstrap))
+
+def bench_mac_verify():
+    global proof
+    assert verify_MAC(mint_tscr, mint_privkey, randomized_creds, proof[0])
+    proof = proof[1:]
+
+def bench_balance_prove():
+    proof.append(prove_balance(client_tscr, [bootstrap], [attr_16]))
+
+def bench_balance_verify():
+    global proof
+    delta_amount = -16
+    assert verify_balance(mint_tscr, [randomized_creds], [attr_16.Ma], proof[0], delta_amount)
+    proof = proof[1:]
+
+def bench_script_prove():
+    proof.append(prove_script_equality(client_tscr, [bootstrap], [script_attr], [new_script_attr]))
+
+def bench_script_verify():
+    global proof
+    assert verify_script_equality(mint_tscr, [randomized_creds], [new_script_attr.Ms], proof[0])
+    proof = proof[1:]
+
+def run_benchmark(func_name, repeat=100, number=1):
     """Runs a benchmark and returns average, min, and max execution times."""
     times = timeit.repeat(f"{func_name}()", globals=globals(), repeat=repeat, number=number)
     tot_time = sum(times)
@@ -57,7 +87,13 @@ benchmarks = [
     ("Iparams Prove", "bench_iparams_prove"),
     ("Iparams Verify", "bench_iparams_verify"),
     ("Range Prove", "bench_range_prove"),
-    ("Range Verify", "bench_range_verify")
+    ("Range Verify", "bench_range_verify"),
+    ("MAC Prove", "bench_mac_prove"),
+    ("MAC Verify", "bench_mac_verify"),
+    ("Balance Prove", "bench_balance_prove"),
+    ("Balance Verify", "bench_balance_verify"),
+    ("Script Equality Prove", "bench_script_prove"),
+    ("Script Equality Verify", "bench_script_verify")
 ]
 
 print(f"{'Benchmark':<30}{'Average Time (s)':<20}{'Min Time (s)':<20}{'Max Time (s)':<20}{'Total Time (s)':<20}")
