@@ -1,4 +1,5 @@
 from kvac import *
+from transcript import CashuTranscript
 from secp import Scalar
 from models import *
 from bitcoinlib.scripts import *

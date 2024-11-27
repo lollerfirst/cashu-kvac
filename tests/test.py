@@ -1,4 +1,5 @@
 from src.kvac import *
+from src.transcript import CashuTranscript
 from src.models import *
 from src.secp import Scalar
 import random

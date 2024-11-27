@@ -2,12 +2,10 @@ from .secp import (
     GroupElement,
     Scalar,
     SCALAR_ZERO,
-    ELEMENT_ZERO,
-    q
 )
 from .models import *
 from .generators import *
-from .merlin.merlin import MerlinTranscript
+from .transcript import CashuTranscript
 import hashlib
 
 from typing import Tuple, List, Optional, Union
@@ -22,25 +20,6 @@ GROUP_ELEMENTS_POW2 = [
         (Scalar((1 << i).to_bytes(32, "big")))*G_blind
     for i in range(RANGE_LIMIT.bit_length())
 ]
-
-class CashuTranscript:
-    t: MerlinTranscript
-
-    def __init__(self):
-        self.t = MerlinTranscript(b"Secp256k1_Cashu_")
-
-    def domain_sep(self, label: bytes, message: bytes):
-        self.t.commit_bytes(label, message)
-    
-    def append(self, label: bytes, element: GroupElement):
-        message = element.serialize(True)
-        self.t.commit_bytes(label, message)
-
-    def get_challenge(self, label: bytes) -> Scalar:
-        challenge_bytes = self.t.get_challenge_bytes(label, 32)
-        c = Scalar(challenge_bytes)
-        assert not c.is_zero, "got challenge == SCALAR_ZERO"
-        return c
 
 class LinearRelationMode(Enum):
     PROVE = 0
