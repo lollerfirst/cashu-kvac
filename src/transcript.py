@@ -1,5 +1,5 @@
 from .merlin.merlin import MerlinTranscript
-from .secp import Scalar
+from .secp import Scalar, GroupElement
 
 class CashuTranscript:
     t: MerlinTranscript

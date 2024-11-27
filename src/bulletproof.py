@@ -1,15 +1,25 @@
 from .secp import Scalar, GroupElement, SCALAR_ZERO
 from .transcript import CashuTranscript
-from .generators import hash_to_curve
+from .generators import hash_to_curve, O
 
 from dataclasses import dataclass
+from typing import List, Tuple
 
 scalar_zero = Scalar(SCALAR_ZERO)
+scalar_one = Scalar(int(1).to_bytes(32, 'big'))
+
+# Get generators (Could be hard-coded)
+G = [hash_to_curve(f"IPA_G_{i}_".encode("utf-8"))
+    for i in range(64)]
+H = [hash_to_curve(f"IPA_H_{i}_".encode("utf-8"))
+    for i in range(64)]
+U = hash_to_curve(b"IPA_U_")
+#print(f"G (before) = {[G_i.serialize(True).hex() for G_i in G]}")
 
 @dataclass
 class InnerProductArgument:
-    public_inputs: List[Tuple[GroupElement, GroupElement]] = []
-    tail_end_scalars: Tuple[Scalar, Scalar] = None
+    public_inputs: List[Tuple[GroupElement, GroupElement]]
+    tail_end_scalars: Tuple[Scalar, Scalar]
 
 def hamming_weight(n: int) -> int:
     sum( [n&(1<<i)>0 for i in range(n.bit_length())] )
@@ -24,10 +34,14 @@ def inner_product(l: List[Scalar], r: List[Scalar]) -> Scalar:
 # https://eprint.iacr.org/2017/1066.pdf
 def get_folded_IPA(
     transcript: CashuTranscript,
+    generators: Tuple[List[GroupElement], List[GroupElement], GroupElement],
     a: List[Scalar],
     b: List[Scalar]
 ) -> InnerProductArgument:
     assert len(a) == len(b), "the two lists have different length"
+
+    # Extract generators
+    G, H, U = generators
 
     # Ensure len is a power of 2
     len_pow2 = 1 << (len(a).bit_length()-1)
@@ -37,14 +51,7 @@ def get_folded_IPA(
         b = pad(b, next_len_pow2)
         len_pow2 = next_len_pow2
 
-    # Get generators (Could be hard-coded)
-    G = [hash_to_curve(f"IPA_G_{i}_".encode("utf-8"))
-        for i in range(len_pow2)]
-    H = [hash_to_curve(f"IPA_H_{i}_".encode("utf-8"))
-        for i in range(len_pow2)]
-    U = hash_to_curve(b"IPA_U_")
-
-    ipa = InnerProductArgument()
+    ipa = []
 
     # Recursive subdivision
     n = len_pow2
@@ -52,21 +59,20 @@ def get_folded_IPA(
         n >>= 1
         c_left = inner_product(a[:n], b[n:])
         c_right = inner_product(a[n:], b[:n])
-
         # REMEMBER: always pair multiplications
         # so then in the C impl we can go faster with Shamir's trick.
         L = sum(
             [a_i * G_i + b_i * H_i for (a_i, G_i, b_i, H_i)
-                in zip(a[:n], G[n:], b[n:], H[:n])],
+                in zip(a[:n], G[n:2*n], b[n:], H[:n])],
             c_left * U
         )
         R = sum(
             [a_i * G_i + b_i * H_i for (a_i, G_i, b_i, H_i)
-                in zip(a[n:], G[:n], b[:n], H[n:])],
+                in zip(a[n:], G[:n], b[:n], H[n:2*n])],
             c_right * U
         )
 
-        ipa.public_inputs.append((L, R))
+        ipa.append((L, R))
         
         # Prover -> Verifier : L, R
         # Verifier -> Prover : x (challenge)
@@ -75,6 +81,7 @@ def get_folded_IPA(
         transcript.append(b"IPA_R_", R)
 
         x = transcript.get_challenge(b"IPA_chall_")
+        print(f"{x.serialize() = }")
         x_inv = x.invert()
         
         # fold a and b
@@ -85,12 +92,75 @@ def get_folded_IPA(
 
         # fold generators
         G = [G_i * x_inv + G_n_i * x
-            for (G_i, G_n_i) in zip(G[:n], G[n:])]
+            for (G_i, G_n_i) in zip(G[:n], G[n:2*n])]
         H = [H_i * x + H_n_i * x_inv
-            for (H_i, H_n_i) in zip(H[:n], H[n:])]
+            for (H_i, H_n_i) in zip(H[:n], H[n:2*n])]
 
     # append last 2 elements to IPA
     assert len(a) == 1 and len(b) == 1
-    ipa.tail_end_scalars.append((a[0], b[0]))
 
-    return ipa
+    return InnerProductArgument(
+        public_inputs=ipa,
+        tail_end_scalars=(a[0], b[0]),
+    )
+
+def verify_folded_IPA(
+    transcript: CashuTranscript,
+    generators: Tuple[List[GroupElement], List[GroupElement], GroupElement],
+    ipa: InnerProductArgument,
+    P: GroupElement, # <- the commitment
+) -> bool:
+    n = len(ipa.public_inputs)
+    size = 1 << n
+
+    # Extract generators
+    G, H, U = generators
+
+    # extract scalars of the recursion end from IPA
+    a, b = ipa.tail_end_scalars
+
+    # get challenges
+    x = []
+    for L, R in ipa.public_inputs:
+        transcript.append(b"IPA_L_", L)
+        transcript.append(b"IPA_R_", R)
+        chall = transcript.get_challenge(b"IPA_chall_")
+        x.append((chall, chall.invert()))
+        print(f"{chall.serialize() = }")
+
+    # Recursion unrolling - let's try to get this right...
+    G_unrolled = O
+    H_unrolled = O
+    for i in range(size):
+        G_i = G[i]
+        H_i = H[i]
+        for j in range(n):
+            # Use x if the j-th bit of i is 1
+            # else use x^-1
+            bit = (i>>j) & 1
+            G_i *= x[j][bit^1]
+            H_i *= x[j][bit]  
+        G_unrolled += a*G_i
+        H_unrolled += b*H_i
+
+    P_ = sum(
+        [(x[j][0]*x[j][0])*L + (x[j][1]*x[j][1])*R
+            for j, (L, R) in enumerate(ipa.public_inputs)],
+        P
+    )
+    
+    return G_unrolled + H_unrolled + (a*b)*U == P_
+
+cli_tscr = CashuTranscript()
+mint_tscr = CashuTranscript()
+a = [Scalar() for _ in range(51)]
+b = [Scalar() for _ in range(51)]
+P = sum(
+    [a_i*G_i + b_i*H_i
+        for (a_i, G_i, b_i, H_i) in zip(a, G, b, H)],
+    inner_product(a, b) * U
+)
+ipa = get_folded_IPA(cli_tscr, (G, H, U), a, b)
+#print(f"G (after) = {[G_i.serialize(True).hex() for G_i in G]}")
+assert len(ipa.public_inputs) == 6
+assert verify_folded_IPA(mint_tscr, (G, H, U), ipa, P)
