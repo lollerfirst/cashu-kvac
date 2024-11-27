@@ -81,7 +81,7 @@ def get_folded_IPA(
         transcript.append(b"IPA_R_", R)
 
         x = transcript.get_challenge(b"IPA_chall_")
-        print(f"{x.serialize() = }")
+        #print(f"{x.serialize() = }")
         x_inv = x.invert()
         
         # fold a and b
@@ -95,6 +95,7 @@ def get_folded_IPA(
             for (G_i, G_n_i) in zip(G[:n], G[n:2*n])]
         H = [H_i * x + H_n_i * x_inv
             for (H_i, H_n_i) in zip(H[:n], H[n:2*n])]
+        print(f"fold: {G[0].serialize(True).hex() = }")
 
     # append last 2 elements to IPA
     assert len(a) == 1 and len(b) == 1
@@ -110,12 +111,12 @@ def verify_folded_IPA(
     ipa: InnerProductArgument,
     P: GroupElement, # <- the commitment
 ) -> bool:
-    n = len(ipa.public_inputs)
-    size = 1 << n
+    log2_n = len(ipa.public_inputs)
+    n = 1 << log2_n
 
     # Extract generators
     G, H, U = generators
-
+    print(f"{len(G) = } {len(H) = }")
     # extract scalars of the recursion end from IPA
     a, b = ipa.tail_end_scalars
 
@@ -126,30 +127,47 @@ def verify_folded_IPA(
         transcript.append(b"IPA_R_", R)
         chall = transcript.get_challenge(b"IPA_chall_")
         x.append((chall, chall.invert()))
-        print(f"{chall.serialize() = }")
+        #print(f"{chall.serialize() = }")
 
+    print(f"{n = }")
+    print(f"{len(x) = }")
+    # fold generators
+    for chal, chal_inv in x:
+        n >>= 1
+        G = [G_i * chal_inv + G_n_i * chal
+            for (G_i, G_n_i) in zip(G[:n], G[n:2*n])]
+        H = [H_i * chal + H_n_i * chal_inv
+            for (H_i, H_n_i) in zip(H[:n], H[n:2*n])]
+        print(f"{len(G) = }")
+        print(f"unroll: {G[0].serialize(True).hex() = }")
+
+    G_a = a*G[0]
+    H_b = b*H[0]
+    '''
     # Recursion unrolling - let's try to get this right...
-    G_unrolled = O
-    H_unrolled = O
-    for i in range(size):
+    G_a = O
+    H_b = O
+    for i in range(n):
         G_i = G[i]
         H_i = H[i]
-        for j in range(n):
+        for j in range(log2_n):
             # Use x if the j-th bit of i is 1
             # else use x^-1
             bit = (i>>j) & 1
             G_i *= x[j][bit^1]
-            H_i *= x[j][bit]  
-        G_unrolled += a*G_i
-        H_unrolled += b*H_i
-
+            H_i *= x[j][bit]
+          
+        G_a += a*G_i
+        H_b += b*H_i
+    print(f"{G_unrolled.serialize(True).hex() = }")
+    '''
     P_ = sum(
         [(x[j][0]*x[j][0])*L + (x[j][1]*x[j][1])*R
             for j, (L, R) in enumerate(ipa.public_inputs)],
         P
     )
     
-    return G_unrolled + H_unrolled + (a*b)*U == P_
+    return G_a + H_b + (a*b)*U == P_
 
 cli_tscr = CashuTranscript()
 mint_tscr = CashuTranscript()
