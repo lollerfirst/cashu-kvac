@@ -21,6 +21,7 @@ def pad(l: List[Scalar], to: int) -> List[Scalar]:
 def inner_product(l: List[Scalar], r: List[Scalar]) -> Scalar:
     return sum([ll * rr for ll, rr in zip(l, r)], scalar_zero)
 
+# https://eprint.iacr.org/2017/1066.pdf
 def get_folded_IPA(
     transcript: CashuTranscript,
     a: List[Scalar],
