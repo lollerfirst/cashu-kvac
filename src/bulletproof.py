@@ -26,12 +26,15 @@ def get_folded_IPA(
     a: List[Scalar],
     b: List[Scalar]
 ) -> InnerProductArgument:
+    assert len(a) == len(b), "the two lists have different length"
+
     # Ensure len is a power of 2
-    len_pow2 = 1 << max(len(a), len(b)).bit_length()
-    if hamming_weight(len(a)) != 1 or len(a) < len(b):
-        a = pad(a, len_pow2)
-    if hamming_weight(len(b)) != 1 or len(b) < len(a):
-        b = pad(b, len_pow2)
+    len_pow2 = 1 << (len(a).bit_length()-1)
+    next_len_pow2 = 1 << len(a).bit_length()
+    if hamming_weight(len(a)) != 1:
+        a = pad(a, next_len_pow2)
+        b = pad(b, next_len_pow2)
+        len_pow2 = next_len_pow2
 
     # Get generators (Could be hard-coded)
     G = [hash_to_curve(f"IPA_G_{i}_".encode("utf-8"))
