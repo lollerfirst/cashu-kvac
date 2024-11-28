@@ -115,10 +115,10 @@ def verify_folded_IPA(
     # Extract generators
     G, H, U = generators
     print(f"{len(G) = } {len(H) = }")
-    # extract scalars of the recursion end from IPA
+    # Extract scalars of the recursion end from IPA
     a, b = ipa.tail_end_scalars
 
-    # get challenges
+    # Get challenges
     challs = []
     for L, R in ipa.public_inputs:
         transcript.append(b"IPA_L_", L)

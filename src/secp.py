@@ -16,6 +16,7 @@ def div2(M, x):
     # x must be even now, so a clean division by 2 is possible.
     return x >> 1
 
+# safegcd (constant-time): 
 def modinv(M, x):
     """Compute the inverse of x mod M (given that it exists, and M is odd)."""
     assert M & 1
