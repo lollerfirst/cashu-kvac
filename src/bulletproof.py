@@ -22,7 +22,7 @@ class InnerProductArgument:
     tail_end_scalars: Tuple[Scalar, Scalar]
 
 def hamming_weight(n: int) -> int:
-    sum( [n&(1<<i)>0 for i in range(n.bit_length())] )
+    return sum( [n&(1<<i)>0 for i in range(n.bit_length())] )
 
 def pad(l: List[Scalar], to: int) -> List[Scalar]:
     pad_len = to - ( len(l) % to )
