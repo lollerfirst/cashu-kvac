@@ -121,22 +121,22 @@ def verify_folded_IPA(
     a, b = ipa.tail_end_scalars
 
     # get challenges
-    x = []
+    challs = []
     for L, R in ipa.public_inputs:
         transcript.append(b"IPA_L_", L)
         transcript.append(b"IPA_R_", R)
-        chall = transcript.get_challenge(b"IPA_chall_")
-        x.append((chall, chall.invert()))
+        x = transcript.get_challenge(b"IPA_chall_")
+        challs.append((x, x.invert()))
         #print(f"{chall.serialize() = }")
 
     print(f"{n = }")
-    print(f"{len(x) = }")
+    '''
     # fold generators
-    for chal, chal_inv in x:
+    for x, x_inv in challs:
         n >>= 1
-        G = [G_i * chal_inv + G_n_i * chal
+        G = [G_i * x_inv + G_n_i * x
             for (G_i, G_n_i) in zip(G[:n], G[n:2*n])]
-        H = [H_i * chal + H_n_i * chal_inv
+        H = [H_i * x + H_n_i * x_inv
             for (H_i, H_n_i) in zip(H[:n], H[n:2*n])]
         print(f"{len(G) = }")
         print(f"unroll: {G[0].serialize(True).hex() = }")
@@ -147,23 +147,20 @@ def verify_folded_IPA(
     # Recursion unrolling - let's try to get this right...
     G_a = O
     H_b = O
-    for i in range(n):
-        G_i = G[i]
-        H_i = H[i]
-        for j in range(log2_n):
+    for i, (G_i, H_i) in enumerate(zip(G, H)):
+        s = scalar_one
+        for j, x in enumerate(reversed(challs)):
             # Use x if the j-th bit of i is 1
             # else use x^-1
             bit = (i>>j) & 1
-            G_i *= x[j][bit^1]
-            H_i *= x[j][bit]
-          
-        G_a += a*G_i
-        H_b += b*H_i
-    print(f"{G_unrolled.serialize(True).hex() = }")
-    '''
+            s *= x[bit^1]          
+        G_a += (a*s)*G_i
+        H_b += (b*s.invert())*H_i
+        print(f"{G_a.serialize(True).hex() = }")
+    
     P_ = sum(
-        [(x[j][0]*x[j][0])*L + (x[j][1]*x[j][1])*R
-            for j, (L, R) in enumerate(ipa.public_inputs)],
+        [(x[0]*x[0])*L + (x[1]*x[1])*R
+            for x, (L, R) in zip(challs, ipa.public_inputs)],
         P
     )
     
