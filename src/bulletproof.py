@@ -81,7 +81,6 @@ def get_folded_IPA(
         transcript.append(b"IPA_R_", R)
 
         x = transcript.get_challenge(b"IPA_chall_")
-        #print(f"{x.serialize() = }")
         x_inv = x.invert()
         
         # fold a and b
@@ -95,7 +94,6 @@ def get_folded_IPA(
             for (G_i, G_n_i) in zip(G[:n], G[n:2*n])]
         H = [H_i * x + H_n_i * x_inv
             for (H_i, H_n_i) in zip(H[:n], H[n:2*n])]
-        print(f"fold: {G[0].serialize(True).hex() = }")
 
     # append last 2 elements to IPA
     assert len(a) == 1 and len(b) == 1
@@ -127,7 +125,6 @@ def verify_folded_IPA(
         transcript.append(b"IPA_R_", R)
         x = transcript.get_challenge(b"IPA_chall_")
         challs.append((x, x.invert()))
-        #print(f"{chall.serialize() = }")
 
     print(f"{n = }")
     '''
@@ -144,19 +141,19 @@ def verify_folded_IPA(
     G_a = a*G[0]
     H_b = b*H[0]
     '''
-    # Recursion unrolling - let's try to get this right...
-    G_a = O
-    H_b = O
+    # Recursion unrolling - We reduce O(n*log_2(n)) GroupElement multiplications
+    # to O(n) by unrolling the prover's loop (we have the challenges) and
+    # performing the O(log_2(n)) arithmetic operations on scalars instead.
+    G_aH_b = O
     for i, (G_i, H_i) in enumerate(zip(G, H)):
         s = scalar_one
         for j, x in enumerate(reversed(challs)):
             # Use x if the j-th bit of i is 1
             # else use x^-1
             bit = (i>>j) & 1
-            s *= x[bit^1]          
-        G_a += (a*s)*G_i
-        H_b += (b*s.invert())*H_i
-        print(f"{G_a.serialize(True).hex() = }")
+            s *= x[bit^1]
+        # Always pair 2 multiplications and 1 addition        
+        G_aH_b += (a*s)*G_i + (b*s.invert())*H_i
     
     P_ = sum(
         [(x[0]*x[0])*L + (x[1]*x[1])*R
@@ -164,7 +161,7 @@ def verify_folded_IPA(
         P
     )
     
-    return G_a + H_b + (a*b)*U == P_
+    return G_aH_b + (a*b)*U == P_
 
 # TESTING
 cli_tscr = CashuTranscript()
@@ -177,6 +174,5 @@ P = sum(
     inner_product(a, b) * U
 )
 ipa = get_folded_IPA(cli_tscr, (G, H, U), a, b)
-#print(f"G (after) = {[G_i.serialize(True).hex() for G_i in G]}")
 assert len(ipa.public_inputs) == 6
 assert verify_folded_IPA(mint_tscr, (G, H, U), ipa, P)
