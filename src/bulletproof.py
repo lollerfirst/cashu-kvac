@@ -166,6 +166,7 @@ def verify_folded_IPA(
     
     return G_a + H_b + (a*b)*U == P_
 
+# TESTING
 cli_tscr = CashuTranscript()
 mint_tscr = CashuTranscript()
 a = [Scalar() for _ in range(51)]
