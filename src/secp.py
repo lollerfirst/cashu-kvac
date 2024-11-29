@@ -91,7 +91,7 @@ class Scalar(PrivateKey):
     
     def __eq__(self, scalar2):
         if isinstance(scalar2, Scalar):
-            return self.to_bytes() == scalar2.to_bytes()
+            return not all([s^s2 for s, s2 in zip(self.to_bytes(), scalar2.to_bytes())])
         else:
             raise TypeError(f"Cannot compare {scalar2.__class__} and Scalar")
     

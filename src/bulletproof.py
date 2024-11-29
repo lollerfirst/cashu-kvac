@@ -1,6 +1,7 @@
 from .secp import Scalar, GroupElement, SCALAR_ZERO
 from .transcript import CashuTranscript
-from .generators import hash_to_curve, O
+from .generators import *
+from .models import AmountAttribute
 
 from dataclasses import dataclass
 from typing import List, Tuple
@@ -8,13 +9,18 @@ from typing import List, Tuple
 scalar_zero = Scalar(SCALAR_ZERO)
 scalar_one = Scalar(int(1).to_bytes(32, 'big'))
 
+# Maximum allowed for a single attribute
+RANGE_LIMIT = 1 << 32
+
+# Scalars in powers of 2
+SCALAR_POWERS_2 = [Scalar((1<<i).to_bytes(32, "big")) for i in range(64)]
+
 # Get generators (Could be hard-coded)
 G = [hash_to_curve(f"IPA_G_{i}_".encode("utf-8"))
     for i in range(64)]
 H = [hash_to_curve(f"IPA_H_{i}_".encode("utf-8"))
     for i in range(64)]
 U = hash_to_curve(b"IPA_U_")
-#print(f"G (before) = {[G_i.serialize(True).hex() for G_i in G]}")
 
 @dataclass
 class InnerProductArgument:
@@ -162,6 +168,159 @@ def verify_folded_IPA(
     )
     
     return G_aH_b + (a*b)*U == P_
+
+@dataclass
+class BulletProof:
+    
+    A: GroupElement
+    S: GroupElement
+    T_1: GroupElement
+    T_2: GroupElement
+    t_x: Scalar
+    tau_x: Scalar
+    mu: Scalar
+    ipa: InnerProductArgument
+
+    @classmethod
+    def create(
+        cls,
+        trascript: CashuTranscript,
+        attribute: AmountAttribute
+    ) -> "BulletProof":
+        # Domain separation
+        transcript.domain_sep(b"Bulletproof_Statement_")
+
+        a = attribute.a
+        r = attribute.r
+        Ma = attribute.Ma
+
+        # Decompose attribute's amount into bits.
+        amount = int.from_bytes(a.to_bytes(), "big")
+        a_left = []
+        a_right = []
+        for _ in range((RANGE_LIMIT-1).bit_length()):
+            bit = amount & 1
+            a_left.append(Scalar(bit.to_bytes(32, "big")))
+            a_right.append(Scalar((bit^1).to_bytes(32, "big")))
+            amount >>= 1
+
+        assert len(a_left) == len(a_right) == 32
+
+        # Append Ma and bit-length to the transcript
+        transcript.append(b"Com(Ma)_", Ma)
+        transcript.append(b"Length_", len(a_left))
+
+        # Compute Com(A)
+        alpha = Scalar()
+        A = sum(
+            [a_l_i * G_i + a_r_i * H_i
+                for (a_l_i, G_i, a_r_i, H_i) in zip(a_left, G, a_right, H)],
+            alpha * G_blind,
+        )
+
+        # Compute Com(S)
+        rho = Scalar()
+        s_l, s_r = [Scalar() for _ in a_left], [Scalar() for _ in a_left]
+        S = sum(
+            [s_l_i * G_i + s_r_i * H_i
+                for (s_l_i, G_i, s_r_i, H_i) in zip(s_l, G, s_r, H)],
+            rho * G_blind,
+        )
+
+        # Prover -> Verifier: A, S
+        # Verifier -> Prover: y, z
+
+        # Append A and S to transcript
+        transcript.append(b"Com(A)_", A)
+        transcript.append(b"Com(S)_", S)
+
+        # Get y challenge
+        y = transcript.get_challenge(b"y_chall_")
+
+        # Commit y
+        transcript.append(b"Com(y)_", hash_to_curve(y.to_bytes()))
+
+        # Get z challenge
+        z = transcript.get_challenge(b"z_chall_")
+        z_2 = z*z
+
+        # Calculate ẟ(y, z)     Definition (39)
+        z_3 = z_2*z
+        p = z - z_2
+        twos = SCALAR_POWERS_2
+        ones = [scalar_one]
+        ys = [scalar_one]
+        for _ in range(1, n):
+            ys.append(ys[-1] * y)
+            ones.append(scalar_one)
+        delta_y_z = p * inner_product(ones, ys) - z_3 * inner_product(ones, twos)
+        
+        # l(X) and r(X) vector polynomials ()
+        l = [
+            [a_l_i - z for a_l_i in a_left],
+            s_l,
+        ]
+        r = [
+            [y_i * a_r_i + z + z_2 * two_i
+                for (y_i, a_r_i, two_i) in zip(ys, a_right, twos)],
+            s_r,
+        ]
+
+        # t(X) = <l(X), r(X)> = t_0 + t_1 * X + t_2 * X^2
+        
+        # Calculate constant term t_0       
+        t_0 = a*z_2 + delta_y_z
+
+        # Calculate coefficient t_1. From definition (1)
+        t_1 = inner_product(l[1], r[0]) + inner_product(l[0], r[1])
+
+        # Calculate coefficient t_2. From definition (1)
+        t_2 = inner_product(l[1], r[1])
+
+        # Hide t_1, t_2 coefficients of t(x)
+        # into Pedersen commitments     (52-53)
+        tau_1, tau_2 = [Scalar() for _ in range(2)]
+        T_1 = t_1 * G_amount + tau_1 * G_blind
+        T_2 = t_2 * G_amount + tau_2 * G_blind
+
+        # Prover -> Verifier: T_1, T_2
+        # Verifier -> Prover: x
+
+        # Append T_1, T_2 to transcript
+        transcript.append(b"T_1_", T_1)
+        transcript.append(b"T_2_", T_2)
+
+        # Get challenge x (named x because used for evaluation of t(x))
+        x = transcript.get_challenge(b"x_chall_")
+
+        # now evaluate t(x) at x    (58-60)
+        l_x = [l_0 + l_1 * x for l_0, l_1 in zip(l[0], l[1])]
+        r_x = [r_0 + r_1 * x for r_0, r_1 in zip(r[0], r[1])]
+        t_x = inner_product(l_x, r_x)
+
+        # and compute tau_x (We blinded the coefficients, so we need to
+        # take care of that)    (61)
+        tau_x = z_2 * r + tau_1 * x + tau_2 * x
+
+        # blinding factors for A, S     (62)
+        mu = alpha + rho * x
+
+        # Now instead of sending l and r we fold them
+        # We get the IPA for l, r
+        ipa = get_folded_IPA(transcript, (G, H, U), l_x, r_x)
+
+        # Prover -> Verifier: t_x, tau_x, mu, ipa
+
+        return cls(
+            A=A,
+            S=S,
+            T_1=T_1,
+            T_2=T_2,
+            t_x=t_x,
+            tau_x=tau_x,
+            mu=mu,
+            ipa=ipa
+        )
 
 # TESTING
 cli_tscr = CashuTranscript()

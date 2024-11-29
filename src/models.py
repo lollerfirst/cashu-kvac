@@ -49,6 +49,8 @@ class ScriptAttribute:
     r: Optional[Scalar] = None
     s: Optional[Scalar] = None
 
+    _Ms: Optional[GroupElement] = None
+
     @classmethod
     def create(
         cls,
@@ -78,7 +80,9 @@ class ScriptAttribute:
     @property
     def Ms(self):
         assert self.r and self.s
-        return self.r * G_blind + self.s * G_script
+        if not self._Ms:
+            self._Ms = self.r * G_blind + self.s * G_amount
+        return GroupElement(self._Ms.serialize(True))
 
     @property
     def serial(self) -> GroupElement:
@@ -89,6 +93,8 @@ class ScriptAttribute:
 class AmountAttribute:
     r: Optional[Scalar] = None
     a: Optional[Scalar] = None
+
+    _Ma: Optional[GroupElement] = None
 
     @classmethod
     def create(
@@ -120,7 +126,9 @@ class AmountAttribute:
     @property
     def Ma(self):
         assert self.r and self.a
-        return self.r * G_blind + self.a * G_amount
+        if not self._Ma:
+            self._Ma = self.r * G_blind + self.a * G_amount
+        return GroupElement(self._Ma.serialize(True))
 
     @classmethod
     def tweak_amount(cls, Ma: GroupElement, delta: int) -> GroupElement:
