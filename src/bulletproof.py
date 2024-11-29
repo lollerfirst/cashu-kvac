@@ -114,6 +114,7 @@ def verify_folded_IPA(
     generators: Tuple[List[GroupElement], List[GroupElement], GroupElement],
     ipa: InnerProductArgument,
     P: GroupElement, # <- the commitment
+    c: Scalar,
 ) -> bool:
     log2_n = len(ipa.public_inputs)
     n = 1 << log2_n
@@ -167,7 +168,11 @@ def verify_folded_IPA(
         P
     )
     
-    return G_aH_b + (a*b)*U == P_
+    if not G_aH_b + (a*b)*U == P_:
+        return False
+    
+    print("ciao")
+    return a*b == c
 
 @dataclass
 class BulletProof:
@@ -255,7 +260,7 @@ class BulletProof:
             ones.append(scalar_one)
         delta_y_z = p * inner_product(ones, ys) - z_3 * inner_product(ones, twos)
         
-        # l(X) and r(X) vector polynomials ()
+        # l(X) and r(X) vector polynomials
         l = [
             [a_l_i - z for a_l_i in a_left],
             s_l,
@@ -292,6 +297,7 @@ class BulletProof:
 
         # Get challenge x (named x because used for evaluation of t(x))
         x = transcript.get_challenge(b"x_chall_")
+        x_2 = x*x
 
         # now evaluate t(x) at x    (58-60)
         l_x = [l_0 + l_1 * x for l_0, l_1 in zip(l[0], l[1])]
@@ -300,13 +306,13 @@ class BulletProof:
 
         # and compute tau_x (We blinded the coefficients, so we need to
         # take care of that)    (61)
-        tau_x = z_2 * r + tau_1 * x + tau_2 * x
+        tau_x = z_2 * r + tau_1 * x + tau_2 * x_2
 
         # blinding factors for A, S     (62)
         mu = alpha + rho * x
 
-        # Now instead of sending l and r we fold them
-        # We get the IPA for l, r
+        # Now instead of sending l and r we fold them.
+        # We get the IPA for l, r.
         ipa = get_folded_IPA(transcript, (G, H, U), l_x, r_x)
 
         # Prover -> Verifier: t_x, tau_x, mu, ipa
@@ -322,16 +328,88 @@ class BulletProof:
             ipa=ipa
         )
 
+    def verify(
+        self,
+        transcript: CashuTranscript,
+        attribute: GroupElement,
+    ) -> bool:
+        # Prover -> Verifier: A, S
+        # Verifier -> Prover: y, z
+
+        # Append A and S to transcript
+        transcript.append(b"Com(A)_", self.A)
+        transcript.append(b"Com(S)_", self.S)
+
+        # Get y challenge
+        y = transcript.get_challenge(b"y_chall_")
+
+        # Commit y
+        transcript.append(b"Com(y)_", hash_to_curve(y.to_bytes()))
+
+        # Get z challenge
+        z = transcript.get_challenge(b"z_chall_")
+        z_2 = z*z
+
+        # Calculate ẟ(y, z)     Definition (39)
+        z_3 = z_2*z
+        p = z - z_2
+        twos = SCALAR_POWERS_2
+        ones = [scalar_one]
+        ys = [scalar_one]
+        for _ in range(1, n):
+            ys.append(ys[-1] * y)
+            ones.append(scalar_one)
+        delta_y_z = p * inner_product(ones, ys) - z_3 * inner_product(ones, twos)
+
+        # Prover -> Verifier: T_1, T_2
+        # Verifier -> Prover: x
+
+        # Append T_1, T_2 to transcript
+        T_1, T_2 = self.T_1, self.T_2
+        transcript.append(b"T_1_", T_1)
+        transcript.append(b"T_2_", T_2)
+
+        # Get challenge x (named x because used for evaluation of t(x))
+        x = transcript.get_challenge(b"x_chall_")
+        x_2 = x*x
+
+        # Switch generators H -> y^n*H    (64)
+        H_ = [y_i.invert()*H_i for y_i, H_i in zip(ys, H)]
+
+        t_x = self.t_x
+        tau_x = self.tau_x
+        V = attribute.Ma
+        # Check that t_x = t(x) = t_0 + t_1*x + t_2*x^2     (65)
+        if not t_x*G_amount + tau_x*G_blind == z_2*V + delta_y_z*G_amount + x*T_1 + x_2*T_2:
+            return False
+
+
+        # Compute commitment to l(x) and r(x)   (66)
+        mu = self.mu
+        z_neg = -z
+        k = sum([z * y_i + z_2 * two
+                for y_i, two in zip(ys, twos)], scalar_zero)
+        P = sum(
+            [z_neg*G_i + k_i*H_i
+                for (G_i, k_i, H_i) in zip(G, k, H_)]
+            (-mu)*G_blind + A + x*S
+        )
+
+        # Check l and r are correct using IPA   (67)
+        # Check t_x is correct                  (68)
+        return verify_folded_IPA(transcript, (G, H_, U), self.ipa, P, t_x)
+
 # TESTING
 cli_tscr = CashuTranscript()
 mint_tscr = CashuTranscript()
 a = [Scalar() for _ in range(51)]
 b = [Scalar() for _ in range(51)]
+ipa = get_folded_IPA(cli_tscr, (G, H, U), a, b)
+assert len(ipa.public_inputs) == 6
+c = inner_product(a, b)
 P = sum(
     [a_i*G_i + b_i*H_i
         for (a_i, G_i, b_i, H_i) in zip(a, G, b, H)],
-    inner_product(a, b) * U
+    c * U
 )
-ipa = get_folded_IPA(cli_tscr, (G, H, U), a, b)
-assert len(ipa.public_inputs) == 6
-assert verify_folded_IPA(mint_tscr, (G, H, U), ipa, P)
+assert verify_folded_IPA(mint_tscr, (G, H, U), ipa, P, c)
