@@ -215,6 +215,8 @@ class BulletProof:
         # Domain separation
         transcript.domain_sep(b"Bulletproof_Statement_")
 
+        # Extract amount scalar, blinding factor Scalar
+        # and pedersen commitment
         a = attribute.a
         r = attribute.r
         Ma = attribute.Ma
@@ -312,8 +314,8 @@ class BulletProof:
         # Verifier -> Prover: x
 
         # Append T_1, T_2 to transcript
-        transcript.append(b"T_1_", T_1)
-        transcript.append(b"T_2_", T_2)
+        transcript.append(b"Com(T_1)_", T_1)
+        transcript.append(b"Com(T_2)_", T_2)
 
         # Get challenge x (named x because used for evaluation of t(x))
         x = transcript.get_challenge(b"x_chall_")
@@ -396,8 +398,8 @@ class BulletProof:
 
         # Append T_1, T_2 to transcript
         T_1, T_2 = self.T_1, self.T_2
-        transcript.append(b"T_1_", T_1)
-        transcript.append(b"T_2_", T_2)
+        transcript.append(b"Com(T_1)_", T_1)
+        transcript.append(b"Com(T_2)_", T_2)
 
         # Get challenge x (named x because used for evaluation of t(x))
         x = transcript.get_challenge(b"x_chall_")
@@ -412,7 +414,6 @@ class BulletProof:
         # Check that t_x = t(x) = t_0 + t_1*x + t_2*x^2     (65)
         if not t_x*G_amount + tau_x*G_blind == z_2*V + delta_y_z*G_amount + x*T_1 + x_2*T_2:
             return False
-
 
         # Compute commitment to l(x) and r(x)   (66)
         mu = self.mu
