@@ -233,9 +233,11 @@ class BulletProof:
 
         assert len(a_left) == len(a_right) == 32
 
+        n = len(a_left)
+
         # Append Ma and bit-length to the transcript
         transcript.append(b"Com(Ma)_", Ma)
-        transcript.append(b"Length_", len(a_left))
+        transcript.append(b"Length_", n)
 
         # Compute Com(A)
         alpha = Scalar()
@@ -275,19 +277,18 @@ class BulletProof:
         z_3 = z_2*z
         p = z - z_2
         twos = SCALAR_POWERS_2
-        ones = [scalar_one]
+        ones = [scalar_one] * n
         ys = [scalar_one]
         for _ in range(1, n):
             ys.append(ys[-1] * y)
-            ones.append(scalar_one)
         delta_y_z = p * inner_product(ones, ys) - z_3 * inner_product(ones, twos)
         
-        # l(X) and r(X) vector polynomials
-        l = [
+        # l(X) and r(X) linear vector polynomials
+        l: List[List[Scalar]] = [
             [a_l_i - z for a_l_i in a_left],
             s_l,
         ]
-        r = [
+        r: List[List[Scalar]] = [
             [y_i * (a_r_i + z) + z_2 * two_i
                 for (y_i, a_r_i, two_i) in zip(ys, a_right, twos)],
             [y_i * s_r_i
@@ -387,11 +388,10 @@ class BulletProof:
         z_3 = z_2*z
         p = z - z_2
         twos = SCALAR_POWERS_2
-        ones = [scalar_one]
+        ones = [scalar_one] * n
         ys = [scalar_one]
         for _ in range(1, n):
             ys.append(ys[-1] * y)
-            ones.append(scalar_one)
         delta_y_z = p * inner_product(ones, ys) - z_3 * inner_product(ones, twos)
 
         # Prover -> Verifier: T_1, T_2
