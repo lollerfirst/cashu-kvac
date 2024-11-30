@@ -288,9 +288,10 @@ class BulletProof:
             s_l,
         ]
         r = [
-            [y_i * a_r_i + z + z_2 * two_i
+            [y_i * (a_r_i + z) + z_2 * two_i
                 for (y_i, a_r_i, two_i) in zip(ys, a_right, twos)],
-            s_r,
+            [y_i * s_r_i
+                for (y_i, s_r_i) in zip(ys, s_r)],
         ]
 
         # t(X) = <l(X), r(X)> = t_0 + t_1 * X + t_2 * X^2
