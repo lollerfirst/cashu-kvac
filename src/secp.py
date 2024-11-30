@@ -91,8 +91,10 @@ class Scalar(PrivateKey):
     
     def __eq__(self, scalar2):
         if isinstance(scalar2, Scalar):
-            print(f"{self.serialize() = } {scalar2.serialize() = }")
-            return self.to_bytes() == scalar2.to_bytes()
+            b = 0
+            for x, y in zip(self.to_bytes(), scalar2.to_bytes()):
+                b += x^y
+            return b == 0
         else:
             raise TypeError(f"Cannot compare {scalar2.__class__} and Scalar")
     

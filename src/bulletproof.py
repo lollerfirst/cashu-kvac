@@ -41,13 +41,24 @@ def inner_product(l: List[Scalar], r: List[Scalar]) -> Scalar:
 def get_folded_IPA(
     transcript: CashuTranscript,
     generators: Tuple[List[GroupElement], List[GroupElement], GroupElement],
+    P: GroupElement,
     a: List[Scalar],
-    b: List[Scalar]
+    b: List[Scalar],
 ) -> InnerProductArgument:
     assert len(a) == len(b), "the two lists have different length"
 
     # Extract generators
     G, H, U = generators
+
+    ## PROTOCOL 1 ##
+    # `get_folded_IPA` implements Protocol 2, a proof system for relation (3).
+    # Protocol 1 (here) makes Protocol 2 into a proof system for relation (2).
+    transcript.append(b"Com(P)_", P)
+    tetha = transcript.get_challenge(b"tetha_chall_")
+
+    # Switch generator U
+    U = tetha*U
+    ## END PROTOCOL 1 ##
 
     # Ensure len is a power of 2
     len_pow2 = 1 << (len(a).bit_length()-1)
@@ -114,14 +125,27 @@ def verify_folded_IPA(
     generators: Tuple[List[GroupElement], List[GroupElement], GroupElement],
     ipa: InnerProductArgument,
     P: GroupElement, # <- the commitment
-    c: Scalar,
+    c: Scalar, # <- the inner product
 ) -> bool:
     log2_n = len(ipa.public_inputs)
     n = 1 << log2_n
 
     # Extract generators
     G, H, U = generators
-    print(f"{len(G) = } {len(H) = }")
+    
+    ## PROTOCOL 1 ##
+    # `verify_folded_IPA` implements Protocol 2, a proof system for relation (3).
+    # Protocol 1 (here) makes Protocol 2 into a proof system for relation (2).
+    transcript.append(b"Com(P)_", P)
+    tetha = transcript.get_challenge(b"tetha_chall_")
+
+    # Switch generator U
+    U = tetha*U
+    # Tweak commitment P
+    P += c*U
+    ## END PROTOCOL 1 ##
+
+    ## PROTOCOL 2 ##
     # Extract scalars of the recursion end from IPA
     a, b = ipa.tail_end_scalars
 
@@ -168,11 +192,7 @@ def verify_folded_IPA(
         P
     )
     
-    if not G_aH_b + (a*b)*U == P_:
-        return False
-    
-    print("ciao")
-    return a*b == c
+    return G_aH_b + (a*b)*U == P_
 
 @dataclass
 class BulletProof:
@@ -311,9 +331,19 @@ class BulletProof:
         # blinding factors for A, S     (62)
         mu = alpha + rho * x
 
+        # Switch generators H -> y^n*H    (64)
+        H_ = [y_i.invert()*H_i for y_i, H_i in zip(ys, H)]
+
+        # Compute commitment P = l(x)*G + r(x)*H'
+        P = sum(
+            [l_x_i*G_i + r_x_i*H_i
+                for (l_x_i, G_i, r_x_i, H_i) in zip(l_x, G, r_x, H_)],
+            O
+        )
+
         # Now instead of sending l and r we fold them.
         # We get the IPA for l, r.
-        ipa = get_folded_IPA(transcript, (G, H, U), l_x, r_x)
+        ipa = get_folded_IPA(transcript, (G, H_, U), P, l_x, r_x)
 
         # Prover -> Verifier: t_x, tau_x, mu, ipa
 
@@ -391,7 +421,7 @@ class BulletProof:
                 for y_i, two in zip(ys, twos)], scalar_zero)
         P = sum(
             [z_neg*G_i + k_i*H_i
-                for (G_i, k_i, H_i) in zip(G, k, H_)]
+                for (G_i, k_i, H_i) in zip(G, k, H_)],
             (-mu)*G_blind + A + x*S
         )
 
@@ -404,12 +434,12 @@ cli_tscr = CashuTranscript()
 mint_tscr = CashuTranscript()
 a = [Scalar() for _ in range(51)]
 b = [Scalar() for _ in range(51)]
-ipa = get_folded_IPA(cli_tscr, (G, H, U), a, b)
-assert len(ipa.public_inputs) == 6
-c = inner_product(a, b)
 P = sum(
     [a_i*G_i + b_i*H_i
         for (a_i, G_i, b_i, H_i) in zip(a, G, b, H)],
-    c * U
+    O
 )
+ipa = get_folded_IPA(cli_tscr, (G, H, U), P, a, b)
+assert len(ipa.public_inputs) == 6
+c = inner_product(a, b)
 assert verify_folded_IPA(mint_tscr, (G, H, U), ipa, P, c)
