@@ -13,13 +13,13 @@ scalar_one = Scalar(int(1).to_bytes(32, 'big'))
 RANGE_LIMIT = 1 << 32
 
 # Scalars in powers of 2
-SCALAR_POWERS_2 = [Scalar((1<<i).to_bytes(32, "big")) for i in range(64)]
+SCALAR_POWERS_2 = [Scalar((1<<i).to_bytes(32, "big")) for i in range(32)]
 
 # Get generators (Could be hard-coded)
 G = [hash_to_curve(f"IPA_G_{i}_".encode("utf-8"))
-    for i in range(64)]
+    for i in range(32)]
 H = [hash_to_curve(f"IPA_H_{i}_".encode("utf-8"))
-    for i in range(64)]
+    for i in range(32)]
 U = hash_to_curve(b"IPA_U_")
 
 @dataclass
@@ -209,16 +209,16 @@ class BulletProof:
     @classmethod
     def create(
         cls,
-        trascript: CashuTranscript,
+        transcript: CashuTranscript,
         attribute: AmountAttribute
     ) -> "BulletProof":
         # Domain separation
-        transcript.domain_sep(b"Bulletproof_Statement_")
+        transcript.domain_sep(b"dom-sep", b"Bulletproof_Statement_")
 
         # Extract amount scalar, blinding factor Scalar
         # and pedersen commitment
         a = attribute.a
-        r = attribute.r
+        gamma = attribute.r
         Ma = attribute.Ma
 
         # Decompose attribute's amount into bits.
@@ -227,8 +227,9 @@ class BulletProof:
         a_right = []
         for _ in range((RANGE_LIMIT-1).bit_length()):
             bit = amount & 1
+            print(f"{1-bit = } {bit = }")
             a_left.append(Scalar(bit.to_bytes(32, "big")))
-            a_right.append(Scalar((bit^1).to_bytes(32, "big")))
+            a_right.append(Scalar((1-bit).to_bytes(32, "big")))
             amount >>= 1
 
         assert len(a_left) == len(a_right) == 32
@@ -237,7 +238,7 @@ class BulletProof:
 
         # Append Ma and bit-length to the transcript
         transcript.append(b"Com(Ma)_", Ma)
-        transcript.append(b"Length_", n)
+        transcript.append(b"Com(n)_", hash_to_curve(n.to_bytes(32, "big")))
 
         # Compute Com(A)
         alpha = Scalar()
@@ -265,24 +266,32 @@ class BulletProof:
 
         # Get y challenge
         y = transcript.get_challenge(b"y_chall_")
+        print(f"{y.serialize() = }")
 
         # Commit y
         transcript.append(b"Com(y)_", hash_to_curve(y.to_bytes()))
 
         # Get z challenge
         z = transcript.get_challenge(b"z_chall_")
+        print(f"{z.serialize() = }")
         z_2 = z*z
 
         # Calculate ẟ(y, z)     Definition (39)
         z_3 = z_2*z
         p = z - z_2
         twos = SCALAR_POWERS_2
-        ones = [scalar_one] * n
+        #print(f"{inner_product(a_left, twos) == a = }")
         ys = [scalar_one]
         for _ in range(1, n):
             ys.append(ys[-1] * y)
-        delta_y_z = p * inner_product(ones, ys) - z_3 * inner_product(ones, twos)
-        
+        #print(f"{ys[3] == y*y*y = }")
+        delta_y_z = sum(
+            [p * y_i - z_3 * two_i
+                for y_i, two_i in zip(ys, twos)],
+            scalar_zero
+        )
+        print(f"{delta_y_z.serialize() = }")
+
         # l(X) and r(X) linear vector polynomials
         l: List[List[Scalar]] = [
             [a_l_i - z for a_l_i in a_left],
@@ -299,6 +308,10 @@ class BulletProof:
         
         # Calculate constant term t_0       
         t_0 = a*z_2 + delta_y_z
+        t_0_check = inner_product(l[0], r[0])
+        # TODO: Solve this fucker
+        print(f"{t_0 == t_0_check = }")
+        print(f"{t_0.serialize() = }\n{t_0_check.serialize() = }")
 
         # Calculate coefficient t_1. From definition (1)
         t_1 = inner_product(l[1], r[0]) + inner_product(l[0], r[1])
@@ -321,16 +334,18 @@ class BulletProof:
 
         # Get challenge x (named x because used for evaluation of t(x))
         x = transcript.get_challenge(b"x_chall_")
+        print(f"{x.serialize() = }")
         x_2 = x*x
 
         # now evaluate t(x) at x    (58-60)
         l_x = [l_0 + l_1 * x for l_0, l_1 in zip(l[0], l[1])]
         r_x = [r_0 + r_1 * x for r_0, r_1 in zip(r[0], r[1])]
         t_x = inner_product(l_x, r_x)
+        #t_check_x = t_0 + t_1 * x + t_2 * x_2
 
         # and compute tau_x (We blinded the coefficients, so we need to
         # take care of that)    (61)
-        tau_x = z_2 * r + tau_1 * x + tau_2 * x_2
+        tau_x = z_2 * gamma + tau_1 * x + tau_2 * x_2
 
         # blinding factors for A, S     (62)
         mu = alpha + rho * x
@@ -367,8 +382,16 @@ class BulletProof:
         transcript: CashuTranscript,
         attribute: GroupElement,
     ) -> bool:
+        transcript.domain_sep(b"dom-sep", b"Bulletproof_Statement_")
+        
         # Prover -> Verifier: A, S
         # Verifier -> Prover: y, z
+
+        n = 1 << len(self.ipa.public_inputs)
+
+        # Append Ma and bit-length to the transcript
+        transcript.append(b"Com(Ma)_", attribute.Ma)
+        transcript.append(b"Com(n)_", hash_to_curve(n.to_bytes(32, "big")))
 
         # Append A and S to transcript
         transcript.append(b"Com(A)_", self.A)
@@ -376,23 +399,29 @@ class BulletProof:
 
         # Get y challenge
         y = transcript.get_challenge(b"y_chall_")
+        print(f"{y.serialize() = }")
 
         # Commit y
         transcript.append(b"Com(y)_", hash_to_curve(y.to_bytes()))
 
         # Get z challenge
         z = transcript.get_challenge(b"z_chall_")
+        print(f"{z.serialize() = }")
         z_2 = z*z
 
         # Calculate ẟ(y, z)     Definition (39)
         z_3 = z_2*z
         p = z - z_2
         twos = SCALAR_POWERS_2
-        ones = [scalar_one] * n
         ys = [scalar_one]
         for _ in range(1, n):
             ys.append(ys[-1] * y)
-        delta_y_z = p * inner_product(ones, ys) - z_3 * inner_product(ones, twos)
+        delta_y_z = sum(
+            [p * y_i - z_3 * two_i
+                for y_i, two_i in zip(ys, twos)],
+            scalar_zero
+        )
+        print(f"{delta_y_z.serialize() = }")
 
         # Prover -> Verifier: T_1, T_2
         # Verifier -> Prover: x
@@ -404,6 +433,7 @@ class BulletProof:
 
         # Get challenge x (named x because used for evaluation of t(x))
         x = transcript.get_challenge(b"x_chall_")
+        print(f"{x.serialize() = }")
         x_2 = x*x
 
         # Switch generators H -> y^n*H    (64)
@@ -416,11 +446,15 @@ class BulletProof:
         if not t_x*G_amount + tau_x*G_blind == z_2*V + delta_y_z*G_amount + x*T_1 + x_2*T_2:
             return False
 
+        print("first check passed")
+
         # Compute commitment to l(x) and r(x)   (66)
         mu = self.mu
         z_neg = -z
-        k = sum([z * y_i + z_2 * two
-                for y_i, two in zip(ys, twos)], scalar_zero)
+        k = [z * y_i + z_2 * two
+                for y_i, two in zip(ys, twos)]
+        
+        A, S = self.A, self.S
         P = sum(
             [z_neg*G_i + k_i*H_i
                 for (G_i, k_i, H_i) in zip(G, k, H_)],
@@ -434,14 +468,18 @@ class BulletProof:
 # TESTING
 cli_tscr = CashuTranscript()
 mint_tscr = CashuTranscript()
-a = [Scalar() for _ in range(51)]
-b = [Scalar() for _ in range(51)]
+a = [Scalar() for _ in range(32)]
+b = [Scalar() for _ in range(32)]
 P = sum(
     [a_i*G_i + b_i*H_i
         for (a_i, G_i, b_i, H_i) in zip(a, G, b, H)],
     O
 )
 ipa = get_folded_IPA(cli_tscr, (G, H, U), P, a, b)
-assert len(ipa.public_inputs) == 6
+assert len(ipa.public_inputs) == 5
 c = inner_product(a, b)
 assert verify_folded_IPA(mint_tscr, (G, H, U), ipa, P, c)
+
+attr_16 = AmountAttribute.create(16)
+range_proof = BulletProof.create(cli_tscr, attr_16)
+assert range_proof.verify(mint_tscr, attr_16)
