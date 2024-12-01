@@ -3,6 +3,9 @@ import os
 
 ffibuilder = FFI()
 
+if not os.path.exists("libmerlin/src"):
+    raise FileNotFoundError("libmerlin submodule not initiated")
+
 if not os.path.exists("src/merlin/extension"):
     os.makedirs("src/merlin/extension")
 
@@ -43,7 +46,7 @@ try:
     )
     ffibuilder.set_source("src.merlin.extension._merlin", 
         """
-            #include "../../../libmerlin/src/merlin.h"
+            #include "../libmerlin/src/merlin.h"
         """,
         sources=["libmerlin/src/merlin.c"]
     )

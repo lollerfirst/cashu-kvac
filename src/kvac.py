@@ -2,12 +2,11 @@ from .secp import (
     GroupElement,
     Scalar,
     SCALAR_ZERO,
-    ELEMENT_ZERO,
-    q
 )
 from .models import *
 from .generators import *
-from .merlin.merlin import MerlinTranscript
+from .transcript import CashuTranscript
+from .bulletproof import BulletProof
 import hashlib
 
 from typing import Tuple, List, Optional, Union
@@ -22,25 +21,6 @@ GROUP_ELEMENTS_POW2 = [
         (Scalar((1 << i).to_bytes(32, "big")))*G_blind
     for i in range(RANGE_LIMIT.bit_length())
 ]
-
-class CashuTranscript:
-    t: MerlinTranscript
-
-    def __init__(self):
-        self.t = MerlinTranscript(b"Secp256k1_Cashu_")
-
-    def domain_sep(self, label: bytes, message: bytes):
-        self.t.commit_bytes(label, message)
-    
-    def append(self, label: bytes, element: GroupElement):
-        message = element.serialize(True)
-        self.t.commit_bytes(label, message)
-
-    def get_challenge(self, label: bytes) -> Scalar:
-        challenge_bytes = self.t.get_challenge_bytes(label, 32)
-        c = Scalar(challenge_bytes)
-        assert not c.is_zero, "got challenge == SCALAR_ZERO"
-        return c
 
 class LinearRelationMode(Enum):
     PROVE = 0
@@ -286,7 +266,7 @@ class ScriptEqualityStatement:
             domain_separator=b"Script_Equality_Statement_",
             equations=equations
         )
-
+'''
 class RangeStatement:
     
     @classmethod
@@ -340,6 +320,7 @@ class RangeStatement:
             domain_separator=b"Range_Statement_",
             equations=equations,
         )
+'''
 
 def prove_bootstrap(
     transcript: CashuTranscript,
@@ -679,100 +660,17 @@ def verify_balance(
 def prove_range(
     transcript: CashuTranscript,
     attribute: AmountAttribute
-):
-    # This is a naive range proof with bit-decomposition
-    # https://gist.github.com/lollerfirst/82644d9ef47cef15508054b9431b123b 
-
-    # Get the attribute public point.
-    Ma = attribute.Ma
-
-    # Get the powers of 2 as PrivateKeys.
-    K = GROUP_ELEMENTS_POW2
-
-    # Decompose attribute's amount into bits.
-    amount = int.from_bytes(attribute.a.to_bytes(), "big")
-    bits = []
-    for _ in range((RANGE_LIMIT-1).bit_length()):
-        bits.append(Scalar((amount&1).to_bytes(32, "big")))
-        amount >>= 1
-
-    # Get `r` vector for B_i = b_i*G + r_i*H
-    bits_blinding_factors = [Scalar() for _ in bits]
-
-    # B is the bit commitments vector
-    B = []
-    for b_i, r_i in zip(bits, bits_blinding_factors):
-        R_i = r_i*G_blind
-        B.append(R_i+G_amount if not b_i.is_zero else R_i)
-
-    # Hadamard product between
-    # the blinding factors vector and the bits vector
-    # We need to take the negation of this to obtain -r_i*b_i because
-    # c*r_i*b_i*H will be the excess challenge term to cancel
-    product_bits_and_blinding_factors = [
-        -(r*b)
-        for r, b in zip(bits_blinding_factors, bits)
-    ]
-
-    V = attribute.r*G_blind
-    for K_i, r_i in zip(K, bits_blinding_factors):
-        V -= r_i*K_i
-
-    # Instantiate linear prover
-    # Witnesses are:
-    #   - r (attribute.r)
-    #   - b_i
-    #   - r_i
-    #   - -(r_i * b_i) <-- needed to cancel out an excess challenge term in the third set of eqns
-    prover = LinearRelationProverVerifier(
-        mode=LinearRelationMode.PROVE,
-        transcript=transcript,
-        secrets=[attribute.r] + 
-            bits +
-            bits_blinding_factors +
-            product_bits_and_blinding_factors,
-    )
-    
-    prover.add_statement(RangeStatement.create(B, V))
-    zkp = prover.prove()
-
-    # and we return B the bit-commitments vector
-    return RangeZKP(
-        B=B,
-        s=zkp.s,
-        c=zkp.c
-    )
+) -> BulletProof:
+    # Using BULLETPROOF
+    return BulletProof.create(transcript, attribute)
 
 def verify_range(
     transcript: CashuTranscript,
     Ma: GroupElement,
-    proof: RangeZKP
+    proof: BulletProof,
 ) -> bool:
-
-    # Get the bit commitments
-    B = proof.B
-    # Get powers of 2 in G_blind
-    K = GROUP_ELEMENTS_POW2
-
-    # Verify the number of bits does not exceed log2(RANGE_LIMIT-1)
-    if len(B) >= RANGE_LIMIT.bit_length():
-        return False
-
-    # Calculate Ma - Σ 2^i*B_i
-    V = Ma
-    for i, B_i in enumerate(B):
-        k = Scalar((1 << i).to_bytes(32, "big"))
-        V -= k*B_i
-
-    # Instantiate verifier with the proof
-    verifier = LinearRelationProverVerifier(
-        mode=LinearRelationMode.VERIFY,
-        transcript=transcript,
-        proof=proof
-    )
-
-    verifier.add_statement(RangeStatement.create(B, V))
-    return verifier.verify()
+    # Verifying BULLETPROOF
+    return proof.verify(transcript, Ma)
 
 def prove_script_equality(
     transcript: CashuTranscript,
@@ -782,7 +680,7 @@ def prove_script_equality(
 ) -> ZKP:
     """
     Parameters:
-        old_amount_attributes(List[AmountAttribute]):
+        old_amount_attributes(List[AmountAttribute]): The old amount attributes (from which randomizing factors are extracted)
         old_script_attributes (List[ScriptAttribute]): The old script attributes
         new_script_attributes (List[ScriptAttribute]): The new script attributes
     Returns:

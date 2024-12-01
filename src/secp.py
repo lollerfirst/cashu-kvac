@@ -8,6 +8,35 @@ ELEMENT_ZERO = b"\x02" + b"\x00" * 32
 # Order of the curve
 q = int('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141', 16)
 
+def div2(M, x):
+    """Helper routine to compute x/2 mod M (where M is odd)."""
+    assert M & 1
+    if x & 1: # If x is odd, make it even by adding M.
+        x += M
+    # x must be even now, so a clean division by 2 is possible.
+    return x >> 1
+
+# safegcd (constant-time): 
+def modinv(M, x):
+    """Compute the inverse of x mod M (given that it exists, and M is odd)."""
+    assert M & 1
+    delta, f, g, d, e = 1, M, x, 0, 1
+    while g != 0:
+        # Note that while division by two for f and g is only ever done on even inputs, this is
+        # not true for d and e, so we need the div2 helper function.
+        if delta > 0 and g & 1:
+            delta, f, g, d, e = 1 - delta, g, (g - f) // 2, e, div2(M, e - d)
+        elif g & 1:
+            delta, f, g, d, e = 1 + delta, f, (g + f) // 2, d, div2(M, e + d)
+        else:
+            delta, f, g, d, e = 1 + delta, f, (g    ) // 2, d, div2(M, e    )
+        # Verify that the invariants d=f/x mod M, e=g/x mod M are maintained.
+        assert f % M == (d * x) % M
+        assert g % M == (e * x) % M
+    assert f == 1 or f == -1  # |f| is the GCD, it must be 1
+    # Because of invariant d = f/x (mod M), 1/x = d/f (mod M). As |f|=1, d/f = d*f.
+    return (d * f) % M
+
 class Scalar(PrivateKey):
 
     def __init__(self, data: bytes | None = None):
@@ -62,15 +91,25 @@ class Scalar(PrivateKey):
     
     def __eq__(self, scalar2):
         if isinstance(scalar2, Scalar):
-            return self.to_bytes() == scalar2.to_bytes()
+            b = 0
+            for x, y in zip(self.to_bytes(), scalar2.to_bytes()):
+                b += x^y
+            return b == 0
         else:
             raise TypeError(f"Cannot compare {scalar2.__class__} and Scalar")
+    
+    def invert(self):
+        if self.is_zero:
+            raise Exception("Cannot compute inverse of 0")
+        s = int.from_bytes(self.to_bytes(), "big")
+        s_inv = modinv(q, s)
+        return Scalar(s_inv.to_bytes(32, "big"))
     
     def to_bytes(self):
         return self.private_key if not self.is_zero else SCALAR_ZERO
 
 # We extend the public key to define some operations on points
-# Picked from https://github.com/WTRMQDev/secp256k1-zkp-py/blob/master/secp256k1_zkp/__init__.py
+# Adapted from https://github.com/WTRMQDev/secp256k1-zkp-py/blob/master/secp256k1_zkp/__init__.py
 class GroupElement(PublicKey):
 
     def __init__(self, data: bytes | None = None):

@@ -39,6 +39,9 @@ def bench_scalar_neg():
 def bench_scalar_sub():
     _ = scalar - scalar1
 
+def bench_scalar_invert():
+    _ = scalar.invert()
+
 def bench_scalar_init():
     _ = Scalar(scalar_bytes)
 
@@ -63,6 +66,7 @@ benchmarks = [
     ("Scalar Addition", "bench_scalar_add"),
     ("Scalar Negation", "bench_scalar_neg"),
     ("Scalar Subtraction", "bench_scalar_sub"),
+    ("Scalar Modular Inversion", "bench_scalar_invert"),
     ("Scalar Instantiation", "bench_scalar_init"),
     ("GroupElement Instantiation", "bench_group_element_init"),
 ]
