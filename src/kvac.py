@@ -240,7 +240,6 @@ class ScriptEqualityStatement:
 
     @classmethod
     def create(cls, creds: List[GroupElement], attr: List[GroupElement]):
-        print(f"{len(creds) = } {len(attr) = }")
         equations = [
             Equation(             
                 value=Cs,

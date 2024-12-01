@@ -157,7 +157,6 @@ def verify_folded_IPA(
         x = transcript.get_challenge(b"IPA_chall_")
         challs.append((x, x.invert()))
 
-    print(f"{n = }")
     '''
     # fold generators
     for x, x_inv in challs:
@@ -166,8 +165,6 @@ def verify_folded_IPA(
             for (G_i, G_n_i) in zip(G[:n], G[n:2*n])]
         H = [H_i * x + H_n_i * x_inv
             for (H_i, H_n_i) in zip(H[:n], H[n:2*n])]
-        print(f"{len(G) = }")
-        print(f"unroll: {G[0].serialize(True).hex() = }")
 
     G_a = a*G[0]
     H_b = b*H[0]
@@ -227,7 +224,6 @@ class BulletProof:
         a_right = []
         for _ in range((RANGE_LIMIT-1).bit_length()):
             bit = amount & 1
-            print(f"{1-bit = } {bit = }")
             a_left.append(Scalar(bit.to_bytes(32, "big")))
             a_right.append(Scalar((1-bit).to_bytes(32, "big")))
             amount >>= 1
@@ -266,31 +262,30 @@ class BulletProof:
 
         # Get y challenge
         y = transcript.get_challenge(b"y_chall_")
-        print(f"{y.serialize() = }")
+
 
         # Commit y
         transcript.append(b"Com(y)_", hash_to_curve(y.to_bytes()))
 
         # Get z challenge
         z = transcript.get_challenge(b"z_chall_")
-        print(f"{z.serialize() = }")
+
         z_2 = z*z
 
         # Calculate ẟ(y, z)     Definition (39)
         z_3 = z_2*z
         p = z + z_2
         twos = SCALAR_POWERS_2
-        #print(f"{inner_product(a_left, twos) == a = }")
+
         ys = [scalar_one]
         for _ in range(1, n):
             ys.append(ys[-1] * y)
-        #print(f"{ys[3] == y*y*y = }")
+
         delta_y_z = sum(
             [p * y_i + z_3 * two_i
                 for y_i, two_i in zip(ys, twos)],
             scalar_zero
         )
-        print(f"{delta_y_z.serialize() = }")
 
         # l(X) and r(X) linear vector polynomials
         l: List[List[Scalar]] = [
@@ -333,7 +328,6 @@ class BulletProof:
 
         # Get challenge x (named x because used for evaluation of t(x))
         x = transcript.get_challenge(b"x_chall_")
-        print(f"{x.serialize() = }")
         x_2 = x*x
 
         # now evaluate t(x) at x    (58-60)
@@ -401,14 +395,12 @@ class BulletProof:
 
         # Get y challenge
         y = transcript.get_challenge(b"y_chall_")
-        print(f"{y.serialize() = }")
 
         # Commit y
         transcript.append(b"Com(y)_", hash_to_curve(y.to_bytes()))
 
         # Get z challenge
         z = transcript.get_challenge(b"z_chall_")
-        print(f"{z.serialize() = }")
         z_2 = z*z
 
         # Calculate ẟ(y, z)     Definition (39)
@@ -423,7 +415,6 @@ class BulletProof:
                 for y_i, two_i in zip(ys, twos)],
             scalar_zero
         )
-        print(f"{delta_y_z.serialize() = }")
 
         # Prover -> Verifier: T_1, T_2
         # Verifier -> Prover: x
@@ -435,7 +426,7 @@ class BulletProof:
 
         # Get challenge x (named x because used for evaluation of t(x))
         x = transcript.get_challenge(b"x_chall_")
-        print(f"{x.serialize() = }")
+        #print(f"{x.serialize() = }")
         x_2 = x*x
 
         # Switch generators H -> y^n*H    (64)
@@ -446,8 +437,6 @@ class BulletProof:
         # Check that t_x = t(x) = t_0 + t_1*x + t_2*x^2     (65)
         if not t_x*G_amount + tau_x*G_blind == z_2*V + delta_y_z*G_amount + x*T_1 + x_2*T_2:
             return False
-
-        # print("first check passed")
 
         # Compute commitment to l(x) and r(x)   (66)
         mu = self.mu
@@ -464,6 +453,7 @@ class BulletProof:
         # Check t_x is correct                  (68)
         return verify_folded_IPA(transcript, (G, H_, U), self.ipa, P, t_x)
 
+'''
 # TESTING
 cli_tscr = CashuTranscript()
 mint_tscr = CashuTranscript()
@@ -482,3 +472,4 @@ assert verify_folded_IPA(mint_tscr, (G, H, U), ipa, P, c)
 attr_14 = AmountAttribute.create(14)
 range_proof = BulletProof.create(cli_tscr, attr_14)
 assert range_proof.verify(mint_tscr, attr_14.Ma)
+'''
