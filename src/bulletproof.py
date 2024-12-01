@@ -390,7 +390,7 @@ class BulletProof:
             return False
 
         # Append Ma and bit-length to the transcript
-        V = attribute.Ma
+        V = attribute
         transcript.append(b"Com(Ma)_", V)
         transcript.append(b"Com(n)_", hash_to_curve(n.to_bytes(32, "big")))
 
@@ -479,6 +479,6 @@ assert len(ipa.public_inputs) == 5
 c = inner_product(a, b)
 assert verify_folded_IPA(mint_tscr, (G, H, U), ipa, P, c)
 
-attr_16 = AmountAttribute.create(14)
-range_proof = BulletProof.create(cli_tscr, attr_16)
-assert range_proof.verify(mint_tscr, attr_16)
+attr_14 = AmountAttribute.create(14)
+range_proof = BulletProof.create(cli_tscr, attr_14)
+assert range_proof.verify(mint_tscr, attr_14.Ma)
