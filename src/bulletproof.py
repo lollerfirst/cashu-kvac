@@ -278,7 +278,7 @@ class BulletProof:
 
         # Calculate ẟ(y, z)     Definition (39)
         z_3 = z_2*z
-        p = z - z_2
+        p = z + z_2
         twos = SCALAR_POWERS_2
         #print(f"{inner_product(a_left, twos) == a = }")
         ys = [scalar_one]
@@ -286,7 +286,7 @@ class BulletProof:
             ys.append(ys[-1] * y)
         #print(f"{ys[3] == y*y*y = }")
         delta_y_z = sum(
-            [p * y_i - z_3 * two_i
+            [p * y_i + z_3 * two_i
                 for y_i, two_i in zip(ys, twos)],
             scalar_zero
         )
@@ -294,7 +294,7 @@ class BulletProof:
 
         # l(X) and r(X) linear vector polynomials
         l: List[List[Scalar]] = [
-            [a_l_i - z for a_l_i in a_left],
+            [a_l_i + z for a_l_i in a_left],
             s_l,
         ]
         r: List[List[Scalar]] = [
@@ -308,10 +308,9 @@ class BulletProof:
         
         # Calculate constant term t_0       
         t_0 = a*z_2 + delta_y_z
-        t_0_check = inner_product(l[0], r[0])
-        # TODO: Solve this fucker
-        print(f"{t_0 == t_0_check = }")
-        print(f"{t_0.serialize() = }\n{t_0_check.serialize() = }")
+        # t_0_check = inner_product(l[0], r[0])
+        # print(f"{t_0 == t_0_check = }")
+        # print(f"{t_0.serialize() = }\n{t_0_check.serialize() = }")
 
         # Calculate coefficient t_1. From definition (1)
         t_1 = inner_product(l[1], r[0]) + inner_product(l[0], r[1])
@@ -341,7 +340,6 @@ class BulletProof:
         l_x = [l_0 + l_1 * x for l_0, l_1 in zip(l[0], l[1])]
         r_x = [r_0 + r_1 * x for r_0, r_1 in zip(r[0], r[1])]
         t_x = inner_product(l_x, r_x)
-        #t_check_x = t_0 + t_1 * x + t_2 * x_2
 
         # and compute tau_x (We blinded the coefficients, so we need to
         # take care of that)    (61)
@@ -388,14 +386,18 @@ class BulletProof:
         # Verifier -> Prover: y, z
 
         n = 1 << len(self.ipa.public_inputs)
+        if n >= RANGE_LIMIT.bit_length():
+            return False
 
         # Append Ma and bit-length to the transcript
-        transcript.append(b"Com(Ma)_", attribute.Ma)
+        V = attribute.Ma
+        transcript.append(b"Com(Ma)_", V)
         transcript.append(b"Com(n)_", hash_to_curve(n.to_bytes(32, "big")))
 
         # Append A and S to transcript
-        transcript.append(b"Com(A)_", self.A)
-        transcript.append(b"Com(S)_", self.S)
+        A, S = self.A, self.S
+        transcript.append(b"Com(A)_", A)
+        transcript.append(b"Com(S)_", S)
 
         # Get y challenge
         y = transcript.get_challenge(b"y_chall_")
@@ -411,13 +413,13 @@ class BulletProof:
 
         # Calculate ẟ(y, z)     Definition (39)
         z_3 = z_2*z
-        p = z - z_2
+        p = z + z_2
         twos = SCALAR_POWERS_2
         ys = [scalar_one]
         for _ in range(1, n):
             ys.append(ys[-1] * y)
         delta_y_z = sum(
-            [p * y_i - z_3 * two_i
+            [p * y_i + z_3 * two_i
                 for y_i, two_i in zip(ys, twos)],
             scalar_zero
         )
@@ -441,22 +443,19 @@ class BulletProof:
 
         t_x = self.t_x
         tau_x = self.tau_x
-        V = attribute.Ma
         # Check that t_x = t(x) = t_0 + t_1*x + t_2*x^2     (65)
         if not t_x*G_amount + tau_x*G_blind == z_2*V + delta_y_z*G_amount + x*T_1 + x_2*T_2:
             return False
 
-        print("first check passed")
+        # print("first check passed")
 
         # Compute commitment to l(x) and r(x)   (66)
         mu = self.mu
-        z_neg = -z
         k = [z * y_i + z_2 * two
                 for y_i, two in zip(ys, twos)]
         
-        A, S = self.A, self.S
         P = sum(
-            [z_neg*G_i + k_i*H_i
+            [z*G_i + k_i*H_i
                 for (G_i, k_i, H_i) in zip(G, k, H_)],
             (-mu)*G_blind + A + x*S
         )
@@ -480,6 +479,6 @@ assert len(ipa.public_inputs) == 5
 c = inner_product(a, b)
 assert verify_folded_IPA(mint_tscr, (G, H, U), ipa, P, c)
 
-attr_16 = AmountAttribute.create(16)
+attr_16 = AmountAttribute.create(14)
 range_proof = BulletProof.create(cli_tscr, attr_16)
 assert range_proof.verify(mint_tscr, attr_16)
