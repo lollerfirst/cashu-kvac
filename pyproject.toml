@@ -8,7 +8,6 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-secp256k1 = "^0.14.0"
 bitcoinlib = "^0.7.0"
 cffi = "^1.17.1"
 setuptools = "^75.6.0"
