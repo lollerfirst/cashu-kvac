@@ -198,7 +198,7 @@ class BulletProof:
         attribute: AmountAttribute
     ) -> "BulletProof":
         # Domain separation
-        transcript.domain_sep(b"dom-sep", b"Bulletproof_Statement_")
+        transcript.domain_sep(b"Bulletproof_Statement_")
 
         # Extract amount scalar, blinding factor Scalar
         # and pedersen commitment
@@ -360,7 +360,7 @@ class BulletProof:
         transcript: CashuTranscript,
         attribute: GroupElement,
     ) -> bool:
-        transcript.domain_sep(b"dom-sep", b"Bulletproof_Statement_")
+        transcript.domain_sep(b"Bulletproof_Statement_")
         
         # Prover -> Verifier: A, S
         # Verifier -> Prover: y, z

@@ -97,7 +97,7 @@ class LinearRelationProverVerifier:
         """
 
         # Append proof-specific domain separator
-        self.transcript.domain_sep(b"dom-sep", statement.domain_separator)
+        self.transcript.domain_sep(statement.domain_separator)
 
         for eq in statement.equations:
             R = O
