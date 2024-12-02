@@ -157,18 +157,6 @@ def verify_folded_IPA(
         x = transcript.get_challenge(b"IPA_chall_")
         challs.append((x, x.invert()))
 
-    '''
-    # fold generators
-    for x, x_inv in challs:
-        n >>= 1
-        G = [G_i * x_inv + G_n_i * x
-            for (G_i, G_n_i) in zip(G[:n], G[n:2*n])]
-        H = [H_i * x + H_n_i * x_inv
-            for (H_i, H_n_i) in zip(H[:n], H[n:2*n])]
-
-    G_a = a*G[0]
-    H_b = b*H[0]
-    '''
     # Recursion unrolling - We reduce O(n*log_2(n)) GroupElement multiplications
     # to O(n) by unrolling the prover's loop (we have the challenges) and
     # performing the O(log_2(n)) arithmetic operations on scalars instead.
@@ -227,8 +215,6 @@ class BulletProof:
             a_left.append(Scalar(bit.to_bytes(32, "big")))
             a_right.append(Scalar((1-bit).to_bytes(32, "big")))
             amount >>= 1
-
-        assert len(a_left) == len(a_right) == 32
 
         n = len(a_left)
 
