@@ -15,6 +15,9 @@ class MintPrivateKey:
     ya: Scalar
     ys: Scalar
 
+    _I: Optional[GroupElement] = None
+    _Cw: Optional[GroupElement] = None
+
     @property
     def sk(self):
         return [
@@ -28,16 +31,20 @@ class MintPrivateKey:
 
     @property
     def Cw(self):
-        return W*self.w + W_*self.w_
+        if not self._Cw:
+            self._Cw = W*self.w + W_*self.w_
+        return self._Cw
 
     @property
     def I(self):
-        return Gz_mac - (
-            X0*self.x0
-            + X1*self.x1
-            + Gz_attribute*self.ya  # amount
-            + Gz_script*self.ys     # script
-        )
+        if not self._I:
+            self._I = Gz_mac - (
+                X0*self.x0
+                + X1*self.x1
+                + Gz_attribute*self.ya  # amount
+                + Gz_script*self.ys     # script
+            )
+        return self._I
 
 @dataclass
 class ZKP:
@@ -82,7 +89,7 @@ class ScriptAttribute:
         assert self.r and self.s
         if not self._Ms:
             self._Ms = self.r * G_blind + self.s * G_amount
-        return GroupElement(self._Ms.serialize(True))
+        return self._Ms
 
     @property
     def serial(self) -> GroupElement:
@@ -128,7 +135,7 @@ class AmountAttribute:
         assert self.r and self.a
         if not self._Ma:
             self._Ma = self.r * G_blind + self.a * G_amount
-        return GroupElement(self._Ma.serialize(True))
+        return self._Ma
 
     @classmethod
     def tweak_amount(cls, Ma: GroupElement, delta: int) -> GroupElement:
