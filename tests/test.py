@@ -141,18 +141,25 @@ def test_range(transcripts, mint_privkey):
     # User creates 1 attribute worth 16
     attribute = AmountAttribute.create(16)
 
-    range_proof = prove_range(cli_transcript, attribute)
-    assert verify_range(mint_transcript, attribute.Ma, range_proof)
+    range_proof = prove_range(cli_transcript, [attribute])
+    assert verify_range(mint_transcript, [attribute.Ma], range_proof)
 
 def test_wrong_range(transcripts, mint_privkey):
     mint_publickey = (mint_privkey.Cw, mint_privkey.I)
     cli_transcript, mint_transcript = transcripts
 
-    # User creates 1 attribute worth 16
     attribute = AmountAttribute.create(2**51)
 
-    range_proof = prove_range(cli_transcript, attribute)
-    assert not verify_range(mint_transcript, attribute.Ma, range_proof)
+    range_proof = prove_range(cli_transcript, [attribute])
+    assert not verify_range(mint_transcript, [attribute.Ma], range_proof)
+
+def test_multiple_range(transcripts):
+    cli_transcript, mint_transcript = transcripts
+
+    attributes = [AmountAttribute.create(1), AmountAttribute.create(3), AmountAttribute.create(16)]
+
+    range_proof = prove_range(cli_transcript, attributes)
+    assert verify_range(mint_transcript, [att.Ma for att in attributes], range_proof)
 
 def test_bootstrap(transcripts):
     cli_transcript, mint_transcript = transcripts

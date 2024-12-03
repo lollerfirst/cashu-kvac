@@ -7,8 +7,8 @@ class CashuTranscript:
     def __init__(self):
         self.t = MerlinTranscript(b"Secp256k1_Cashu_")
 
-    def domain_sep(self, label: bytes, message: bytes):
-        self.t.commit_bytes(label, message)
+    def domain_sep(self, message: bytes):
+        self.t.commit_bytes(b"dom-sep", message)
     
     def append(self, label: bytes, element: GroupElement):
         message = element.serialize(True)
