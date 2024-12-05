@@ -97,7 +97,7 @@ class LinearRelationProverVerifier:
         """
 
         # Append proof-specific domain separator
-        self.transcript.domain_sep(b"dom-sep", statement.domain_separator)
+        self.transcript.domain_sep(statement.domain_separator)
 
         for eq in statement.equations:
             R = O
@@ -105,14 +105,15 @@ class LinearRelationProverVerifier:
 
             if self.mode.isProve:
                 for row in eq.construction:
-                    for i, P in enumerate(row):
-                        R += self.random_terms[i] * P
+                    for k, P in zip(self.random_terms, row):
+                        R += k * P
             elif self.mode.isVerify:
                 for row in eq.construction:
-                    for i, P in enumerate(row):
-                        R += self.responses[i] * P
+                    for (s, P) in zip(self.responses, row):
+                        R += s * P
                 R -= self.c*V
-            
+            print(f"{R.serialize(True).hex() = }")
+            print(f"{V.serialize(True).hex() = }")
             # Append nonce-commitment and public input
             # to the running transcript
             self.transcript.append(b"R_", R)
@@ -144,7 +145,6 @@ class LinearRelationProverVerifier:
         assert self.mode.isVerify, "mode is not VERIFY!"
 
         c_ = self.transcript.get_challenge(b"chall_")
-
         return self.c == c_
 
 class BootstrapStatement:
@@ -244,7 +244,7 @@ class ScriptEqualityStatement:
             Equation(             
                 value=Cs,
                 construction=[
-                    [G_script]+
+                    [G_script] +
                     [O] * i +
                     [Gz_script] +
                     [O] * (len(creds)-1) + 
@@ -450,48 +450,6 @@ def verify_iparams(
 
     return verifier.verify()
 
-def randomize_credentials(
-    mac: MAC,
-    attribute: AmountAttribute,
-    script: Optional[ScriptAttribute] = None,
-    reveal_script: bool = False,
-) -> RandomizedCredentials:
-    """
-    Produces randomized commitments for the given attribute and MAC.
-
-    This function takes as input an attribute and a MAC, and returns a randomized commitment set.
-
-    Parameters:
-        mac (MAC): The MAC. 
-        attribute (AmountAttribute): The amount attribute.
-        script (Optional[ScriptAttribute], optional): The optional script attribute (use if you don't want to reveal the script)
-        reveal_script (bool, optional): If True, only randomize blinding factor for the script commitment. Defaults to False
-
-    Returns:
-        RandomizedCredentials: The randomized commitment set.
-    """
-    t = mac.t
-    V = mac.V
-    Ma = attribute.Ma
-    Ms = O
-    if script:
-        if reveal_script:
-            Ms = script.r*G_blind
-        else:
-            Ms = script.Ms
-
-    U = hash_to_curve(t.to_bytes())
-    r = attribute.r  
-
-    Ca = r*Gz_attribute + Ma
-    Cs = r*Gz_script + Ms
-    Cx0 = r*X0 + U
-    Cx1 = r*X1 + t*U
-    Cv = r*Gz_mac + V
-
-    return RandomizedCredentials(Ca=Ca, Cs=Cs, Cx0=Cx0, Cx1=Cx1, Cv=Cv)
-
-
 def prove_MAC(
     transcript: CashuTranscript,
     mint_pubkey: Tuple[GroupElement, GroupElement],
@@ -680,7 +638,7 @@ def prove_script_equality(
 ) -> ZKP:
     """
     Parameters:
-        old_amount_attributes(List[AmountAttribute]): The old amount attributes (from which randomizing factors are extracted)
+        old_amount_attributes (List[AmountAttribute]): The old amount attributes (from which randomizing factors are extracted)
         old_script_attributes (List[ScriptAttribute]): The old script attributes
         new_script_attributes (List[ScriptAttribute]): The new script attributes
     Returns:
@@ -688,13 +646,13 @@ def prove_script_equality(
     """
     s = new_script_attributes[0].s
     ar_list = [att.r for att in old_amount_attributes]      # `AmountAttribute`s blinding factors
-    r_list = [att.r for att in old_script_attributes]       # `ScriptAttribute`s blinding factors
-    new_r_list = [att.r for att in new_script_attributes]   # new `ScriptAttribute`s blinding factors
+    sr_list = [att.r for att in old_script_attributes]       # `ScriptAttribute`s blinding factors
+    new_sr_list = [att.r for att in new_script_attributes]   # new `ScriptAttribute`s blinding factors
 
     prover = LinearRelationProverVerifier(
         LinearRelationMode.PROVE,
-        transcript,
-        secrets=[s]+ar_list+r_list+new_r_list,
+        transcript=transcript,
+        secrets=[s]+ar_list+sr_list+new_sr_list,
     )
     prover.add_statement(ScriptEqualityStatement.create(
         [script_att.Ms + amount_att.r*Gz_script

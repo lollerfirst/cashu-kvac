@@ -93,7 +93,7 @@ class Scalar(PrivateKey):
         if isinstance(scalar2, Scalar):
             b = 0
             for x, y in zip(self.to_bytes(), scalar2.to_bytes()):
-                b += x^y
+                b |= x^y
             return b == 0
         else:
             raise TypeError(f"Cannot compare {scalar2.__class__} and Scalar")
@@ -104,6 +104,21 @@ class Scalar(PrivateKey):
         s = int.from_bytes(self.to_bytes(), "big")
         s_inv = modinv(q, s)
         return Scalar(s_inv.to_bytes(32, "big"))
+    
+    def unsafe_exp(self, n: int):
+        """ "unsafe" in its argument `n`.
+            That means only `n` would potentially be leaked by a timing attack.
+        """
+        z = scalar_one
+        base = self
+
+        while n > 0:
+            if n & 1:  # If the current bit is 1
+                z_m *= base
+            base *= base  # Square the base
+            n >>= 1  # Shift right to process the next bit
+
+        return z
     
     def to_bytes(self):
         return self.private_key if not self.is_zero else SCALAR_ZERO
@@ -180,3 +195,6 @@ class GroupElement(PublicKey):
             return b"\x00" * 64
         assert self.public_key
         return [self.public_key.data[i] for i in range(64)]
+
+scalar_one = Scalar(int(1).to_bytes(32, 'big'))
+scalar_zero = Scalar(SCALAR_ZERO)

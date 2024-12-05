@@ -81,8 +81,8 @@ class ScriptAttribute:
     def Ms(self):
         assert self.r and self.s
         if not self._Ms:
-            self._Ms = self.r * G_blind + self.s * G_amount
-        return GroupElement(self._Ms.serialize(True))
+            self._Ms = self.r * G_blind + self.s * G_script
+        return self._Ms
 
     @property
     def serial(self) -> GroupElement:
@@ -128,21 +128,13 @@ class AmountAttribute:
         assert self.r and self.a
         if not self._Ma:
             self._Ma = self.r * G_blind + self.a * G_amount
-        return GroupElement(self._Ma.serialize(True))
+        return self._Ma
 
     @classmethod
     def tweak_amount(cls, Ma: GroupElement, delta: int) -> GroupElement:
         d = Scalar(abs(delta).to_bytes(32, 'big'))
         D = d * G_amount if delta >= 0 else -d * G_amount
         return Ma+D
-
-@dataclass
-class RandomizedCredentials:
-    Ca: GroupElement
-    Cs: GroupElement
-    Cx0: GroupElement
-    Cx1: GroupElement
-    Cv: GroupElement
 
 @dataclass
 class MAC:
@@ -185,6 +177,57 @@ class MAC:
             + sk[5] * Ms
         )
         return cls(t=t, V=V)
+
+@dataclass
+class RandomizedCredentials:
+    Ca: GroupElement
+    Cs: GroupElement
+    Cx0: GroupElement
+    Cx1: GroupElement
+    Cv: GroupElement
+
+    @classmethod
+    def create(cls,
+        mac: MAC,
+        amount_attribute: AmountAttribute,
+        script_attribute: Optional[ScriptAttribute] = None,
+        reveal_script: bool = False,
+    ) -> "RandomizedCredentials":
+        """
+        Produces randomized commitments for the given attribute and MAC.
+
+        This function takes as input an attribute and a MAC, and returns a randomized commitment set.
+
+        Parameters:
+            mac (MAC): The MAC. 
+            attribute (AmountAttribute): The amount attribute.
+            script (Optional[ScriptAttribute], optional): The optional script attribute (use if you don't want to reveal the script)
+            reveal_script (bool, optional): If True, only randomize blinding factor for the script commitment. Defaults to False
+
+        Returns:
+            RandomizedCredentials: The randomized commitment set.
+        """
+        t = mac.t
+        V = mac.V
+        Ma = amount_attribute.Ma
+        Ms = O
+        if script_attribute:
+            if reveal_script:
+                # Mint will be able to open `s` so we only randomize the r*G_blind part
+                Ms = script_attribute.r*G_blind
+            else:
+                Ms = script_attribute.Ms
+
+        U = hash_to_curve(t.to_bytes())
+        r = amount_attribute.r  
+
+        Ca = r*Gz_attribute + Ma
+        Cs = r*Gz_script + Ms
+        Cx0 = r*X0 + U
+        Cx1 = r*X1 + t*U
+        Cv = r*Gz_mac + V
+
+        return cls(Ca=Ca, Cs=Cs, Cx0=Cx0, Cx1=Cx1, Cv=Cv)
 
 @dataclass
 class Equation:
