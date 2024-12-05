@@ -47,7 +47,7 @@ The Mint's "public key" is a tuple $(I, C_w)$, calculated as:
 ### AmountAttribute
 > [AmountAttribute](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/models.py#L89)
 
-A point encoding an amount `a` with blindness `r`.
+A point encoding an amount `a` with blindness `r_a`.
 Composition:
 * $r_a \leftarrow \text{BIP39}(\text{seed}, \text{"r-amount"}, \text{derivation})$
 * secret: $(a, r_a)$
@@ -63,7 +63,7 @@ Composition:
 ### ScriptAttribute
 > [ScriptAttribute](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/models.py#L48)
 
-A point encoding a script hash `s` with blindness `r'`.
+A point encoding a script hash `s` with blindness `r_s`.
 Composition:
 * $r_s \leftarrow \text{BIP39}(\text{seed}, \text{"r-script"}, \text{derivation})$
 * secret: $(s, r_s)$
