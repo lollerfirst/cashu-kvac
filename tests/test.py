@@ -60,7 +60,7 @@ def test_mac(transcripts, mint_privkey):
     mac = MAC.generate(mint_privkey, attribute.Ma)
 
     # User randomizes commitment and produces proof of MAC for it
-    credentials = randomize_credentials(mac, attribute)
+    credentials = RandomizedCredentials.create(mac, attribute)
     proof_MAC = prove_MAC(cli_transcript, mint_publickey, credentials, mac, attribute)
     assert verify_MAC(mint_transcript, mint_privkey, credentials, proof_MAC)
 
@@ -96,7 +96,7 @@ def test_balance(transcripts, mint_privkey):
     attribute = AmountAttribute.create(16)
 
     mac = MAC.generate(mint_privkey, attribute.Ma)
-    credentials = randomize_credentials(mac, attribute)
+    credentials = RandomizedCredentials.create(mac, attribute)
     
     # Compute another credential worth 8
     new_attribute = AmountAttribute.create(8)
@@ -119,7 +119,7 @@ def test_wrong_balance(transcripts, mint_privkey):
     attribute = AmountAttribute.create(16)
 
     mac = MAC.generate(mint_privkey, attribute.Ma)
-    credentials = randomize_credentials(mac, attribute)
+    credentials = RandomizedCredentials.create(mac, attribute)
     
     # Compute another credential worth 8
     new_attribute = AmountAttribute.create(8)
@@ -174,7 +174,6 @@ def test_wrong_bootstrap(transcripts):
     wrong_bootstrap = AmountAttribute.create(1)
     wrong_proof_bootstrap = prove_bootstrap(cli_transcript, wrong_bootstrap)
     assert not verify_bootstrap(mint_transcript, wrong_bootstrap.Ma, wrong_proof_bootstrap)
-    
 
 def test_script(transcripts, mint_privkey):
     cli_transcript, mint_transcript = transcripts
@@ -183,7 +182,7 @@ def test_script(transcripts, mint_privkey):
     script_attr = ScriptAttribute.create(script)
     new_script_attr = [ScriptAttribute.create(script) for _ in range(6)]
     mac = MAC.generate(mint_privkey, amount_attr.Ma, script_attr.Ms)
-    randomized_creds = randomize_credentials(mac, amount_attr, script_attr)
+    randomized_creds = RandomizedCredentials.create(mac, amount_attr, script_attr)
     script_proof = prove_script_equality(cli_transcript, [amount_attr], [script_attr], new_script_attr)
     assert verify_script_equality(mint_transcript, [randomized_creds], [att.Ms for att in new_script_attr], script_proof)
 
@@ -194,6 +193,6 @@ def test_wrong_script(transcripts, mint_privkey):
     script_attr = ScriptAttribute.create(script)
     new_script_attr = [ScriptAttribute.create(b'\x99') for _ in range(6)]
     mac = MAC.generate(mint_privkey, amount_attr.Ma, script_attr.Ms)
-    randomized_creds = randomize_credentials(mac, amount_attr, script_attr)
+    randomized_creds = RandomizedCredentials.create(mac, amount_attr, script_attr)
     script_proof = prove_script_equality(cli_transcript, [amount_attr], [script_attr], new_script_attr)
     assert not verify_script_equality(mint_transcript, [randomized_creds], [att.Ms for att in new_script_attr], script_proof)

@@ -19,7 +19,7 @@ mac_0 = MAC.generate(mint_privkey, bootstrap.Ma, script_attr.Ms)
 
 attr_16 = AmountAttribute.create(16)
 new_script_attr = ScriptAttribute.create(b"\x00"*32)
-randomized_creds = randomize_credentials(mac_0, bootstrap, script_attr)
+randomized_creds = RandomizedCredentials.create(mac_0, bootstrap, script_attr)
 
 proof = []
 
