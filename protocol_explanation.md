@@ -3,12 +3,12 @@
 ### `Scalar` and `GroupElement`
 > [Scalar](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/secp.py#L11)
 
-A `Scalar` is an element of group $\mathbf{Z}_q$, where $q$ is prime and is also called the order of the group.
+A `Scalar` is an element of group $\mathbb{Z}_q$, where $q$ is prime and is also called the order of the group.
 `Scalar` is also commonly referred to as `PrivateKey` and in cashu-kvac `Scalar` is a wrap-around secp256k1-py's `PrivateKey` with some added functionality.
 
 > [GroupElement](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/secp.py#L74)
 
-A `GroupElement` is a point on the *secp256k1* curve ($\mathbf{G}$). Also commonly referred to as `PublicKey`, in cashu-kvac it is indeed a wrap-around secp256k1-py's `PublicKey` similarly to `Scalar`.
+A `GroupElement` is a point on the *secp256k1* curve ($\mathbb{G}$). Also commonly referred to as `PublicKey`, in cashu-kvac it is indeed a wrap-around secp256k1-py's `PublicKey` similarly to `Scalar`.
 
 
 ### Generators
@@ -47,7 +47,7 @@ The Mint's "public key" is a tuple $(I, C_w)$, calculated as:
 ### AmountAttribute
 > [AmountAttribute](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/models.py#L89)
 
-A point encoding an amount `a` with blindness `r`.
+A point encoding an amount `a` with blindness `r_a`.
 Composition:
 * $r_a \leftarrow \text{BIP39}(\text{seed}, \text{"r-amount"}, \text{derivation})$
 * secret: $(a, r_a)$
@@ -56,16 +56,16 @@ Composition:
 ### Bootstrap AmountAttribute
 Simply a `AmountAttribute` encoding $0$.
 Composition:
-* $r \leftarrow \text{BIP39}(\text{seed}, \text{"r-amount"}, \text{derivation})$
+* $r_a \leftarrow \text{BIP39}(\text{seed}, \text{"r-amount"}, \text{derivation})$
 * secret: $(r_a)$
 * public: $M_a = r_aG_\text{blind}$
 
 ### ScriptAttribute
 > [ScriptAttribute](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/models.py#L48)
 
-A point encoding a script hash `s` with blindness `r'`.
+A point encoding a script hash `s` with blindness `r_s`.
 Composition:
-* $r' \leftarrow \text{BIP39}(\text{seed}, \text{"r-script"}, \text{derivation})$
+* $r_s \leftarrow \text{BIP39}(\text{seed}, \text{"r-script"}, \text{derivation})$
 * secret: $(s, r_s)$
 * public: $M_s = r_sG_\text{blind} + sG_\text{script}$
 
