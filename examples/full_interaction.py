@@ -70,7 +70,7 @@ new_script_attr = ScriptAttribute.create(script.as_bytes())  # <-- same script, 
 range_proof = prove_range(client_tscr, attr_16)
 
 # Randomize previous credentials
-randomized_creds = randomize_credentials(mac_0, bootstrap, script_attr)
+randomized_creds = RandomizedCredentails.create(mac_0, bootstrap, script_attr)
 
 # Prove MAC was generated from mint and binds the attributes
 MAC_proof = prove_MAC(client_tscr, mint_pubkey, randomized_creds, mac_0, bootstrap)
