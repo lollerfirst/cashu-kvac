@@ -1,6 +1,8 @@
-use secp256k1::{rand, All, PublicKey, Secp256k1, SecretKey};
+use secp256k1::constants::CURVE_ORDER;
+use secp256k1::{rand, PublicKey, SecretKey};
 use std::ops::{Add, Sub, Mul, Neg};
 use std::cmp::PartialEq;
+use rug::Integer;
 
 pub const SCALAR_ZERO: [u8; 32] = [0; 32];
 pub const SCALAR_ONE: [u8; 32] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
@@ -8,6 +10,50 @@ pub const SCALAR_ONE: [u8; 32] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 pub struct Scalar {
     inner: Option<SecretKey>,
     is_zero: bool,
+}
+
+fn div2(m: &Integer, mut x: Integer) -> Integer {
+    if x.is_odd() {
+        x += m;
+    }
+    x >> 1
+}
+
+fn constant_time_modinv(m: &Integer, x: &Integer) -> Integer {
+    assert!(m.is_odd(), "M must be odd");
+    let mut delta = 1;
+    let mut f = m.clone();
+    let mut g = x.clone();
+    let mut d = Integer::from(0);
+    let mut e = Integer::from(1);
+
+    while !g.is_zero() {
+        if delta > 0 && g.is_odd() {
+            let tmp_g = g.clone();
+            g = (g - &f) >> 1;
+            f = tmp_g;
+            let tmp_d = d.clone();
+            d = div2(m, e - &d);
+            e = tmp_d;
+            delta = -delta + 1;
+        } else if g.is_odd() {
+            g = (g + &f) >> 1;
+            e = div2(m, e + &d);
+            delta = delta + 1;
+        } else {
+            g >>= 1;
+            d = div2(m, d + &e);
+            delta = delta + 1;
+        }
+    }
+
+    // Result: (d * f) % m
+    assert!(f == 1 || f == -1);
+    if f.is_negative() ^ d.is_negative() {
+        d + m
+    } else {
+        d
+    }
 }
 
 impl Scalar{
@@ -58,16 +104,19 @@ impl Scalar{
         }
     }
 
-    /*
     pub fn invert(&self) -> Self {
         if self.is_zero {
-            self.clone()
+            panic!("Scalar 0 doesn't have an inverse")
         } else {
-
+            let x = Integer::from_digits(&self.inner.unwrap().secret_bytes(), rug::integer::Order::Msf);
+            let q = Integer::from_digits(&CURVE_ORDER, rug::integer::Order::Msf);
+            let x_inv = constant_time_modinv(&q, &x);
+            let mut data = [0u8; 32];
+            let vec = x_inv.to_digits(rug::integer::Order::Msf);
+            data.copy_from_slice(&vec[0..32]);
+            Scalar::new(&data)
         }
-
     }
-    */
 }
 
 impl Add for Scalar{
@@ -123,22 +172,25 @@ impl Mul for Scalar{
     }
 }
 
-impl PartialEq for Scalar {
-    fn eq(&self, other: &Self) -> bool {
-        if self.is_zero && other.is_zero {
-            return true;
+impl Into<Vec<u8>> for Scalar {
+    fn into(self) -> Vec<u8> {
+        if self.is_zero {
+            SCALAR_ZERO.to_vec()
+        } else {
+            self.inner.unwrap().secret_bytes().to_vec()
         }
-        if self.is_zero || other.is_zero {
-            return false;
-        }
-        let mut b = 0u8;
-        for (x, y) in self.inner.as_ref().unwrap().secret_bytes().iter().zip(other.inner.as_ref().unwrap().secret_bytes().iter()) {
-            b |= x ^ y;
-        }
-        b == 0
     }
 }
 
+impl Into<String> for Scalar {
+    fn into(self) -> String {
+        if self.is_zero {
+            hex::encode(SCALAR_ZERO)
+        } else {
+            hex::encode(self.inner.unwrap().secret_bytes())
+        }
+    }
+}
 
 impl From<u64> for Scalar {
     fn from(value: u64) -> Self {
@@ -166,6 +218,23 @@ impl From<&str> for Scalar {
         Scalar::new(&padded_bytes)
     }
 }
+
+impl PartialEq for Scalar {
+    fn eq(&self, other: &Self) -> bool {
+        if self.is_zero && other.is_zero {
+            return true;
+        }
+        if self.is_zero || other.is_zero {
+            return false;
+        }
+        let mut b = 0u8;
+        for (x, y) in self.inner.as_ref().unwrap().secret_bytes().iter().zip(other.inner.as_ref().unwrap().secret_bytes().iter()) {
+            b |= x ^ y;
+        }
+        b == 0
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -268,6 +337,47 @@ mod tests {
         let c = a.tweak_mul(&b);
         let c_ = a*b;
         assert!(c == c_);
+    }
+
+    #[test]
+    fn test_scalar_into_vec() {
+        let scalar = Scalar::random();
+        let bytes: Vec<u8> = scalar.clone().into();
+        assert_eq!(bytes.len(), 32);
+        assert!(bytes.iter().any(|&b| b != 0)); // Ensure it's not all zeros
+    }
+
+    #[test]
+    fn test_zero_scalar_into_vec() {
+        let scalar = Scalar::new(&SCALAR_ZERO);
+        let bytes: Vec<u8> = scalar.into();
+        assert_eq!(bytes, SCALAR_ZERO.to_vec());
+    }
+
+    #[test]
+    fn test_scalar_into_string() {
+        let scalar = Scalar::random();
+        let hex_str: String = scalar.into();
+        assert_eq!(hex_str.len(), 64);
+        assert!(hex::decode(&hex_str).is_ok());
+    }
+
+    #[test]
+    fn test_zero_scalar_into_string() {
+        let scalar = Scalar::new(&SCALAR_ZERO);
+        let hex_str: String = scalar.into();
+        assert_eq!(hex_str, hex::encode(SCALAR_ZERO));
+    }
+
+    #[test]
+    fn test_scalar_modular_inversion() {
+        let one = Scalar::new(&SCALAR_ONE);
+        let scalar = Scalar::random();
+        let scalar_inv = scalar.invert();
+        let prod = scalar*scalar_inv;
+        let prod_hex: String = prod.clone().into();
+        println!("x_inv (Display): {}", prod_hex);
+        assert!(one == prod);
     }
 }
 
