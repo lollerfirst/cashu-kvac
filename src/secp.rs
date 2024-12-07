@@ -20,7 +20,7 @@ fn div2(m: &Integer, mut x: Integer) -> Integer {
     x >> 1
 }
 
-fn constant_time_modinv(m: &Integer, x: &Integer) -> Integer {
+fn modinv(m: &Integer, x: &Integer) -> Integer {
     assert!(m.is_odd(), "M must be odd");
     let mut delta = 1;
     let mut f = m.clone();
@@ -116,7 +116,7 @@ impl Scalar{
         } else {
             let x = Integer::from_digits(&self.inner.unwrap().secret_bytes(), rug::integer::Order::Msf);
             let q = Integer::from_digits(&CURVE_ORDER, rug::integer::Order::Msf);
-            let x_inv = constant_time_modinv(&q, &x);
+            let x_inv = modinv(&q, &x);
             //let x_inv = x.clone().invert(&q).unwrap();
             let mut data = [0u8; 32];
             let vec = x_inv.to_digits(rug::integer::Order::Msf);
