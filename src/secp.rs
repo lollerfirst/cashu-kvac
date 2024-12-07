@@ -1,15 +1,30 @@
+use once_cell::sync::Lazy;
 use rug::ops::RemRounding;
 use secp256k1::constants::CURVE_ORDER;
-use secp256k1::{rand, PublicKey, SecretKey};
+use secp256k1::{rand, All, PublicKey, Secp256k1, SecretKey};
 use std::ops::{Add, Sub, Mul, Neg};
 use std::cmp::PartialEq;
 use rug::Integer;
 
 pub const SCALAR_ZERO: [u8; 32] = [0; 32];
 pub const SCALAR_ONE: [u8; 32] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+pub const GROUP_ELEMENT_ZERO: [u8; 33] = [0; 33];
+
+/// Secp256k1 global context
+pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(|| {
+    let mut ctx = Secp256k1::new();
+    let mut rng = rand::thread_rng();
+    ctx.randomize(&mut rng);
+    ctx
+});
 
 pub struct Scalar {
     inner: Option<SecretKey>,
+    is_zero: bool,
+}
+
+pub struct GroupElement {
+    inner: Option<PublicKey>,
     is_zero: bool,
 }
 
@@ -60,7 +75,7 @@ impl Scalar{
                 is_zero: true,
             }
         } else {
-            let inner = SecretKey::from_byte_array(data).expect("no");
+            let inner = SecretKey::from_byte_array(data).expect("Could not instantiate Scalar");
             Scalar { inner: Some(inner), is_zero: false }
         }
     }
@@ -77,40 +92,46 @@ impl Scalar{
         }
     }
 
-    pub fn tweak_mul(&self, other: &Scalar) -> Self {
+    pub fn tweak_mul(&mut self, other: &Scalar) -> &Self {
         if other.is_zero || self.is_zero {
-           return self.clone();
+            self.is_zero = true;
+            self.inner = None;
+            return self;
         }
         let b = secp256k1::Scalar::from_be_bytes(other.inner.unwrap().secret_bytes()).unwrap();
-        let result = self.clone();
-        let result = result.inner.unwrap().mul_tweak(&b).unwrap();
-        Scalar{inner: Some(result), is_zero: false}
+        let result = self.inner.unwrap().mul_tweak(&b).expect("Could not multiply Scalars");
+        self.inner = Some(result);
+        self
     }
 
-    pub fn tweak_add(&self, other: &Scalar) -> Self {
+    pub fn tweak_add(&mut self, other: &Scalar) -> &Self {
         if other.is_zero {
-            self.clone()
+            self
         } else if self.is_zero {
-            other.clone()
+            self.inner = Some(other.inner.unwrap().clone());
+            self.is_zero = false;
+            self
         } else {
-            let t_other = secp256k1::Scalar::from_be_bytes(other.inner.unwrap().secret_bytes()).unwrap();
-            let result = self.clone();
-            let result_key = result.inner.unwrap().add_tweak(&t_other).unwrap();
-            Scalar{ inner:Some(result_key), is_zero: false }
+            let b = secp256k1::Scalar::from_be_bytes(
+                other.inner.unwrap().secret_bytes()
+            ).unwrap();
+            let result_key = self.inner.unwrap().add_tweak(&b).expect("Could not add to Scalar");
+            self.inner = Some(result_key);
+            self
         }
     }
 
-    pub fn tweak_neg(&self) -> Self {
+    pub fn tweak_neg(&mut self) -> &Self {
         if self.is_zero {
-            self.clone()
+            self
         } else {
-            let result = self.clone();
-            let result_key = result.inner.unwrap().negate();
-            Scalar{inner:Some(result_key), is_zero: false}
+            let result = self.inner.unwrap().negate();
+            self.inner = Some(result);
+            self
         }
     }
 
-    pub fn invert(&self) -> Self {
+    pub fn invert(&mut self) -> &Self {
         if self.is_zero {
             panic!("Scalar 0 doesn't have an inverse")
         } else {
@@ -121,54 +142,124 @@ impl Scalar{
             let mut data = [0u8; 32];
             let vec = x_inv.to_digits(rug::integer::Order::Msf);
             data.copy_from_slice(&vec[0..32]);
-            Scalar::new(&data)
+            let inner = SecretKey::from_byte_array(&data).expect("Could not instantiate Scalar");
+            self.inner = Some(inner);
+            self
         }
     }
 }
 
-impl Add for Scalar{
-    type Output = Scalar;
-
-    fn add(self, other: Scalar) -> Scalar {
-        self.tweak_add(&other)
-    }
-}
-
-impl Neg for Scalar{
-    type Output = Scalar;
-
-    fn neg(self) -> Scalar {
-        self.tweak_neg()
-    }
-}
-
-impl Sub for Scalar{
-    type Output = Scalar;
-
-    fn sub(self, other: Scalar) -> Scalar {
-        if other.is_zero {
-            self.clone()
-        } else if self.is_zero {
-            -other
+impl GroupElement {
+    pub fn new(data: &[u8; 33]) -> Self {
+        if *data == GROUP_ELEMENT_ZERO {
+            GroupElement {
+                inner: None,
+                is_zero: true,
+            }
         } else {
-            self + (-other)
+            let inner = PublicKey::from_byte_array_compressed(data).expect("Cannot create GroupElement");
+            GroupElement { inner: Some(inner), is_zero: false }
+        }
+    }
+
+    pub fn clone(&self) -> Self {
+        GroupElement {
+            inner: Some(self.inner.unwrap().clone()),
+            is_zero: self.is_zero,
+        }
+    }
+
+    pub fn combine_add(&mut self, other: &GroupElement) -> &Self {
+        if other.is_zero {
+            self
+        } else if self.is_zero {
+            self.inner = other.inner.clone();
+            self.is_zero = other.is_zero;
+            self
+        } else {
+            let result = self.inner.unwrap()
+                .combine(&other.inner.unwrap())
+                .expect("Error combining GroupElements");
+            self.inner = Some(result);
+            self
+        }
+    }
+
+    pub fn multiply(&mut self, scalar: &Scalar) -> &Self {
+        if scalar.is_zero || self.is_zero {
+            self.is_zero = true;
+            self.inner = None;
+            self
+        } else {
+            let b = secp256k1::Scalar::from_be_bytes(scalar.inner.unwrap().secret_bytes()).unwrap();
+            let result = self.inner.unwrap() 
+                .mul_tweak(&SECP256K1, &b)
+                .expect("Could not multiply Scalar to GroupElement");
+            self.inner = Some(result);
+            self
+        }
+    }
+
+    pub fn negate(&mut self) -> &Self {
+        if self.is_zero {
+            self
+        } else {
+            let result = self.inner.unwrap()
+                .negate(&SECP256K1);
+            self.inner = Some(result);
+            self
         }
     }
 }
 
-impl Mul for Scalar{
+impl std::ops::Add<&Scalar> for Scalar{
     type Output = Scalar;
 
-    fn mul(self, other: Scalar) -> Scalar {
+    fn add(mut self, other: &Scalar) -> Scalar {
+        self.tweak_add(&other);
+        self
+    }
+}
+
+impl std::ops::Neg for Scalar{
+    type Output = Scalar;
+
+    fn neg(mut self) -> Scalar {
+        self.tweak_neg();
+        self
+    }
+}
+
+impl std::ops::Sub<&Scalar> for Scalar{
+    type Output = Scalar;
+
+    fn sub(self, other: &Scalar) -> Scalar {
+        if other.is_zero {
+            self
+        } else if self.is_zero {
+            -(other.clone())
+        } else {
+            let other_neg = -(other.clone());
+            self + &other_neg
+        }
+    }
+}
+
+impl std::ops::Mul<&Scalar> for Scalar{
+    type Output = Scalar;
+
+    fn mul(mut self, other: &Scalar) -> Scalar {
         if other.is_zero || self.is_zero {
-            Scalar::new(&SCALAR_ZERO)
+            self.inner = None;
+            self.is_zero = true;
+            self
         } else {
             // Masked multiplication (constant time)
-            let r = Scalar::random();
-            let a_plus_r = self.tweak_add(&r);
-            let a_plus_r_times_b = a_plus_r.tweak_mul(&other);
-            let r_times_b = r.tweak_mul(&other);
-            a_plus_r_times_b - r_times_b
+            let mut r = Scalar::random();
+            self.tweak_add(&r);
+            self.tweak_mul(&other);
+            r.tweak_mul(&other);
+            self - &r
         }
     }
 }
@@ -179,6 +270,16 @@ impl Into<Vec<u8>> for Scalar {
             SCALAR_ZERO.to_vec()
         } else {
             self.inner.unwrap().secret_bytes().to_vec()
+        }
+    }
+}
+
+impl Into<[u8; 32]> for Scalar {
+    fn into(self) -> [u8; 32] {
+        if self.is_zero {
+            SCALAR_ZERO
+        } else {
+            self.inner.unwrap().secret_bytes()
         }
     }
 }
@@ -236,6 +337,38 @@ impl PartialEq for Scalar {
     }
 }
 
+impl std::ops::Add<&GroupElement> for GroupElement {
+    type Output = GroupElement;
+
+    fn add(mut self, other: &GroupElement) -> GroupElement {
+        self.combine_add(other);
+        self
+    }
+}
+
+impl std::ops::Neg for GroupElement {
+    type Output = GroupElement;
+
+    fn neg(mut self) -> GroupElement {
+        self.negate();
+        self
+    }
+}
+
+impl std::ops::Sub<&GroupElement> for GroupElement {
+    type Output = GroupElement;
+
+    fn sub(self, other: &GroupElement) -> GroupElement {
+        if other.is_zero {
+            self
+        } else if self.is_zero {
+            -(other.clone())
+        } else {
+            let other_neg = -(other.clone());
+            self + &other_neg
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -269,63 +402,63 @@ mod tests {
     }
 
     #[test]
-    fn test_tweak_mul() {
-        let scalar1 = Scalar::from("02");
+    fn test_scalar_tweak_mul() {
+        let mut scalar1 = Scalar::from("02");
         let scalar2 = Scalar::from("03");
         let result = Scalar::from("06");
         let result_ = scalar1.tweak_mul(&scalar2);
-        assert!(result_ == result);
+        assert!(*result_ == result);
     }
 
     #[test]
-    fn test_tweak_add() {
-        let scalar1 = Scalar::from("02");
+    fn test_scalar_tweak_add() {
+        let mut scalar1 = Scalar::from("02");
         let scalar2 = Scalar::from("03");
         let result = Scalar::from("05");
         let result_ = scalar1.tweak_add(&scalar2);
-        assert!(result == result_);
+        assert!(result == *result_);
     }
 
     #[test]
-    fn test_add() {
+    fn test_scalar_add() {
         let scalar1 = Scalar::from("02");
         let scalar2 = Scalar::from("03");
         let result = Scalar::from("05");
-        let result_ = scalar1 + scalar2;
+        let result_ = scalar1 + &scalar2;
         assert!(result_ == result);
     }
 
     #[test]
-    fn test_sub() {
+    fn test_scalar_sub() {
         let scalar1 = Scalar::from("10");
         let scalar2 = Scalar::from("02");
         let result = Scalar::from("0e");
-        let result_ = scalar1 - scalar2;
+        let result_ = scalar1 - &scalar2;
         assert!(result == result_);
     }
 
     #[test]
-    fn test_mul() {
+    fn test_scalar_mul() {
         let scalar1 = Scalar::from("02");
         let scalar2 = Scalar::from("03");
         let result = Scalar::from("06");
-        let result_ = scalar1 * scalar2;
+        let result_ = scalar1 * &scalar2;
         assert!(result_ == result);
     }
 
     #[test]
-    fn test_mul_zero() {
+    fn test_scalar_mul_zero() {
         let scalar1 = Scalar::random();
         let scalar2 = Scalar::new(&SCALAR_ZERO);
-        let result = scalar1 * scalar2;
+        let result = scalar1 * &scalar2;
         assert!(result.is_zero);
     }
 
     #[test]
-    fn test_mul_by_zero() {
+    fn test_scalar_mul_by_zero() {
         let scalar1 = Scalar::new(&SCALAR_ZERO);
         let scalar2 = Scalar::random();
-        let result = scalar1 * scalar2;
+        let result = scalar1 * &scalar2;
         assert!(result.is_zero);
     }
 
@@ -333,9 +466,10 @@ mod tests {
     fn test_mul_cmp() {
         let a = Scalar::random();
         let b = Scalar::random();
-        let c = a.tweak_mul(&b);
-        let c_ = a*b;
-        assert!(c == c_);
+        let mut a_clone  = a.clone();
+        let c = a_clone.tweak_mul(&b);
+        let c_ = a*&b;
+        assert!(*c == c_);
     }
 
     #[test]
@@ -386,8 +520,9 @@ mod tests {
     fn test_scalar_modular_inversion() {
         let one = Scalar::new(&SCALAR_ONE);
         let scalar = Scalar::from("deadbeef");
-        let scalar_inv = scalar.invert();
-        let prod = scalar * scalar_inv;
+        let mut scalar_inv = scalar.clone();
+        scalar_inv.invert();
+        let prod = scalar * &scalar_inv;
         assert!(one == prod);
     }
 }
