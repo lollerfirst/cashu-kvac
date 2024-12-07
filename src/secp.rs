@@ -1,13 +1,14 @@
 use once_cell::sync::Lazy;
 use rug::ops::RemRounding;
+use rug::Integer;
 use secp256k1::constants::CURVE_ORDER;
 use secp256k1::{rand, All, PublicKey, Secp256k1, SecretKey};
-use std::ops::{Add, Sub, Mul, Neg};
 use std::cmp::PartialEq;
-use rug::Integer;
 
 pub const SCALAR_ZERO: [u8; 32] = [0; 32];
-pub const SCALAR_ONE: [u8; 32] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+pub const SCALAR_ONE: [u8; 32] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+];
 pub const GROUP_ELEMENT_ZERO: [u8; 33] = [0; 33];
 
 /// Secp256k1 global context
@@ -67,7 +68,7 @@ fn modinv(m: &Integer, x: &Integer) -> Integer {
     (d * f).rem_euc(m)
 }
 
-impl Scalar{
+impl Scalar {
     pub fn new(data: &[u8; 32]) -> Self {
         if *data == SCALAR_ZERO {
             Scalar {
@@ -76,13 +77,19 @@ impl Scalar{
             }
         } else {
             let inner = SecretKey::from_byte_array(data).expect("Could not instantiate Scalar");
-            Scalar { inner: Some(inner), is_zero: false }
+            Scalar {
+                inner: Some(inner),
+                is_zero: false,
+            }
         }
     }
 
     pub fn random() -> Self {
         let inner = SecretKey::new(&mut rand::thread_rng());
-        Scalar { inner: Some(inner), is_zero: false }
+        Scalar {
+            inner: Some(inner),
+            is_zero: false,
+        }
     }
 
     pub fn clone(&self) -> Self {
@@ -99,7 +106,11 @@ impl Scalar{
             return self;
         }
         let b = secp256k1::Scalar::from_be_bytes(other.inner.unwrap().secret_bytes()).unwrap();
-        let result = self.inner.unwrap().mul_tweak(&b).expect("Could not multiply Scalars");
+        let result = self
+            .inner
+            .unwrap()
+            .mul_tweak(&b)
+            .expect("Could not multiply Scalars");
         self.inner = Some(result);
         self
     }
@@ -112,10 +123,12 @@ impl Scalar{
             self.is_zero = false;
             self
         } else {
-            let b = secp256k1::Scalar::from_be_bytes(
-                other.inner.unwrap().secret_bytes()
-            ).unwrap();
-            let result_key = self.inner.unwrap().add_tweak(&b).expect("Could not add to Scalar");
+            let b = secp256k1::Scalar::from_be_bytes(other.inner.unwrap().secret_bytes()).unwrap();
+            let result_key = self
+                .inner
+                .unwrap()
+                .add_tweak(&b)
+                .expect("Could not add to Scalar");
             self.inner = Some(result_key);
             self
         }
@@ -135,7 +148,10 @@ impl Scalar{
         if self.is_zero {
             panic!("Scalar 0 doesn't have an inverse")
         } else {
-            let x = Integer::from_digits(&self.inner.unwrap().secret_bytes(), rug::integer::Order::Msf);
+            let x = Integer::from_digits(
+                &self.inner.unwrap().secret_bytes(),
+                rug::integer::Order::Msf,
+            );
             let q = Integer::from_digits(&CURVE_ORDER, rug::integer::Order::Msf);
             let x_inv = modinv(&q, &x);
             //let x_inv = x.clone().invert(&q).unwrap();
@@ -157,8 +173,12 @@ impl GroupElement {
                 is_zero: true,
             }
         } else {
-            let inner = PublicKey::from_byte_array_compressed(data).expect("Cannot create GroupElement");
-            GroupElement { inner: Some(inner), is_zero: false }
+            let inner =
+                PublicKey::from_byte_array_compressed(data).expect("Cannot create GroupElement");
+            GroupElement {
+                inner: Some(inner),
+                is_zero: false,
+            }
         }
     }
 
@@ -177,7 +197,9 @@ impl GroupElement {
             self.is_zero = other.is_zero;
             self
         } else {
-            let result = self.inner.unwrap()
+            let result = self
+                .inner
+                .unwrap()
                 .combine(&other.inner.unwrap())
                 .expect("Error combining GroupElements");
             self.inner = Some(result);
@@ -192,7 +214,9 @@ impl GroupElement {
             self
         } else {
             let b = secp256k1::Scalar::from_be_bytes(scalar.inner.unwrap().secret_bytes()).unwrap();
-            let result = self.inner.unwrap() 
+            let result = self
+                .inner
+                .unwrap()
                 .mul_tweak(&SECP256K1, &b)
                 .expect("Could not multiply Scalar to GroupElement");
             self.inner = Some(result);
@@ -204,15 +228,14 @@ impl GroupElement {
         if self.is_zero {
             self
         } else {
-            let result = self.inner.unwrap()
-                .negate(&SECP256K1);
+            let result = self.inner.unwrap().negate(&SECP256K1);
             self.inner = Some(result);
             self
         }
     }
 }
 
-impl std::ops::Add<&Scalar> for Scalar{
+impl std::ops::Add<&Scalar> for Scalar {
     type Output = Scalar;
 
     fn add(mut self, other: &Scalar) -> Scalar {
@@ -221,7 +244,7 @@ impl std::ops::Add<&Scalar> for Scalar{
     }
 }
 
-impl std::ops::Neg for Scalar{
+impl std::ops::Neg for Scalar {
     type Output = Scalar;
 
     fn neg(mut self) -> Scalar {
@@ -230,7 +253,7 @@ impl std::ops::Neg for Scalar{
     }
 }
 
-impl std::ops::Sub<&Scalar> for Scalar{
+impl std::ops::Sub<&Scalar> for Scalar {
     type Output = Scalar;
 
     fn sub(self, other: &Scalar) -> Scalar {
@@ -245,7 +268,7 @@ impl std::ops::Sub<&Scalar> for Scalar{
     }
 }
 
-impl std::ops::Mul<&Scalar> for Scalar{
+impl std::ops::Mul<&Scalar> for Scalar {
     type Output = Scalar;
 
     fn mul(mut self, other: &Scalar) -> Scalar {
@@ -316,7 +339,7 @@ impl From<&str> for Scalar {
             panic!("Hex string is too long");
         }
         let mut padded_bytes = [0u8; 32];
-        padded_bytes[32-bytes.len()..32].copy_from_slice(&bytes);
+        padded_bytes[32 - bytes.len()..32].copy_from_slice(&bytes);
         Scalar::new(&padded_bytes)
     }
 }
@@ -330,7 +353,14 @@ impl PartialEq for Scalar {
             return false;
         }
         let mut b = 0u8;
-        for (x, y) in self.inner.as_ref().unwrap().secret_bytes().iter().zip(other.inner.as_ref().unwrap().secret_bytes().iter()) {
+        for (x, y) in self
+            .inner
+            .as_ref()
+            .unwrap()
+            .secret_bytes()
+            .iter()
+            .zip(other.inner.as_ref().unwrap().secret_bytes().iter())
+        {
             b |= x ^ y;
         }
         b == 0
@@ -466,9 +496,9 @@ mod tests {
     fn test_mul_cmp() {
         let a = Scalar::random();
         let b = Scalar::random();
-        let mut a_clone  = a.clone();
+        let mut a_clone = a.clone();
         let c = a_clone.tweak_mul(&b);
-        let c_ = a*&b;
+        let c_ = a * &b;
         assert!(*c == c_);
     }
 
@@ -526,14 +556,3 @@ mod tests {
         assert!(one == prod);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
