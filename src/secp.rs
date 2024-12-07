@@ -1,3 +1,4 @@
+use rug::ops::RemRounding;
 use secp256k1::constants::CURVE_ORDER;
 use secp256k1::{rand, PublicKey, SecretKey};
 use std::ops::{Add, Sub, Mul, Neg};
@@ -32,9 +33,9 @@ fn constant_time_modinv(m: &Integer, x: &Integer) -> Integer {
             let tmp_g = g.clone();
             g = (g - &f) >> 1;
             f = tmp_g;
-            let tmp_d = d.clone();
-            d = div2(m, e - &d);
-            e = tmp_d;
+            let tmp_e = e.clone();
+            e = div2(m, e - &d);
+            d = tmp_e;
             delta = 1 - delta;
         } else if g.is_odd() {
             g = (g + &f) >> 1;
@@ -42,18 +43,13 @@ fn constant_time_modinv(m: &Integer, x: &Integer) -> Integer {
             delta = 1 + delta;
         } else {
             g >>= 1;
-            d = div2(m, d + &e);
-            delta = delta + 1;
+            e = div2(m, e);
+            delta = 1 + delta;
         }
     }
 
     // Result: (d * f) % m
-    assert!(f == 1 || f == -1);
-    if d.is_negative() ^ f.is_negative() {
-        d + m
-    } else {
-        d * f
-    }
+    (d * f).rem_euc(m)
 }
 
 impl Scalar{
@@ -120,9 +116,8 @@ impl Scalar{
         } else {
             let x = Integer::from_digits(&self.inner.unwrap().secret_bytes(), rug::integer::Order::Msf);
             let q = Integer::from_digits(&CURVE_ORDER, rug::integer::Order::Msf);
-            //let x_inv = constant_time_modinv(&q, &x);
-            let x_inv = x.clone().invert(&q).unwrap();
-            println!("x_inv = {}", x_inv);
+            let x_inv = constant_time_modinv(&q, &x);
+            //let x_inv = x.clone().invert(&q).unwrap();
             let mut data = [0u8; 32];
             let vec = x_inv.to_digits(rug::integer::Order::Msf);
             data.copy_from_slice(&vec[0..32]);
@@ -371,6 +366,20 @@ mod tests {
         let scalar = Scalar::new(&SCALAR_ZERO);
         let hex_str: String = scalar.into();
         assert_eq!(hex_str, hex::encode(SCALAR_ZERO));
+    }
+
+    #[test]
+    fn test_div2_even() {
+        let m = Integer::from(29);
+        let x = Integer::from(20);
+        assert_eq!(div2(&m, x), Integer::from(10));
+    }
+
+    #[test]
+    fn test_div2_odd() {
+        let m = Integer::from(29);
+        let x = Integer::from(21);
+        assert_eq!(div2(&m, x), Integer::from(25));
     }
 
     #[test]
