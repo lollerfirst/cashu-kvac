@@ -193,3 +193,10 @@ class GroupElement(PublicKey):
 
 scalar_one = Scalar(int(1).to_bytes(32, 'big'))
 scalar_zero = Scalar(SCALAR_ZERO)
+
+if __name__ == '__main__':
+    s = Scalar(bytes.fromhex("00"*28+"deadbeef"))
+    s_inv = s.invert()
+    s_inv_num = int.from_bytes(s_inv.to_bytes(), "big")
+    print(f"{s_inv_num = }")
+    print(f"{s_inv.serialize() = }")

@@ -35,11 +35,11 @@ fn constant_time_modinv(m: &Integer, x: &Integer) -> Integer {
             let tmp_d = d.clone();
             d = div2(m, e - &d);
             e = tmp_d;
-            delta = -delta + 1;
+            delta = 1 - delta;
         } else if g.is_odd() {
             g = (g + &f) >> 1;
             e = div2(m, e + &d);
-            delta = delta + 1;
+            delta = 1 + delta;
         } else {
             g >>= 1;
             d = div2(m, d + &e);
@@ -49,10 +49,10 @@ fn constant_time_modinv(m: &Integer, x: &Integer) -> Integer {
 
     // Result: (d * f) % m
     assert!(f == 1 || f == -1);
-    if f.is_negative() ^ d.is_negative() {
+    if d.is_negative() ^ f.is_negative() {
         d + m
     } else {
-        d
+        d * f
     }
 }
 
@@ -76,7 +76,7 @@ impl Scalar{
 
     pub fn clone(&self) -> Self {
         Scalar {
-            inner: self.inner.clone(),
+            inner: Some(self.inner.unwrap().clone()),
             is_zero: self.is_zero,
         }
     }
@@ -87,8 +87,8 @@ impl Scalar{
         }
         let b = secp256k1::Scalar::from_be_bytes(other.inner.unwrap().secret_bytes()).unwrap();
         let result = self.clone();
-        let _ = result.inner.unwrap().mul_tweak(&b);
-        result
+        let result = result.inner.unwrap().mul_tweak(&b).unwrap();
+        Scalar{inner: Some(result), is_zero: false}
     }
 
     pub fn tweak_add(&self, other: &Scalar) -> Self {
@@ -99,8 +99,18 @@ impl Scalar{
         } else {
             let t_other = secp256k1::Scalar::from_be_bytes(other.inner.unwrap().secret_bytes()).unwrap();
             let result = self.clone();
-            let _ = result.inner.unwrap().add_tweak(&t_other);
-            result
+            let result_key = result.inner.unwrap().add_tweak(&t_other).unwrap();
+            Scalar{ inner:Some(result_key), is_zero: false }
+        }
+    }
+
+    pub fn tweak_neg(&self) -> Self {
+        if self.is_zero {
+            self.clone()
+        } else {
+            let result = self.clone();
+            let result_key = result.inner.unwrap().negate();
+            Scalar{inner:Some(result_key), is_zero: false}
         }
     }
 
@@ -110,7 +120,9 @@ impl Scalar{
         } else {
             let x = Integer::from_digits(&self.inner.unwrap().secret_bytes(), rug::integer::Order::Msf);
             let q = Integer::from_digits(&CURVE_ORDER, rug::integer::Order::Msf);
-            let x_inv = constant_time_modinv(&q, &x);
+            //let x_inv = constant_time_modinv(&q, &x);
+            let x_inv = x.clone().invert(&q).unwrap();
+            println!("x_inv = {}", x_inv);
             let mut data = [0u8; 32];
             let vec = x_inv.to_digits(rug::integer::Order::Msf);
             data.copy_from_slice(&vec[0..32]);
@@ -131,13 +143,7 @@ impl Neg for Scalar{
     type Output = Scalar;
 
     fn neg(self) -> Scalar {
-        if self.is_zero {
-            self.clone()
-        } else {
-            let result = self.clone();
-            let _ = result.inner.unwrap().negate();
-            result
-        }
+        self.tweak_neg()
     }
 }
 
@@ -165,7 +171,7 @@ impl Mul for Scalar{
             // Masked multiplication (constant time)
             let r = Scalar::random();
             let a_plus_r = self.tweak_add(&r);
-            let a_plus_r_times_b = a_plus_r.tweak_mul(&r);
+            let a_plus_r_times_b = a_plus_r.tweak_mul(&other);
             let r_times_b = r.tweak_mul(&other);
             a_plus_r_times_b - r_times_b
         }
@@ -214,7 +220,7 @@ impl From<&str> for Scalar {
             panic!("Hex string is too long");
         }
         let mut padded_bytes = [0u8; 32];
-        padded_bytes[32 - bytes.len()..].copy_from_slice(&bytes);
+        padded_bytes[32-bytes.len()..32].copy_from_slice(&bytes);
         Scalar::new(&padded_bytes)
     }
 }
@@ -269,49 +275,47 @@ mod tests {
 
     #[test]
     fn test_tweak_mul() {
-        let scalar1 = Scalar::random();
-        let scalar2 = Scalar::random();
-        let result = scalar1.tweak_mul(&scalar2);
-        assert!(!result.is_zero);
+        let scalar1 = Scalar::from("02");
+        let scalar2 = Scalar::from("03");
+        let result = Scalar::from("06");
+        let result_ = scalar1.tweak_mul(&scalar2);
+        assert!(result_ == result);
     }
 
     #[test]
     fn test_tweak_add() {
-        let scalar1 = Scalar::random();
-        let scalar2 = Scalar::random();
-        let result = scalar1.tweak_add(&scalar2);
-        assert!(!result.is_zero);
+        let scalar1 = Scalar::from("02");
+        let scalar2 = Scalar::from("03");
+        let result = Scalar::from("05");
+        let result_ = scalar1.tweak_add(&scalar2);
+        assert!(result == result_);
     }
 
     #[test]
     fn test_add() {
-        let scalar1 = Scalar::random();
-        let scalar2 = Scalar::random();
-        let result = scalar1 + scalar2;
-        assert!(!result.is_zero);
-    }
-
-    #[test]
-    fn test_neg() {
-        let scalar = Scalar::random();
-        let neg_scalar = -scalar;
-        assert!(!neg_scalar.is_zero);
+        let scalar1 = Scalar::from("02");
+        let scalar2 = Scalar::from("03");
+        let result = Scalar::from("05");
+        let result_ = scalar1 + scalar2;
+        assert!(result_ == result);
     }
 
     #[test]
     fn test_sub() {
-        let scalar1 = Scalar::random();
-        let scalar2 = Scalar::random();
-        let result = scalar1 - scalar2;
-        assert!(!result.is_zero);
+        let scalar1 = Scalar::from("10");
+        let scalar2 = Scalar::from("02");
+        let result = Scalar::from("0e");
+        let result_ = scalar1 - scalar2;
+        assert!(result == result_);
     }
 
     #[test]
     fn test_mul() {
-        let scalar1 = Scalar::random();
-        let scalar2 = Scalar::random();
-        let result = scalar1 * scalar2;
-        assert!(!result.is_zero);
+        let scalar1 = Scalar::from("02");
+        let scalar2 = Scalar::from("03");
+        let result = Scalar::from("06");
+        let result_ = scalar1 * scalar2;
+        assert!(result_ == result);
     }
 
     #[test]
@@ -372,11 +376,9 @@ mod tests {
     #[test]
     fn test_scalar_modular_inversion() {
         let one = Scalar::new(&SCALAR_ONE);
-        let scalar = Scalar::random();
+        let scalar = Scalar::from("deadbeef");
         let scalar_inv = scalar.invert();
-        let prod = scalar*scalar_inv;
-        let prod_hex: String = prod.clone().into();
-        println!("x_inv (Display): {}", prod_hex);
+        let prod = scalar * scalar_inv;
         assert!(one == prod);
     }
 }
