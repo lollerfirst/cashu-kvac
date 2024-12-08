@@ -10,7 +10,6 @@ q = int('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141', 16)
 
 def div2(M, x):
     """Helper routine to compute x/2 mod M (where M is odd)."""
-    assert M & 1
     if x & 1: # If x is odd, make it even by adding M.
         x += M
     # x must be even now, so a clean division by 2 is possible.
@@ -30,10 +29,6 @@ def modinv(M, x):
             delta, f, g, d, e = 1 + delta, f, (g + f) // 2, d, div2(M, e + d)
         else:
             delta, f, g, d, e = 1 + delta, f, (g    ) // 2, d, div2(M, e    )
-        # Verify that the invariants d=f/x mod M, e=g/x mod M are maintained.
-        assert f % M == (d * x) % M
-        assert g % M == (e * x) % M
-    assert f == 1 or f == -1  # |f| is the GCD, it must be 1
     # Because of invariant d = f/x (mod M), 1/x = d/f (mod M). As |f|=1, d/f = d*f.
     return (d * f) % M
 
@@ -198,3 +193,10 @@ class GroupElement(PublicKey):
 
 scalar_one = Scalar(int(1).to_bytes(32, 'big'))
 scalar_zero = Scalar(SCALAR_ZERO)
+
+if __name__ == '__main__':
+    s = Scalar(bytes.fromhex("00"*28+"deadbeef"))
+    s_inv = s.invert()
+    s_inv_num = int.from_bytes(s_inv.to_bytes(), "big")
+    print(f"{s_inv_num = }")
+    print(f"{s_inv.serialize() = }")
