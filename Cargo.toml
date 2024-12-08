@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bitcoin = { version= "0.32.2", features = ["base64", "serde", "rand", "rand-std"] }
 hex = "0.4.3"
+merlin = "3.0.0"
 once_cell = "1.20.2"
 rug = "1.26.1"
-secp256k1 = {version="^0.30.0", features=["rand", "serde", "std"]}
+thiserror = "2.0.5"

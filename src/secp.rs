@@ -1,8 +1,8 @@
 use once_cell::sync::Lazy;
 use rug::ops::RemRounding;
 use rug::Integer;
-use secp256k1::constants::CURVE_ORDER;
-use secp256k1::{rand, All, PublicKey, Secp256k1, SecretKey};
+use bitcoin::secp256k1::constants::CURVE_ORDER;
+use bitcoin::secp256k1::{rand, All, PublicKey, Secp256k1, SecretKey, Scalar as SecpScalar};
 use std::cmp::PartialEq;
 
 pub const SCALAR_ZERO: [u8; 32] = [0; 32];
@@ -76,7 +76,7 @@ impl Scalar {
                 is_zero: true,
             }
         } else {
-            let inner = SecretKey::from_byte_array(data).expect("Could not instantiate Scalar");
+            let inner = SecretKey::from_slice(data).expect("Could not instantiate Scalar");
             Scalar {
                 inner: Some(inner),
                 is_zero: false,
@@ -105,7 +105,7 @@ impl Scalar {
             self.inner = None;
             return self;
         }
-        let b = secp256k1::Scalar::from_be_bytes(other.inner.unwrap().secret_bytes()).unwrap();
+        let b = SecpScalar::from_be_bytes(other.inner.unwrap().secret_bytes()).unwrap();
         let result = self
             .inner
             .unwrap()
@@ -123,7 +123,7 @@ impl Scalar {
             self.is_zero = false;
             self
         } else {
-            let b = secp256k1::Scalar::from_be_bytes(other.inner.unwrap().secret_bytes()).unwrap();
+            let b = SecpScalar::from_be_bytes(other.inner.unwrap().secret_bytes()).unwrap();
             let result_key = self
                 .inner
                 .unwrap()
@@ -155,10 +155,8 @@ impl Scalar {
             let q = Integer::from_digits(&CURVE_ORDER, rug::integer::Order::Msf);
             let x_inv = modinv(&q, &x);
             //let x_inv = x.clone().invert(&q).unwrap();
-            let mut data = [0u8; 32];
             let vec = x_inv.to_digits(rug::integer::Order::Msf);
-            data.copy_from_slice(&vec[0..32]);
-            let inner = SecretKey::from_byte_array(&data).expect("Could not instantiate Scalar");
+            let inner = SecretKey::from_slice(&vec).expect("Could not instantiate Scalar");
             self.inner = Some(inner);
             self
         }
@@ -174,7 +172,7 @@ impl GroupElement {
             }
         } else {
             let inner =
-                PublicKey::from_byte_array_compressed(data).expect("Cannot create GroupElement");
+                PublicKey::from_slice(data).expect("Cannot create GroupElement");
             GroupElement {
                 inner: Some(inner),
                 is_zero: false,
@@ -213,7 +211,7 @@ impl GroupElement {
             self.inner = None;
             self
         } else {
-            let b = secp256k1::Scalar::from_be_bytes(scalar.inner.unwrap().secret_bytes()).unwrap();
+            let b = bitcoin::secp256k1::Scalar::from_be_bytes(scalar.inner.unwrap().secret_bytes()).unwrap();
             let result = self
                 .inner
                 .unwrap()
@@ -277,7 +275,7 @@ impl std::ops::Mul<&Scalar> for Scalar {
             self.is_zero = true;
             self
         } else {
-            // Masked multiplication (constant time)
+            // Multiplication is masked with random `r`
             let mut r = Scalar::random();
             self.tweak_add(&r);
             self.tweak_mul(&other);
@@ -396,6 +394,26 @@ impl std::ops::Sub<&GroupElement> for GroupElement {
         } else {
             let other_neg = -(other.clone());
             self + &other_neg
+        }
+    }
+}
+
+impl std::ops::Mul<&Scalar> for GroupElement {
+    type Output = GroupElement;
+
+    fn mul(mut self, other: &Scalar) -> GroupElement {
+        if self.is_zero || other.is_zero {
+            self.is_zero = true;
+            self.inner = None;
+            self
+        } else {
+            // Multiplication is masked with random `r`
+            let r = Scalar::random();
+            let r_copy = r.clone(); 
+            let mut self_copy = self.clone();
+            self.multiply(&(r + other));
+            self_copy.multiply(&r_copy);
+            self - &self_copy
         }
     }
 }
