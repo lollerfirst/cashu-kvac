@@ -1,8 +1,8 @@
+use bitcoin::secp256k1::constants::CURVE_ORDER;
+use bitcoin::secp256k1::{rand, All, PublicKey, Scalar as SecpScalar, Secp256k1, SecretKey};
 use once_cell::sync::Lazy;
 use rug::ops::RemRounding;
 use rug::Integer;
-use bitcoin::secp256k1::constants::CURVE_ORDER;
-use bitcoin::secp256k1::{rand, All, PublicKey, Secp256k1, SecretKey, Scalar as SecpScalar};
 use std::cmp::PartialEq;
 
 pub const SCALAR_ZERO: [u8; 32] = [0; 32];
@@ -171,8 +171,7 @@ impl GroupElement {
                 is_zero: true,
             }
         } else {
-            let inner =
-                PublicKey::from_slice(data).expect("Cannot create GroupElement");
+            let inner = PublicKey::from_slice(data).expect("Cannot create GroupElement");
             GroupElement {
                 inner: Some(inner),
                 is_zero: false,
@@ -211,7 +210,8 @@ impl GroupElement {
             self.inner = None;
             self
         } else {
-            let b = bitcoin::secp256k1::Scalar::from_be_bytes(scalar.inner.unwrap().secret_bytes()).unwrap();
+            let b = bitcoin::secp256k1::Scalar::from_be_bytes(scalar.inner.unwrap().secret_bytes())
+                .unwrap();
             let result = self
                 .inner
                 .unwrap()
@@ -409,11 +409,56 @@ impl std::ops::Mul<&Scalar> for GroupElement {
         } else {
             // Multiplication is masked with random `r`
             let r = Scalar::random();
-            let r_copy = r.clone(); 
+            let r_copy = r.clone();
             let mut self_copy = self.clone();
             self.multiply(&(r + other));
             self_copy.multiply(&r_copy);
             self - &self_copy
+        }
+    }
+}
+
+impl PartialEq for GroupElement {
+    fn eq(&self, other: &Self) -> bool {
+        if self.is_zero && other.is_zero {
+            return true;
+        }
+        if self.is_zero || other.is_zero {
+            return false;
+        } else {
+            self.inner.unwrap().eq(&other.inner.unwrap())
+        }
+    }
+}
+
+impl From<&str> for GroupElement {
+    fn from(hex_string: &str) -> Self {
+        let bytes = hex::decode(hex_string).expect("Invalid hex string");
+        if bytes.len() > 33 {
+            panic!("Hex string is too long");
+        }
+        let mut padded_bytes = [0u8; 33];
+        padded_bytes[33 - bytes.len()..33].copy_from_slice(&bytes);
+        GroupElement::new(&padded_bytes)
+    }
+}
+
+impl Into<[u8; 33]> for GroupElement {
+    fn into(self) -> [u8; 33] {
+        if self.is_zero {
+            GROUP_ELEMENT_ZERO
+        } else {
+            self.inner.unwrap().serialize()
+        }
+    }
+}
+
+impl Into<String> for GroupElement {
+    fn into(self) -> String {
+        if self.is_zero {
+            hex::encode(GROUP_ELEMENT_ZERO)
+        } else {
+            hex::encode(self.inner.unwrap().serialize())
         }
     }
 }
@@ -572,5 +617,53 @@ mod tests {
         scalar_inv.invert();
         let prod = scalar * &scalar_inv;
         assert!(one == prod);
+    }
+
+    #[test]
+    fn test_ge_from_hex() {
+        let g = GroupElement::from(
+            "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        );
+        assert!(!g.is_zero)
+    }
+
+    #[test]
+    fn test_ge_into() {
+        let hex_str = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+        let g = GroupElement::from(hex_str);
+        let g_string: String = g.into();
+        assert!(hex_str == g_string)
+    }
+
+    #[test]
+    fn test_cmp_neq() {
+        let g1 = GroupElement::from(
+            "0264f39fbee428ab6165e907b5d463a17e315b9f06f6200ed7e9c4bcbe0df73383",
+        );
+        let g2 = GroupElement::from(
+            "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        );
+        assert!(g1 != g2);
+    }
+
+    #[test]
+    fn test_ge_add_mul() {
+        let g = GroupElement::from(
+            "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        );
+        let scalar_2 = Scalar::from("02");
+        let result = g.clone() + &g;
+        let result_ = g * &scalar_2;
+        assert!(result == result_)
+    }
+
+    #[test]
+    fn test_ge_sub_mul() {
+        let g = GroupElement::from(
+            "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        );
+        let scalar_2 = Scalar::from("02");
+        let result = g.clone() * &scalar_2 - &g;
+        assert!(result == g)
     }
 }

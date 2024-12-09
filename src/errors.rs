@@ -1,4 +1,3 @@
-
 use bitcoin::secp256k1;
 use thiserror::Error;
 

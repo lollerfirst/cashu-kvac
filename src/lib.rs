@@ -1,3 +1,4 @@
-pub mod secp;
-pub mod generators;
 pub mod errors;
+mod generators;
+pub mod models;
+mod secp;
