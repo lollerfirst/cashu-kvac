@@ -342,10 +342,10 @@ When a client wants to swap coins, they:
 2. Generate `RandomizedCredentials` using the `MAC`, `AmountAttribute`, and `ScriptAttribute` [(72)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L72).
 
 The client also generates the following ZK-proofs:
-- $\pi_\text{balance}$: Proves that the balance difference $\Delta_a$ (should equal $0$ or the fees) between old and new wallet balances is valid. Inputs: current and new `AmountAttribute`s [(78)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L78).
-- $\pi_\text{range}$: For each new `AmountAttribute`, proves the value is within the range $[0, L-1]$. Input: each `AmountAttribute` [(69)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L69).
-- $\pi_\text{MAC}$: Proves that current credentials are valid and unspent. The Mint verifies these using `RandomizedCredentials ` [(75)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L75)
-- $\pi_\text{script}$: Ensures all new (`AmountAttribute`, `ScriptAttribute`) pairs use the same script hash. Inputs: each `RandomizedCredentials` and new `ScriptAttribute` [(81)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L81).
+- $\pi_\text{balance}$: Proves that the balance difference $\Delta_a$ (should equal $0$ or the fees) between old and new wallet balances is valid. Inputs: **old** and **new** `AmountAttribute`s [(78)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L78).
+- $\pi_\text{range}$: For each new `AmountAttribute`, proves the value is within the range $[0, L-1]$. [(69)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L69).
+- $\pi_\text{MAC}$: Proves that the provided `RandomizedCredential`s are valid and unspent. [(75)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L75)
+- $\pi_\text{script}$: Ensures all **new** `ScriptAttribute`s encode the same script hash $s$ as the **old** `RandomizedCredential`s. [(81)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L81).
 
 The client sends:
 - (**old** `RandomizedCredential`s, **new** `AmountAttribute`/`ScriptAttribute` pairs)  
