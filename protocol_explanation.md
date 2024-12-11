@@ -310,8 +310,8 @@ $\pi_\text{script}$ proves $n+m$ relations, where $m$ is the number of **old** `
 ```math
 \displaylines{
 \begin{aligned}
-M_{s_i} &= s \cdot G_\text{script} + r_{s_i} \cdot G_\text{blind} \ \ \forall i \in [0, m-1] \\
-C_{s_i} &= s \cdot G_\text{script} + r_{s_i} \cdot G_\text{blind} + r_{a_i} \ \ \forall i \in [0, n-1] \cdot G_\text{zscript}
+M_{s_i} &= s \cdot G_\text{script} + r_{s_i} \cdot G_\text{blind} &\forall i \in [0, m-1] \\
+C_{s_i} &= s \cdot G_\text{script} + r_{s_i} \cdot G_\text{blind} + r_{a_i}\cdot G_\text{zscript} &\forall i \in [0, n-1]
 \end{aligned}
 }
 ```
