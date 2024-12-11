@@ -195,6 +195,7 @@ $\mathbf{b}$ is then committed to:
 ```
 
 $\pi_\text{range}$ then proves 3 relations in zero knowledge:
+$\pi_\text{range}$ then proves 3 relations in zero knowledge:
 1) The bit decomposition sums up to `a`:
 ```math
 a = \sum_{i=0}^l2^ib_i
@@ -271,6 +272,7 @@ This proof shows that `RandomizedCredentials` were computed from a valid `MAC` f
 
 The public inputs to this proof are the `RandomizedCredentials` $(C_a, C_s, C_{x_0}, C_{x_1}, C_v)$
 $\pi_\text{MAC}$ proves 3 relations:
+$\pi_\text{MAC}$ proves 3 relations:
 1) $Z = r_aI$ where $r_a$ is the blinding factor from `AmountAttribute`.
 2) $C_a = r_aG_\text{zamount} + r_aG_\text{blind} + aG_\text{amount}$ to prove $r_a$ is indeed the same as in `AmountAttribute`.
 3) $C_{x_1} = tC_{x_0} + (-tr_a)G_{x_0} + r_aG_{x_1}$, where $t$ is the scalar value in the `MAC`.
@@ -284,13 +286,16 @@ Z = C_v - (wC_w + x_0C_{x_0} + x_1C_{x_1} + y_aC_a + y_sC_s)
 > [BalanceStatement](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/kvac.py#L247)
 
 This proof shows that the difference in encoded amount between the sum of many `RandomizedCredentials`'s $C_{a_i}$ and many new `AmountAttribute`s $M_{a_i}$ is exactly $\Delta_a$.
+This proof shows that the difference in encoded amount between the sum of many `RandomizedCredentials`'s $C_{a_i}$ and many new `AmountAttribute`s $M_{a_i}$ is exactly $\Delta_a$.
 
+$\pi_\text{balance}$ proves 1 relation:
 $\pi_\text{balance}$ proves 1 relation:
 ```math
 B = \sum_{i=0}^n\left(r_{a_i}\right)G_\text{zamount} + \sum_{i=0}^n\left(r_{a_i}-r'_{a_i}\right)G_\text{blind}
 ```
 Where $r'_{a_i}$ (with the apex $'$) are the amount blinding terms for the new attributes.
 
+This statement works because the Mint uses $\Delta_a$ to re-compute the verification value $B$ autonomously as:
 This statement works because the Mint uses $\Delta_a$ to re-compute the verification value $B$ autonomously as:
 
 ```math
@@ -346,8 +351,13 @@ The client also generates the following ZK-proofs:
 - $\pi_\text{range}$: For each new `AmountAttribute`, proves the value is within the range $[0, L-1]$. [(69)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L69).
 - $\pi_\text{MAC}$: Proves that the provided `RandomizedCredential`s are valid and unspent. [(75)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L75)
 - $\pi_\text{script}$: Ensures all **new** `ScriptAttribute`s encode the same script hash $s$ as the **old** `RandomizedCredential`s. [(81)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L81).
+- $\pi_\text{balance}$: Proves that the balance difference $\Delta_a$ (should equal $0$ or the fees) between old and new wallet balances is valid. Inputs: **old** and **new** `AmountAttribute`s [(78)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L78).
+- $\pi_\text{range}$: For each new `AmountAttribute`, proves the value is within the range $[0, L-1]$. [(69)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L69).
+- $\pi_\text{MAC}$: Proves that the provided `RandomizedCredential`s are valid and unspent. [(75)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L75)
+- $\pi_\text{script}$: Ensures all **new** `ScriptAttribute`s encode the same script hash $s$ as the **old** `RandomizedCredential`s. [(81)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L81).
 
 The client sends:
+- (**old** `RandomizedCredential`s, **new** `AmountAttribute`/`ScriptAttribute` pairs)  
 - (**old** `RandomizedCredential`s, **new** `AmountAttribute`/`ScriptAttribute` pairs)  
 - All proofs.
 
@@ -368,6 +378,19 @@ Sending coins to another wallet is simpler:
 
 No extra information is needed, as all proofs and randomization can be computed directly by the receiving wallet.
 
+### Blank Outputs for Overpaid Fee Change
+
+In Cashu, wallets often *overpay* during melt operations to ensure successful transactions, accounting for the unpredictability of lightning fees.
+
+To allow the Mint to return the excess coins to the client, the client provides "blank" `BlindedMessage`s with no predefined amount. The Mint then assigns a value to these outputs and signs them with its keys.
+
+With KVAC, this process is simplified:
+
+1. During a melt operation, the client declares a $\Delta_a$ between the inputs and outputs that exceeds the peg-out amount (amount in the melt quote). This claim is substantiated by $\pi_\text{balance}$.
+2. The Mint returns the overpaid amount $o$ by adjusting the commitment $M_a$ of the **new** `AmountAttribute`. Specifically, it tweaks the commitment as follows:
+```math
+   M_{a'} \gets M_a + o \cdot G_\text{amount}
+```
 ### Blank Outputs for Overpaid Fee Change
 
 In Cashu, wallets often *overpay* during melt operations to ensure successful transactions, accounting for the unpredictability of lightning fees.
