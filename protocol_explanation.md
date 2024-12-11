@@ -303,7 +303,7 @@ B = \Delta_aG_\text{amount} + \sum_{i=0}^{n}\left(C_{a_i}-M_{a_i}\right)
 
 During any swap operation, a client has the option to reveal the `ScriptAttribute`'s commitment $M_s$ to the Mint ([code](https://github.com/lollerfirst/cashu-kvac/blob/c6497c8e69da1e3df7dcc2705114fe7d68986f30/src/models.py#L215)). If the script is disclosed, the Mint can evaluate and execute it, determining whether to accept the transaction based on the script's outcome.
 
-However, if the client chooses **not** to reveal the script, they must instead prove that the script encoded in each of the **new** attributes matches the script encoded in the **old** `RandomizedCredential`s. This proof can be accomplished in an all-to-all manner using a batch discrete logarithm equivalence.
+However, if the client chooses **not** to reveal the script, they must instead prove that the script encoded in each of the **new** `ScriptAttribute`s matches the script encoded in the **old** `RandomizedCredential`s. This proof can be accomplished in an all-to-all manner using a batch discrete logarithm equivalence.
 
 $\pi_\text{script}$ proves $n+m$ relations, where $m$ is the number of **old** `RandomizedCredential`s provided and $n$ is the number of **new** `AmountAttribute`/`ScriptAttribute` pairs:
 
