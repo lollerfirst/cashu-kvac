@@ -133,7 +133,7 @@ C_w = wG_w + w'G_{w'}
 ```
 2) $x0, x1, y_a, y_s$ were used to construct $I$:
 ```math
-G_v - I = x_0G_{x_0} + x_1G_{x_1} + y_aG_\text{z-amount} + y_sG_\text{z-script}
+G_\text{z-mac} - I = x_0G_{x_0} + x_1G_{x_1} + y_aG_\text{z-amount} + y_sG_\text{z-script}
 ```
 3) the same secret values were used to construct $V$:
 ```math
