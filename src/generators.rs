@@ -34,16 +34,16 @@ pub fn hash_to_curve(message: &[u8]) -> Result<GroupElement, Error> {
 }
 
 pub struct Generators {
-    w: GroupElement,
-    w_: GroupElement,
-    x0: GroupElement,
-    x1: GroupElement,
-    gz_mac: GroupElement,
-    gz_attribute: GroupElement,
-    gz_script: GroupElement,
-    g_amount: GroupElement,
-    g_script: GroupElement,
-    g_blind: GroupElement,
+    pub w: GroupElement,
+    pub w_: GroupElement,
+    pub x0: GroupElement,
+    pub x1: GroupElement,
+    pub gz_mac: GroupElement,
+    pub gz_attribute: GroupElement,
+    pub gz_script: GroupElement,
+    pub g_amount: GroupElement,
+    pub g_script: GroupElement,
+    pub g_blind: GroupElement,
 }
 
 impl Generators {
