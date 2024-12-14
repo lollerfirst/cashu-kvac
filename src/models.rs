@@ -150,11 +150,11 @@ impl MAC {
         privkey: &MintPrivateKey,
         amount_commitment: &GroupElement,
         script_commitment: Option<&GroupElement>,
-        t_tag: Option<&[u8; 32]>,
+        t_tag: Option<&Scalar>,
     ) -> Result<Self, Error> {
         let t: Scalar;
-        if let Some(t_tag_bytes) = t_tag {
-            t = Scalar::new(t_tag_bytes);
+        if let Some(t_tag_some) = t_tag {
+            t = t_tag_some.clone();
         } else {
             t = Scalar::random();
         }
