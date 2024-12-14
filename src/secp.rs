@@ -318,14 +318,14 @@ impl Into<String> for Scalar {
 impl From<u64> for Scalar {
     fn from(value: u64) -> Self {
         let mut bytes = [0u8; 32];
-        bytes[31] = (value >> 56) as u8;
-        bytes[30] = (value >> 48) as u8;
-        bytes[29] = (value >> 40) as u8;
-        bytes[28] = (value >> 32) as u8;
-        bytes[27] = (value >> 24) as u8;
-        bytes[26] = (value >> 16) as u8;
-        bytes[25] = (value >> 8) as u8;
-        bytes[24] = value as u8;
+        bytes[24] = (value >> 56) as u8;
+        bytes[25] = (value >> 48) as u8;
+        bytes[26] = (value >> 40) as u8;
+        bytes[27] = (value >> 32) as u8;
+        bytes[28] = (value >> 24) as u8;
+        bytes[29] = (value >> 16) as u8;
+        bytes[30] = (value >> 8) as u8;
+        bytes[31] = value as u8;
         Scalar::new(&bytes)
     }
 }

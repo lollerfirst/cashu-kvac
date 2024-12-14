@@ -33,17 +33,18 @@ pub fn hash_to_curve(message: &[u8]) -> Result<GroupElement, Error> {
     Err(Error::InvalidPoint)
 }
 
+#[allow(non_snake_case)]
 pub struct Generators {
-    pub w: GroupElement,
-    pub w_: GroupElement,
-    pub x0: GroupElement,
-    pub x1: GroupElement,
-    pub gz_mac: GroupElement,
-    pub gz_attribute: GroupElement,
-    pub gz_script: GroupElement,
-    pub g_amount: GroupElement,
-    pub g_script: GroupElement,
-    pub g_blind: GroupElement,
+    pub W: GroupElement,
+    pub W_: GroupElement,
+    pub X0: GroupElement,
+    pub X1: GroupElement,
+    pub Gz_mac: GroupElement,
+    pub Gz_attribute: GroupElement,
+    pub Gz_script: GroupElement,
+    pub G_amount: GroupElement,
+    pub G_script: GroupElement,
+    pub G_blind: GroupElement,
 }
 
 impl Generators {
@@ -60,16 +61,16 @@ impl Generators {
         let g_blind = hash_to_curve(b"G_blind").expect("Failed to hash to curve");
 
         Generators {
-            w,
-            w_,
-            x0,
-            x1,
-            gz_mac,
-            gz_attribute,
-            gz_script,
-            g_amount,
-            g_script,
-            g_blind,
+            W: w,
+            W_: w_,
+            X0: x0,
+            X1: x1,
+            Gz_mac: gz_mac,
+            Gz_attribute: gz_attribute,
+            Gz_script: gz_script,
+            G_amount: g_amount,
+            G_script: g_script,
+            G_blind: g_blind,
         }
     }
 }
