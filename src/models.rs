@@ -129,7 +129,7 @@ impl AmountAttribute {
     pub fn commitment(&mut self) -> GroupElement{
         if !self.Ma.is_some() {
             self.Ma = Some(
-                GENERATORS.G_script.clone() * &self.a + &(
+                GENERATORS.G_amount.clone() * &self.a + &(
                     GENERATORS.G_blind.clone() * &self.r
                 )
             )
