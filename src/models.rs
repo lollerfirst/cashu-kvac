@@ -180,3 +180,32 @@ impl MAC {
         Ok(MAC { t, V })
     }
 }
+
+#[allow(non_snake_case)]
+pub struct RandomizedCredentials {
+    /// Randomized Attribute Commitment
+    pub Ca: GroupElement,
+    /// Randomized Script Commitment
+    pub Cs: GroupElement,
+    /// Randomized MAC-specific Generator "U"
+    pub Cx0: GroupElement,
+    /// Randomized tag commitment
+    pub Cx1: GroupElement,
+    /// Randomized MAC
+    pub Cv: GroupElement,
+}
+
+/*
+impl RandomizedCredentials {
+    #[allow(non_snake_case)]
+    pub fn new(
+        mac: &MAC,
+        amount_attribute: &AmountAttribute,
+        script_attribute: &Option<ScriptAttribute>,
+        reveal_script: bool,
+    ) -> Self {
+        let t = mac.t.clone();
+        let V = mac.V.clone();
+    }
+}
+*/
