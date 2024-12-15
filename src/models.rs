@@ -158,7 +158,7 @@ impl MAC {
         } else {
             t = Scalar::random();
         }
-        let t_bytes: [u8; 32] = t.clone().into();
+        let t_bytes: [u8; 32] = t.as_ref().into();
         let U = hash_to_curve(&t_bytes)?;
         let Ma = amount_commitment.clone();
         let Ms: GroupElement;
@@ -195,17 +195,38 @@ pub struct RandomizedCredentials {
     pub Cv: GroupElement,
 }
 
-/*
+
 impl RandomizedCredentials {
     #[allow(non_snake_case)]
     pub fn new(
         mac: &MAC,
-        amount_attribute: &AmountAttribute,
-        script_attribute: &Option<ScriptAttribute>,
+        amount_attribute: &mut AmountAttribute,
+        script_attribute: Option<&mut ScriptAttribute>,
         reveal_script: bool,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let t = mac.t.clone();
-        let V = mac.V.clone();
+        let V = mac.V.as_ref();
+        let t_bytes: [u8; 32] = (&mac.t).into();
+        let U = hash_to_curve(&t_bytes)?;
+        let Ma = amount_attribute.commitment();
+        let r = &amount_attribute.r;
+        let Ms: GroupElement;
+        if let Some(attr) = script_attribute {
+            if reveal_script {
+                Ms = GENERATORS.G_blind.clone() * &attr.r;
+            } else {
+                Ms = attr.commitment();
+            }
+        } else {
+            Ms = GroupElement::new(&GROUP_ELEMENT_ZERO);
+        }
+
+        let Ca = GENERATORS.Gz_attribute.clone() * r + &Ma;
+        let Cs = GENERATORS.Gz_script.clone() * r + &Ms;
+        let Cx0 = GENERATORS.X0.clone() * r + &U;
+        let Cx1 = GENERATORS.X1.clone() * r + &(U * &t);
+        let Cv = GENERATORS.Gz_mac.clone() * r + V;
+
+        Ok(RandomizedCredentials { Ca, Cs, Cx0, Cx1, Cv })
     }
 }
-*/

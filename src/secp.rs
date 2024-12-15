@@ -295,17 +295,17 @@ impl Into<Vec<u8>> for Scalar {
     }
 }
 
-impl Into<[u8; 32]> for Scalar {
+impl Into<[u8; 32]> for &Scalar {
     fn into(self) -> [u8; 32] {
         if self.is_zero {
             SCALAR_ZERO
         } else {
-            self.inner.unwrap().secret_bytes()
+            self.inner.as_ref().expect("Expected inner Scalar").secret_bytes()
         }
     }
 }
 
-impl Into<String> for Scalar {
+impl Into<String> for &Scalar {
     fn into(self) -> String {
         if self.is_zero {
             hex::encode(SCALAR_ZERO)
@@ -339,6 +339,12 @@ impl From<&str> for Scalar {
         let mut padded_bytes = [0u8; 32];
         padded_bytes[32 - bytes.len()..32].copy_from_slice(&bytes);
         Scalar::new(&padded_bytes)
+    }
+}
+
+impl AsRef<Scalar> for Scalar {
+    fn as_ref(&self) -> &Scalar {
+        self
     }
 }
 
@@ -443,23 +449,33 @@ impl From<&str> for GroupElement {
     }
 }
 
-impl Into<[u8; 33]> for GroupElement {
+impl Into<[u8; 33]> for &GroupElement {
     fn into(self) -> [u8; 33] {
         if self.is_zero {
             GROUP_ELEMENT_ZERO
         } else {
-            self.inner.unwrap().serialize()
+            self.inner.as_ref().expect("Expected inner PublicKey").serialize()
         }
     }
 }
 
-impl Into<String> for GroupElement {
+impl Into<String> for &GroupElement {
     fn into(self) -> String {
         if self.is_zero {
             hex::encode(GROUP_ELEMENT_ZERO)
         } else {
-            hex::encode(self.inner.unwrap().serialize())
+            hex::encode(self.inner
+                .as_ref()
+                .expect("Expected inner PublicKey")
+                .serialize()
+            )
         }
+    }
+}
+
+impl AsRef<GroupElement> for GroupElement {
+    fn as_ref(&self) -> &GroupElement {
+        self
     }
 }
 
@@ -583,7 +599,7 @@ mod tests {
     #[test]
     fn test_scalar_into_string() {
         let scalar = Scalar::random();
-        let hex_str: String = scalar.into();
+        let hex_str: String = scalar.as_ref().into();
         assert_eq!(hex_str.len(), 64);
         assert!(hex::decode(&hex_str).is_ok());
     }
@@ -591,7 +607,7 @@ mod tests {
     #[test]
     fn test_zero_scalar_into_string() {
         let scalar = Scalar::new(&SCALAR_ZERO);
-        let hex_str: String = scalar.into();
+        let hex_str: String = scalar.as_ref().into();
         assert_eq!(hex_str, hex::encode(SCALAR_ZERO));
     }
 
@@ -631,7 +647,7 @@ mod tests {
     fn test_ge_into() {
         let hex_str = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
         let g = GroupElement::from(hex_str);
-        let g_string: String = g.into();
+        let g_string: String = g.as_ref().into();
         assert!(hex_str == g_string)
     }
 
