@@ -96,7 +96,7 @@ We consider the `MAC` together with `AmountAttribute` and `ScriptAttribute` to b
 \text{Coin} = ((r_a, a), (r_s, s), (t, V))
 ```
 
-### RanomizedCoin
+### RandomizedCoin
 > [RandomizedCoin](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/kvac.py#L472)
 
 Before being sent to the Mint, the coin is "randomized" to break the link to the issuance.
@@ -110,7 +110,7 @@ We use the blinding term $r_a$ used for `AmountAttribute` and compute:
 * $C_{x_0} = r_aG_{x_0} + U$
 * $C_{x_1} = r_aG_{x_1} + tU$
 * $C_v = r_aG_\text{zmac} + V$, where $V$ is the `MAC` public point value
-* RandomizedCredentials: $(C_a, C_s, C_{x_0}, C_{x_1}, C_v)$
+* RandomizedCoin: $(C_a, C_s, C_{x_0}, C_{x_1}, C_v)$
 
 > [!NOTE]
 > $r_a$ is the only scalar that will produce a valid randomization.
