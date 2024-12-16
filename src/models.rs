@@ -38,7 +38,7 @@ impl MintPrivateKey {
         vec![self.w.clone(), self.w_.clone(), self.x0.clone(), self.x1.clone(), self.ya.clone(), self.ys.clone()]
     }
 
-    pub fn pubkey(&mut self) -> Vec<GroupElement> {
+    pub fn pubkey(&mut self) -> (GroupElement, GroupElement) {
         if !self.Cw.is_some() {
             self.Cw = Some(GENERATORS.W.clone()*&self.w + &(GENERATORS.W_.clone()*&self.w_));
         }
@@ -58,10 +58,10 @@ impl MintPrivateKey {
                 )
             );
         }
-        vec![
+        (
             self.Cw.as_ref().expect("Expected Cw").clone(),
             self.I.as_ref().expect("Expected I").clone(),
-        ]
+        )
     }
 }
 
@@ -252,7 +252,7 @@ pub struct Equation {
 
 pub struct Statement {
     /// Domain Separator of the proof
-    pub domain_separator: Vec<u8>,
+    pub domain_separator: &'static [u8],
     /// Relations
     pub equations: Vec<Equation>
 }
