@@ -19,6 +19,7 @@ pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(|| {
     ctx
 });
 
+#[derive(Clone)]
 pub struct Scalar {
     inner: Option<SecretKey>,
     is_zero: bool,
@@ -454,7 +455,10 @@ impl Into<[u8; 33]> for &GroupElement {
         if self.is_zero {
             GROUP_ELEMENT_ZERO
         } else {
-            self.inner.as_ref().expect("Expected inner PublicKey").serialize()
+            self.inner
+                .as_ref()
+                .expect("Expected inner PublicKey")
+                .serialize()
         }
     }
 }

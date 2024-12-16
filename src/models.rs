@@ -242,3 +242,17 @@ impl RandomizedCoin {
         Ok(RandomizedCoin { Ca, Cs, Cx0, Cx1, Cv })
     }
 }
+
+pub struct Equation {
+    /// Left-hand side of the equation (public input)
+    pub lhs: GroupElement,
+    /// Right-hand side of the equation (construction of the relation)
+    pub rhs: Vec<Vec<GroupElement>>,
+}
+
+pub struct Statement {
+    /// Domain Separator of the proof
+    pub domain_separator: Vec<u8>,
+    /// Relations
+    pub equations: Vec<Equation>
+}

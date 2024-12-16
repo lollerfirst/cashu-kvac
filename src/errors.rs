@@ -3,6 +3,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("Cannot instantiate SchnorrProver")]
+    InvalidConfiguration,
     #[error("Cannot map hash to a valid point on the curve")]
     InvalidPoint,
     /// Secp256k1 error
