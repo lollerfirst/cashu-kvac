@@ -78,7 +78,6 @@ pub struct ScriptAttribute {
     Ms: Option<GroupElement>,
 }
 
-
 impl ScriptAttribute {
     pub fn new(script: &[u8], blinding_factor: Option<&[u8; 32]>) -> Self {
         let s = Scalar::new(&Sha256Hash::hash(&script).to_byte_array());
@@ -181,8 +180,24 @@ impl MAC {
     }
 }
 
+pub struct Coin {
+    pub amount_attribute: AmountAttribute,
+    pub script_attribute: Option<ScriptAttribute>,
+    pub mac: MAC,
+}
+
+impl Coin {
+    pub fn new(
+        amount_attribute: AmountAttribute,
+        script_attribute: Option<ScriptAttribute>,
+        mac: MAC,
+    ) -> Self {
+        Coin { amount_attribute, script_attribute, mac }
+    }
+}
+
 #[allow(non_snake_case)]
-pub struct RandomizedCredentials {
+pub struct RandomizedCoin {
     /// Randomized Attribute Commitment
     pub Ca: GroupElement,
     /// Randomized Script Commitment
@@ -195,23 +210,20 @@ pub struct RandomizedCredentials {
     pub Cv: GroupElement,
 }
 
-
-impl RandomizedCredentials {
+impl RandomizedCoin {
     #[allow(non_snake_case)]
     pub fn new(
-        mac: &MAC,
-        amount_attribute: &mut AmountAttribute,
-        script_attribute: Option<&mut ScriptAttribute>,
+        coin: &mut Coin,
         reveal_script: bool,
     ) -> Result<Self, Error> {
-        let t = mac.t.clone();
-        let V = mac.V.as_ref();
-        let t_bytes: [u8; 32] = (&mac.t).into();
+        let t = coin.mac.t.clone();
+        let V = coin.mac.V.as_ref();
+        let t_bytes: [u8; 32] = (&coin.mac.t).into();
         let U = hash_to_curve(&t_bytes)?;
-        let Ma = amount_attribute.commitment();
-        let r = &amount_attribute.r;
+        let Ma = coin.amount_attribute.commitment();
+        let r = &coin.amount_attribute.r;
         let Ms: GroupElement;
-        if let Some(attr) = script_attribute {
+        if let Some(attr) = &mut coin.script_attribute {
             if reveal_script {
                 Ms = GENERATORS.G_blind.clone() * &attr.r;
             } else {
@@ -227,6 +239,6 @@ impl RandomizedCredentials {
         let Cx1 = GENERATORS.X1.clone() * r + &(U * &t);
         let Cv = GENERATORS.Gz_mac.clone() * r + V;
 
-        Ok(RandomizedCredentials { Ca, Cs, Cx0, Cx1, Cv })
+        Ok(RandomizedCoin { Ca, Cs, Cx0, Cx1, Cv })
     }
 }
