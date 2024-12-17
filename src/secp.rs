@@ -181,9 +181,16 @@ impl GroupElement {
     }
 
     pub fn clone(&self) -> Self {
-        GroupElement {
-            inner: Some(self.inner.unwrap().clone()),
-            is_zero: self.is_zero,
+        if self.is_zero {
+            GroupElement {
+                inner: None,
+                is_zero: true,
+            }
+        } else {
+            GroupElement {
+                inner: Some(self.inner.unwrap().clone()),
+                is_zero: self.is_zero,
+            }
         }
     }
 

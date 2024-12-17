@@ -212,7 +212,7 @@ pub struct RandomizedCoin {
 
 impl RandomizedCoin {
     #[allow(non_snake_case)]
-    pub fn new(
+    pub fn from_coin(
         coin: &mut Coin,
         reveal_script: bool,
     ) -> Result<Self, Error> {

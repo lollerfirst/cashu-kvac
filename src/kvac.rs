@@ -167,7 +167,7 @@ impl IParamsProof {
             equations: vec![
                 Equation {          // Cw = w*W  + w_*W_
                     lhs: Cw,
-                    rhs: vec![vec![GENERATORS.W.clone()]]
+                    rhs: vec![vec![GENERATORS.W.clone(), GENERATORS.W_.clone()]]
                 },
                 Equation {          // I = Gz_mac - x0*X0 - x1*X1 - ya*Gz_attribute - ys*Gz_script
                     lhs: I - &GENERATORS.Gz_mac,
@@ -203,7 +203,7 @@ impl IParamsProof {
             .prove()
     }
 
-    pub fn verify(&self,
+    pub fn verify(
         mint_publickey: (GroupElement, GroupElement),
         coin: &mut Coin,
         proof: ZKP,
@@ -218,16 +218,27 @@ impl IParamsProof {
 
 #[cfg(test)]
 mod tests{
-    use bitcoin::{amount, Amount};
 
-    use crate::{models::{AmountAttribute, MintPrivateKey}, secp::Scalar, transcript::CashuTranscript};
+    use crate::{models::{AmountAttribute, Coin, MintPrivateKey, MAC}, secp::Scalar, transcript::CashuTranscript};
 
-    use super::BootstrapProof;
+    use super::{BootstrapProof, IParamsProof};
 
     fn transcripts() -> (CashuTranscript, CashuTranscript) {
         let mint_transcript = CashuTranscript::new();
         let client_transcript = CashuTranscript::new();
         (mint_transcript, client_transcript)
+    }
+
+    fn privkey() -> MintPrivateKey {
+        let scalars = [
+            Scalar::random(),
+            Scalar::random(),
+            Scalar::random(),
+            Scalar::random(),
+            Scalar::random(),
+            Scalar::random()
+        ];
+        MintPrivateKey::from_scalars(&scalars)
     }
 
     #[test]
@@ -249,6 +260,11 @@ mod tests{
     #[test]
     fn test_iparams() {
         let (mut mint_transcript, mut client_transcript) = transcripts();
-        let amount_attr = AmountAttribute::new(12, None);
+        let mut mint_privkey = privkey();
+        let mut amount_attr = AmountAttribute::new(12, None);
+        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None).expect("Couldn't generate MAC");
+        let mut coin = Coin::new(amount_attr, None, mac);
+        let proof = IParamsProof::new(&mut mint_privkey, &mut coin, &mut client_transcript);
+        assert!(IParamsProof::verify(mint_privkey.pubkey(), &mut coin, proof, &mut mint_transcript));
     }
 }
