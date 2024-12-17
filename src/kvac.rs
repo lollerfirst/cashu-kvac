@@ -1,10 +1,9 @@
-
-use bitcoin::{amount, transaction};
-
 use crate::generators::{hash_to_curve, GENERATORS};
-use crate::models::{AmountAttribute, Coin, Equation, MintPrivateKey, Statement, ZKP};
+use crate::models::{AmountAttribute, Coin, Equation, MintPrivateKey, RandomizedCoin, Statement, ZKP};
 use crate::transcript::CashuTranscript;
-use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO};
+use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
+use bitcoin::hashes::sha256::Hash as Sha256Hash;
+use bitcoin::hashes::Hash;
 
 pub struct SchnorrProver<'a> {
     random_terms: Vec<Scalar>,
@@ -143,6 +142,107 @@ impl BootstrapProof {
             .verify()
     }
 
+}
+
+pub struct MacProof;
+
+#[allow(non_snake_case)]
+impl MacProof {
+    
+    pub fn statement(Z: GroupElement, I: GroupElement, randomized_coin: &RandomizedCoin) -> Statement {
+        let Cx0 = randomized_coin.Cx0.clone();
+        let Cx1 = randomized_coin.Cx1.clone();
+        let Ca = randomized_coin.Ca.clone();
+        let O = GroupElement::new(&GROUP_ELEMENT_ZERO);
+        Statement {
+            domain_separator: b"MAC_Statement_",
+            equations: vec![    // Z = r*I
+                Equation {
+                    lhs: Z,
+                    rhs: vec![vec![I]],
+                },
+                Equation {      // Cx1 = t*Cx0 + (-tr)*X0 + r*X1
+                    lhs: Cx1,
+                    rhs: vec![
+                        vec![GENERATORS.X1.clone(), GENERATORS.X0.clone(), Cx0,]
+                    ]
+                },
+                Equation {      // Ca = r_a*Gz_attribute + r_a*G_blind + a*G_amount
+                                // MULTI-ROW: `r` witness is used twice for Gz_amount and G_blind    
+                    lhs: Ca,
+                    rhs: vec![
+                        vec![GENERATORS.Gz_attribute.clone(), O.clone(), O.clone(), GENERATORS.G_amount.clone()],
+                        vec![GENERATORS.G_blind.clone()]
+                    ]
+                },
+            ]
+        }
+    }
+
+    pub fn new(
+        mint_publickey: (GroupElement, GroupElement),
+        coin: &Coin,
+        randomized_coin: &RandomizedCoin,
+        transcript: &mut CashuTranscript,
+    ) -> ZKP {
+        let r_a = coin.amount_attribute.r.clone();
+        let a = coin.amount_attribute.a.clone();
+        let t = coin.mac.t.clone();
+        let r0 = r_a.clone()*t.as_ref();
+        let (_Cw, I) = mint_publickey;
+        let Z = I.clone() * &coin.amount_attribute.r;
+        let statement = MacProof::statement(Z, I, randomized_coin);
+        SchnorrProver::new(
+            transcript,
+            vec![
+                r_a, r0, t, a
+            ],
+        ).add_statement(statement).prove()
+    }
+
+    pub fn verify(
+        mint_privkey: &mut MintPrivateKey,
+        randomized_coin: &RandomizedCoin,
+        script: Option<&[u8]>,
+        proof: ZKP,
+        transcript: &mut CashuTranscript,
+    ) -> bool {
+        let (w, x0, x1, ya, ys) = (
+            &mint_privkey.w,
+            &mint_privkey.x0,
+            &mint_privkey.x1,
+            &mint_privkey.ya,
+            &mint_privkey.ys
+        );
+        let (Cx0, Cx1, Ca, Cs, Cv) = (
+            randomized_coin.Cx0.clone(),
+            randomized_coin.Cx1.clone(),
+            randomized_coin.Ca.clone(),
+            randomized_coin.Cs.clone(),
+            randomized_coin.Cv.clone(),
+        );
+        let mut S = GroupElement::new(&GROUP_ELEMENT_ZERO);
+        if let Some(scr) = script {
+            let s = Scalar::new(&Sha256Hash::hash(&scr).to_byte_array());
+            S = GENERATORS.G_script.clone()*s.as_ref();
+        }
+        let Z = Cv - &(
+            GENERATORS.W.clone() * w + &(
+                Cx0 * x0 + &(
+                    Cx1 * x1 + &(
+                        Ca * ya + &(
+                            (Cs + &S) * ys
+                        )
+                    )
+                )
+            )
+        );
+        let (_Cw, I) = mint_privkey.pubkey();
+        let statement = MacProof::statement(Z, I, randomized_coin);
+        SchnorrVerifier::new(transcript, proof)
+            .add_statement(statement)
+            .verify()
+    }
 }
 
 pub struct IParamsProof;
