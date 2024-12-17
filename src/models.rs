@@ -180,6 +180,36 @@ impl MAC {
     }
 }
 
+/// Contains the amount and script commitments
+/// for a `Coin` which has not yet been signed by the Mint
+pub struct UnsignedCoin {
+    pub amount_commitment: GroupElement,
+    pub script_commitment: Option<GroupElement>,
+}
+
+impl UnsignedCoin {
+    pub fn from_attributes(
+        mut amount_attribute: AmountAttribute,
+        script_attribute: Option<ScriptAttribute>
+    ) -> Self {
+
+        if let Some( mut script_attr) = script_attribute {
+            UnsignedCoin {
+                amount_commitment: amount_attribute.commitment(),
+                script_commitment: Some(script_attr.commitment())
+            }
+        } else {
+            UnsignedCoin {
+                amount_commitment: amount_attribute.commitment(),
+                script_commitment: None,
+            }
+        }
+    }
+}
+
+/// Spendable coin.
+/// Contains `AmountAttribute`, `ScriptAttribute`
+/// and the `MAC` approval by the Mint. 
 pub struct Coin {
     pub amount_attribute: AmountAttribute,
     pub script_attribute: Option<ScriptAttribute>,
@@ -196,6 +226,8 @@ impl Coin {
     }
 }
 
+/// Contains randomized commitments of a `Coin`.
+/// Used for unlinkable multi-show.
 #[allow(non_snake_case)]
 pub struct RandomizedCoin {
     /// Randomized Attribute Commitment

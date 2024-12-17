@@ -1,5 +1,5 @@
 use crate::generators::{hash_to_curve, GENERATORS};
-use crate::models::{AmountAttribute, Coin, Equation, MintPrivateKey, RandomizedCoin, Statement, ZKP};
+use crate::models::{AmountAttribute, Coin, Equation, MintPrivateKey, RandomizedCoin, Statement, UnsignedCoin, ZKP};
 use crate::transcript::CashuTranscript;
 use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
@@ -313,6 +313,71 @@ impl IParamsProof {
         SchnorrVerifier::new(transcript, proof)
             .add_statement(statement)
             .verify()
+    }
+}
+
+pub struct BalanceProof;
+
+#[allow(non_snake_case)]
+impl BalanceProof {
+
+    pub fn statement(B: GroupElement) -> Statement {
+        Statement {
+            domain_separator: b"Balance_Statement_",
+            equations: vec![
+                Equation {
+                    lhs: B,
+                    rhs: vec![vec![GENERATORS.Gz_attribute.clone(), GENERATORS.G_blind.clone()]]
+                }
+            ]
+        }
+    }
+
+    pub fn new(
+        inputs: Vec<&Coin>,
+        outputs: Vec<&Coin>,
+        transcript: &mut CashuTranscript) -> ZKP {
+        let mut r_sum = Scalar::new(&SCALAR_ZERO);
+        for input in inputs.into_iter() {
+            r_sum = r_sum + &input.amount_attribute.r;
+        }
+        let mut r_sum_ = Scalar::new(&SCALAR_ZERO);
+        for output in outputs.into_iter() {
+            r_sum_ = r_sum_ + &output.amount_attribute.r;
+        }
+        let delta_r = (-r_sum_) + r_sum.as_ref();
+        let B = GENERATORS.Gz_attribute.clone() * r_sum.as_ref() + (
+            GENERATORS.G_blind.clone() * delta_r.as_ref()
+        ).as_ref();
+        let statement = BalanceProof::statement(B);
+        SchnorrProver::new(transcript, vec![r_sum, delta_r])
+            .add_statement(statement)
+            .prove()
+    }
+
+    pub fn verify(
+        inputs: Vec<&RandomizedCoin>,
+        outputs: Vec<&UnsignedCoin>,
+        delta_amount: i64,
+        proof: ZKP,
+        transcript: &mut CashuTranscript
+    ) -> bool {
+        let delta_a = Scalar::from(delta_amount.abs() as u64);
+        let mut B = GENERATORS.G_amount.clone() * &delta_a;
+        if delta_amount >= 0 {
+            B.negate();
+        }
+        for input in inputs.into_iter() {
+            B = B + input.Ca.as_ref();
+        }
+        for output in outputs.into_iter() {
+            B = B - output.amount_commitment.as_ref();
+        }
+        let statement = BalanceProof::statement(B);
+        SchnorrVerifier::new(transcript, proof)
+            .add_statement(statement)
+            .verify()
+        
     }
 }
 
