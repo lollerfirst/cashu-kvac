@@ -319,7 +319,7 @@ impl IParamsProof {
 #[cfg(test)]
 mod tests{
 
-    use crate::{models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, MAC}, secp::Scalar, transcript::CashuTranscript};
+    use crate::{errors::Error, generators::{hash_to_curve, GENERATORS}, models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, MAC}, secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO}, transcript::CashuTranscript};
 
     use super::{BootstrapProof, IParamsProof, MacProof};
 
@@ -390,5 +390,37 @@ mod tests{
         let randomized_coin = RandomizedCoin::from_coin(&mut coin, false).expect("Expected a randomized coin");
         let proof = MacProof::new(mint_privkey.pubkey(), &coin, &randomized_coin, &mut client_transcript);
         assert!(MacProof::verify(&mut mint_privkey, &randomized_coin, None, proof, &mut mint_transcript));
+    }
+
+    #[test]
+    fn test_wrong_mac() {
+        #[allow(non_snake_case)]
+        fn generate_custom_rand(coin: &mut Coin) -> Result<RandomizedCoin, Error> {
+            let t = coin.mac.t.clone();
+            let V = coin.mac.V.as_ref();
+            let t_bytes: [u8; 32] = (&coin.mac.t).into();
+            let U = hash_to_curve(&t_bytes)?;
+            let Ma = coin.amount_attribute.commitment();
+            // We try and randomize differently.
+            let z = Scalar::random();
+            let Ms: GroupElement = GroupElement::new(&GROUP_ELEMENT_ZERO);
+
+            let Ca = GENERATORS.Gz_attribute.clone() * z.as_ref() + &Ma;
+            let Cs = GENERATORS.Gz_script.clone() * z.as_ref() + &Ms;
+            let Cx0 = GENERATORS.X0.clone() * z.as_ref() + &U;
+            let Cx1 = GENERATORS.X1.clone() * z.as_ref() + &(U * &t);
+            let Cv = GENERATORS.Gz_mac.clone() * z.as_ref() + V;
+
+            Ok(RandomizedCoin { Ca, Cs, Cx0, Cx1, Cv })
+        }
+
+        let (mut mint_transcript, mut client_transcript) = transcripts();
+        let mut mint_privkey = privkey();
+        let mut amount_attr = AmountAttribute::new(12, None);
+        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None).expect("Couldn't generate MAC");
+        let mut coin = Coin::new(amount_attr, None, mac);
+        let randomized_coin = generate_custom_rand(&mut coin).expect("Expected a randomized coin");
+        let proof = MacProof::new(mint_privkey.pubkey(), &coin, &randomized_coin, &mut client_transcript);
+        assert!(!MacProof::verify(&mut mint_privkey, &randomized_coin, None, proof, &mut mint_transcript));
     }
 }
