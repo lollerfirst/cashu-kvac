@@ -20,15 +20,15 @@ pub struct MintPrivateKey {
 
 impl MintPrivateKey {
 
-    pub fn from_scalars(scalars: [Scalar; 6]) -> Self {
+    pub fn from_scalars(scalars: &[Scalar; 6]) -> Self {
         let [w, w_, x0, x1, ya, ys] = scalars;
         MintPrivateKey {
-            w,
-            w_,
-            x0,
-            x1,
-            ya,
-            ys,
+            w: w.clone(),
+            w_: w_.clone(),
+            x0: x0.clone(),
+            x1: x1.clone(),
+            ya: ya.clone(),
+            ys: ys.clone(),
             Cw: None,
             I: None,
         }

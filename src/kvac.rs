@@ -1,4 +1,6 @@
 
+use bitcoin::{amount, transaction};
+
 use crate::generators::{hash_to_curve, GENERATORS};
 use crate::models::{AmountAttribute, Coin, Equation, MintPrivateKey, Statement, ZKP};
 use crate::transcript::CashuTranscript;
@@ -23,7 +25,7 @@ impl<'a> SchnorrProver<'a> {
     }
 
     #[allow(non_snake_case)]
-    pub fn add_statement(&mut self, statement: Statement) {
+    pub fn add_statement(self, statement: Statement) -> Self {
         // Append proof-specific domain separator to the transcript
         self.transcript.domain_sep(&statement.domain_separator);
 
@@ -41,6 +43,7 @@ impl<'a> SchnorrProver<'a> {
             self.transcript.append_element(b"R_", &R);
             self.transcript.append_element(b"V_", &V);
         }
+        self
     }
 
     #[allow(non_snake_case)]
@@ -80,9 +83,9 @@ impl<'a> SchnorrVerifier<'a> {
 
     #[allow(non_snake_case)]
     pub fn add_statement(
-        &mut self,
+        self,
         statement: Statement
-    ) {
+    ) -> Self {
         // Append proof-specific domain separator to the transcript
         self.transcript.domain_sep(&statement.domain_separator);
 
@@ -101,36 +104,59 @@ impl<'a> SchnorrVerifier<'a> {
             self.transcript.append_element(b"R_", &R);
             self.transcript.append_element(b"V_", &V);
         }
+        self
+    }
+
+    pub fn verify(&mut self) -> bool {
+        let challenge_ = self.transcript.get_challenge(b"chall_");
+        challenge_ == self.challenge
     }
 }
 
-pub struct BootstrapStatement {}
+pub struct BootstrapProof;
 
-impl BootstrapStatement {
-    pub fn new(amount_attribute: &mut AmountAttribute) -> Statement {
+impl BootstrapProof {
+
+    pub fn statement(amount_commitment: &GroupElement) -> Statement {
         Statement {
             domain_separator: b"Bootstrap_Statement_",
             equations: vec![
                 Equation {          // Ma = r*G_blind
-                    lhs: amount_attribute.commitment(),
+                    lhs: amount_commitment.clone(),
                     rhs: vec![vec![GENERATORS.G_blind.clone()]] 
                 }
             ]
         }
     }
+
+    pub fn create(amount_attribute: &mut AmountAttribute, transcript: &mut CashuTranscript) -> ZKP {
+        let statement = BootstrapProof::statement(amount_attribute.commitment().as_ref());
+        SchnorrProver::new(transcript, vec![amount_attribute.r.clone()])
+            .add_statement(statement)
+            .prove()
+    }
+
+    pub fn verify(amount_commitment: &GroupElement, proof: ZKP, transcript: &mut CashuTranscript) -> bool {
+        let statement = BootstrapProof::statement(amount_commitment);
+        SchnorrVerifier::new(transcript, proof)
+            .add_statement(statement)
+            .verify()
+    }
+
 }
 
-pub struct IParamsStatement;
+pub struct IParamsProof;
 
-impl IParamsStatement {
-    #[allow(non_snake_case)]
-    pub fn new(mint_privkey: &mut MintPrivateKey, coin: &mut Coin) -> Statement {
+#[allow(non_snake_case)]
+impl IParamsProof {
+
+    pub fn statement(mint_publickey: (GroupElement, GroupElement), coin: &mut Coin) -> Statement {
         let O = GroupElement::new(&GROUP_ELEMENT_ZERO);
         let t_tag_bytes: [u8; 32] = coin.mac.t.as_ref().into();
         let t = coin.mac.t.as_ref();
         let U = hash_to_curve(&t_tag_bytes).expect("Couldn't get map MAC tag to GroupElement");
         let V = coin.mac.V.clone();
-        let (Cw, I) = mint_privkey.pubkey();
+        let (Cw, I) = mint_publickey;
         let Ma = coin.amount_attribute.commitment();
         let mut Ms = O.clone();
         if let Some(scr_attr) = &mut coin.script_attribute {
@@ -167,5 +193,62 @@ impl IParamsStatement {
                 }
             ]
         }
+    }
+    
+    pub fn new(mint_privkey: &mut MintPrivateKey, coin: &mut Coin, transcript: &mut CashuTranscript) -> ZKP {
+        let mint_pubkey = mint_privkey.pubkey();
+        let statement = IParamsProof::statement(mint_pubkey, coin);
+        SchnorrProver::new(transcript, mint_privkey.to_scalars())
+            .add_statement(statement)
+            .prove()
+    }
+
+    pub fn verify(&self,
+        mint_publickey: (GroupElement, GroupElement),
+        coin: &mut Coin,
+        proof: ZKP,
+        transcript: &mut CashuTranscript,
+    ) -> bool {
+        let statement = IParamsProof::statement(mint_publickey, coin);
+        SchnorrVerifier::new(transcript, proof)
+            .add_statement(statement)
+            .verify()
+    }
+}
+
+#[cfg(test)]
+mod tests{
+    use bitcoin::{amount, Amount};
+
+    use crate::{models::{AmountAttribute, MintPrivateKey}, secp::Scalar, transcript::CashuTranscript};
+
+    use super::BootstrapProof;
+
+    fn transcripts() -> (CashuTranscript, CashuTranscript) {
+        let mint_transcript = CashuTranscript::new();
+        let client_transcript = CashuTranscript::new();
+        (mint_transcript, client_transcript)
+    }
+
+    #[test]
+    fn test_bootstrap() {
+        let (mut mint_transcript, mut client_transcript) = transcripts();
+        let mut bootstrap_attr = AmountAttribute::new(0, None);
+        let proof = BootstrapProof::create(&mut bootstrap_attr, client_transcript.as_mut());
+        assert!(BootstrapProof::verify(bootstrap_attr.commitment().as_ref(), proof, &mut mint_transcript))
+    }
+
+    #[test]
+    fn test_wrong_bootstrap() {
+        let (mut mint_transcript, mut client_transcript) = transcripts();
+        let mut bootstrap_attr = AmountAttribute::new(1, None);
+        let proof = BootstrapProof::create(&mut bootstrap_attr, client_transcript.as_mut());
+        assert!(!BootstrapProof::verify(bootstrap_attr.commitment().as_ref(), proof, &mut mint_transcript))
+    }
+
+    #[test]
+    fn test_iparams() {
+        let (mut mint_transcript, mut client_transcript) = transcripts();
+        let amount_attr = AmountAttribute::new(12, None);
     }
 }

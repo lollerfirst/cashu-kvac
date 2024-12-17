@@ -27,3 +27,9 @@ impl CashuTranscript {
         Scalar::new(&challenge)
     }
 }
+
+impl AsMut<CashuTranscript> for CashuTranscript {
+    fn as_mut(&mut self) -> &mut Self {
+        self
+    }
+}
