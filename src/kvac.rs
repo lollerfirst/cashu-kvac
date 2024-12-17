@@ -267,4 +267,16 @@ mod tests{
         let proof = IParamsProof::new(&mut mint_privkey, &mut coin, &mut client_transcript);
         assert!(IParamsProof::verify(mint_privkey.pubkey(), &mut coin, proof, &mut mint_transcript));
     }
+
+    #[test]
+    fn test_wrong_iparams() {
+        let (mut mint_transcript, mut client_transcript) = transcripts();
+        let mut mint_privkey = privkey();
+        let mut mint_privkey_1 = privkey();
+        let mut amount_attr = AmountAttribute::new(12, None);
+        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None).expect("Couldn't generate MAC");
+        let mut coin = Coin::new(amount_attr, None, mac);
+        let proof = IParamsProof::new(&mut mint_privkey, &mut coin, &mut client_transcript);
+        assert!(!IParamsProof::verify(mint_privkey_1.pubkey(), &mut coin, proof, &mut mint_transcript))
+    }
 }
