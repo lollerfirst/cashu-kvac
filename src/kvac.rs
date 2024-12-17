@@ -188,7 +188,7 @@ impl MacProof {
         let r_a = coin.amount_attribute.r.clone();
         let a = coin.amount_attribute.a.clone();
         let t = coin.mac.t.clone();
-        let r0 = r_a.clone()*t.as_ref();
+        let r0 = -r_a.clone()*t.as_ref();
         let (_Cw, I) = mint_publickey;
         let Z = I.clone() * &coin.amount_attribute.r;
         let statement = MacProof::statement(Z, I, randomized_coin);
@@ -319,9 +319,9 @@ impl IParamsProof {
 #[cfg(test)]
 mod tests{
 
-    use crate::{models::{AmountAttribute, Coin, MintPrivateKey, MAC}, secp::Scalar, transcript::CashuTranscript};
+    use crate::{models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, MAC}, secp::Scalar, transcript::CashuTranscript};
 
-    use super::{BootstrapProof, IParamsProof};
+    use super::{BootstrapProof, IParamsProof, MacProof};
 
     fn transcripts() -> (CashuTranscript, CashuTranscript) {
         let mint_transcript = CashuTranscript::new();
@@ -378,5 +378,17 @@ mod tests{
         let mut coin = Coin::new(amount_attr, None, mac);
         let proof = IParamsProof::new(&mut mint_privkey, &mut coin, &mut client_transcript);
         assert!(!IParamsProof::verify(mint_privkey_1.pubkey(), &mut coin, proof, &mut mint_transcript))
+    }
+
+    #[test]
+    fn test_mac() {
+        let (mut mint_transcript, mut client_transcript) = transcripts();
+        let mut mint_privkey = privkey();
+        let mut amount_attr = AmountAttribute::new(12, None);
+        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None).expect("Couldn't generate MAC");
+        let mut coin = Coin::new(amount_attr, None, mac);
+        let randomized_coin = RandomizedCoin::from_coin(&mut coin, false).expect("Expected a randomized coin");
+        let proof = MacProof::new(mint_privkey.pubkey(), &coin, &randomized_coin, &mut client_transcript);
+        assert!(MacProof::verify(&mut mint_privkey, &randomized_coin, None, proof, &mut mint_transcript));
     }
 }
