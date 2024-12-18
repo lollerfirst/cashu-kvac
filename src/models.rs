@@ -180,33 +180,6 @@ impl MAC {
     }
 }
 
-/// Contains the amount and script commitments
-/// for a `Coin` which has not yet been signed by the Mint
-pub struct UnsignedCoin {
-    pub amount_commitment: GroupElement,
-    pub script_commitment: Option<GroupElement>,
-}
-
-impl UnsignedCoin {
-    pub fn from_attributes(
-        mut amount_attribute: AmountAttribute,
-        script_attribute: Option<ScriptAttribute>
-    ) -> Self {
-
-        if let Some( mut script_attr) = script_attribute {
-            UnsignedCoin {
-                amount_commitment: amount_attribute.commitment(),
-                script_commitment: Some(script_attr.commitment())
-            }
-        } else {
-            UnsignedCoin {
-                amount_commitment: amount_attribute.commitment(),
-                script_commitment: None,
-            }
-        }
-    }
-}
-
 /// Spendable coin.
 /// Contains `AmountAttribute`, `ScriptAttribute`
 /// and the `MAC` approval by the Mint. 

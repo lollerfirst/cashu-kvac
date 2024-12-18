@@ -1,5 +1,5 @@
 use crate::generators::{hash_to_curve, GENERATORS};
-use crate::models::{AmountAttribute, Coin, Equation, MintPrivateKey, RandomizedCoin, Statement, UnsignedCoin, ZKP};
+use crate::models::{AmountAttribute, Coin, Equation, MintPrivateKey, RandomizedCoin, Statement, ZKP};
 use crate::transcript::CashuTranscript;
 use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
@@ -334,16 +334,16 @@ impl BalanceProof {
     }
 
     pub fn new(
-        inputs: Vec<&Coin>,
-        outputs: Vec<&Coin>,
+        inputs: &Vec<AmountAttribute>,
+        outputs: &Vec<AmountAttribute>,
         transcript: &mut CashuTranscript) -> ZKP {
         let mut r_sum = Scalar::new(&SCALAR_ZERO);
         for input in inputs.into_iter() {
-            r_sum = r_sum + &input.amount_attribute.r;
+            r_sum = r_sum + &input.r;
         }
         let mut r_sum_ = Scalar::new(&SCALAR_ZERO);
         for output in outputs.into_iter() {
-            r_sum_ = r_sum_ + &output.amount_attribute.r;
+            r_sum_ = r_sum_ + &output.r;
         }
         let delta_r = (-r_sum_) + r_sum.as_ref();
         let B = GENERATORS.Gz_attribute.clone() * r_sum.as_ref() + (
@@ -356,8 +356,8 @@ impl BalanceProof {
     }
 
     pub fn verify(
-        inputs: Vec<&RandomizedCoin>,
-        outputs: Vec<&UnsignedCoin>,
+        inputs: &Vec<RandomizedCoin>,
+        outputs: &Vec<GroupElement>,
         delta_amount: i64,
         proof: ZKP,
         transcript: &mut CashuTranscript
@@ -367,11 +367,11 @@ impl BalanceProof {
         if delta_amount >= 0 {
             B.negate();
         }
-        for input in inputs.into_iter() {
+        for input in inputs.iter() {
             B = B + input.Ca.as_ref();
         }
-        for output in outputs.into_iter() {
-            B = B - output.amount_commitment.as_ref();
+        for output in outputs.iter() {
+            B = B - output.as_ref();
         }
         let statement = BalanceProof::statement(B);
         SchnorrVerifier::new(transcript, proof)
@@ -386,7 +386,7 @@ mod tests{
 
     use crate::{errors::Error, generators::{hash_to_curve, GENERATORS}, models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, MAC}, secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO}, transcript::CashuTranscript};
 
-    use super::{BootstrapProof, IParamsProof, MacProof};
+    use super::{BalanceProof, BootstrapProof, IParamsProof, MacProof};
 
     fn transcripts() -> (CashuTranscript, CashuTranscript) {
         let mint_transcript = CashuTranscript::new();
@@ -487,5 +487,49 @@ mod tests{
         let randomized_coin = generate_custom_rand(&mut coin).expect("Expected a randomized coin");
         let proof = MacProof::new(mint_privkey.pubkey(), &coin, &randomized_coin, &mut client_transcript);
         assert!(!MacProof::verify(&mut mint_privkey, &randomized_coin, None, proof, &mut mint_transcript));
+    }
+
+    #[test]
+    fn test_balance() {
+        let (mut mint_transcript, mut client_transcript) = transcripts();
+        let privkey = privkey();
+        let mut inputs = vec![AmountAttribute::new(12, None), AmountAttribute::new(11, None)];
+        let outputs = vec![AmountAttribute::new(23, None)];
+        // We assume the inputs were already attributed a MAC previously
+        let macs: Vec<MAC> = inputs
+            .iter_mut()
+            .map(|input| MAC::generate(&privkey, &input.commitment(), None, None).expect("MAC expected"))
+            .collect();
+        let proof = BalanceProof::new(&inputs, &outputs, &mut client_transcript);
+        let mut coins: Vec<Coin> = macs.into_iter().zip(inputs.into_iter())
+            .map(|(mac, input)| Coin::new(input, None, mac))
+            .collect();
+        let randomized_coins: Vec<RandomizedCoin> = coins.iter_mut()
+            .map(|coin| RandomizedCoin::from_coin(coin, false).expect("RandomzedCoin expected"))
+            .collect();
+        let outputs: Vec<GroupElement> = outputs.into_iter().map(|mut output| output.commitment()).collect();
+        assert!(BalanceProof::verify(&randomized_coins, &outputs, 0, proof, &mut mint_transcript));
+    }
+
+    #[test]
+    fn test_wrong_balance() {
+        let (mut mint_transcript, mut client_transcript) = transcripts();
+        let privkey = privkey();
+        let mut inputs = vec![AmountAttribute::new(12, None), AmountAttribute::new(11, None)];
+        let outputs = vec![AmountAttribute::new(23, None)];
+        // We assume the inputs were already attributed a MAC previously
+        let macs: Vec<MAC> = inputs
+            .iter_mut()
+            .map(|input| MAC::generate(&privkey, &input.commitment(), None, None).expect("MAC expected"))
+            .collect();
+        let proof = BalanceProof::new(&inputs, &outputs, &mut client_transcript);
+        let mut coins: Vec<Coin> = macs.into_iter().zip(inputs.into_iter())
+            .map(|(mac, input)| Coin::new(input, None, mac))
+            .collect();
+        let randomized_coins: Vec<RandomizedCoin> = coins.iter_mut()
+            .map(|coin| RandomizedCoin::from_coin(coin, false).expect("RandomzedCoin expected"))
+            .collect();
+        let outputs: Vec<GroupElement> = outputs.into_iter().map(|mut output| output.commitment()).collect();
+        assert!(!BalanceProof::verify(&randomized_coins, &outputs, 1, proof, &mut mint_transcript));
     }
 }
