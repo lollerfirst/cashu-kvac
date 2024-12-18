@@ -7,8 +7,7 @@ Experimental implementation of the core crypto behind an anonymous credentials e
 * The Signal Private Group System and Anonymous Credentials Supporting Efficient Verifiable Encryption: https://eprint.iacr.org/2019/1416
 
 ### KVAC for Cashu:
-* Definitions and Protocol explaination (WIP): https://gist.github.com/lollerfirst/82644d9ef47cef15508054b9431b123b
-* Gist about steps to take (by nothingmuch): https://gist.github.com/nothingmuch/08bac12fcb58417e71b762721e77a71c
+* Definitions and Protocol explaination (WIP): [HERE](protocol_explanation.md)
 
 ### Extras
 * Deterministic Recovery: read `deterministic_recovery.md`
