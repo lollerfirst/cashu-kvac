@@ -14,14 +14,29 @@ pub struct MintPrivateKey {
     pub ys: Scalar,
 
     // Public parameters
-    pub Cw: Option<GroupElement>,
-    pub I: Option<GroupElement>
+    pub Cw: GroupElement,
+    pub I: GroupElement
 }
 
+#[allow(non_snake_case)]
 impl MintPrivateKey {
 
     pub fn from_scalars(scalars: &[Scalar; 6]) -> Self {
         let [w, w_, x0, x1, ya, ys] = scalars;
+        let Cw = GENERATORS.W.clone()*w + &(GENERATORS.W_.clone()*w_);
+        let I = 
+            GENERATORS.Gz_mac.clone() - &(
+                GENERATORS.X0.clone()*x0
+                + &(
+                    GENERATORS.X1.clone()*x1
+                    + &(
+                        GENERATORS.Gz_attribute.clone()*ya
+                        + &(
+                            GENERATORS.Gz_script.clone()*ys
+                        )
+                    ) 
+                ) 
+            );
         MintPrivateKey {
             w: w.clone(),
             w_: w_.clone(),
@@ -29,8 +44,8 @@ impl MintPrivateKey {
             x1: x1.clone(),
             ya: ya.clone(),
             ys: ys.clone(),
-            Cw: None,
-            I: None,
+            Cw,
+            I,
         }
     }
 
@@ -38,30 +53,8 @@ impl MintPrivateKey {
         vec![self.w.clone(), self.w_.clone(), self.x0.clone(), self.x1.clone(), self.ya.clone(), self.ys.clone()]
     }
 
-    pub fn pubkey(&mut self) -> (GroupElement, GroupElement) {
-        if !self.Cw.is_some() {
-            self.Cw = Some(GENERATORS.W.clone()*&self.w + &(GENERATORS.W_.clone()*&self.w_));
-        }
-        if !self.I.is_some() {
-            self.I = Some(
-                GENERATORS.Gz_mac.clone() - &(
-                    GENERATORS.X0.clone()*&self.x0
-                    + &(
-                        GENERATORS.X1.clone()*&self.x1
-                        + &(
-                            GENERATORS.Gz_attribute.clone()*&self.ya
-                            + &(
-                                GENERATORS.Gz_script.clone()*&self.ys
-                            )
-                        ) 
-                    ) 
-                )
-            );
-        }
-        (
-            self.Cw.as_ref().expect("Expected Cw").clone(),
-            self.I.as_ref().expect("Expected I").clone(),
-        )
+    pub fn pubkey(&self) -> (&GroupElement, &GroupElement) {
+        (self.Cw.as_ref(), self.I.as_ref())
     }
 }
 
@@ -75,32 +68,30 @@ pub struct ZKP {
 pub struct ScriptAttribute {
     pub r: Scalar,
     pub s: Scalar,
-    Ms: Option<GroupElement>,
+    Ms: GroupElement,
 }
 
+#[allow(non_snake_case)]
 impl ScriptAttribute {
     pub fn new(script: &[u8], blinding_factor: Option<&[u8; 32]>) -> Self {
         let s = Scalar::new(&Sha256Hash::hash(&script).to_byte_array());
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
-
-            ScriptAttribute { r: r, s: s, Ms: None }
+            let Ms = GENERATORS.G_script.clone() * &s + &(
+                GENERATORS.G_blind.clone() * &r
+            );
+            ScriptAttribute { r, s, Ms }
         } else {
             let r = Scalar::random();
-
-            ScriptAttribute { r: r, s: s, Ms: None }
+            let Ms = GENERATORS.G_script.clone() * &s + &(
+                GENERATORS.G_blind.clone() * &r
+            );
+            ScriptAttribute { r, s, Ms }
         }
     }
 
-    pub fn commitment(&mut self) -> GroupElement {
-        if !self.Ms.is_some() {
-            self.Ms = Some(
-                GENERATORS.G_script.clone() * &self.s + &(
-                    GENERATORS.G_blind.clone() * &self.r
-                )
-            )
-        }
-        self.Ms.as_ref().expect("Couldn't get ScriptAttribute Commitment").clone()
+    pub fn commitment(&self) -> &GroupElement {
+        self.Ms.as_ref()
     }
 }
 
@@ -108,32 +99,30 @@ impl ScriptAttribute {
 pub struct AmountAttribute {
     pub a: Scalar,
     pub r: Scalar,
-    Ma: Option<GroupElement>,
+    Ma: GroupElement,
 }
 
+#[allow(non_snake_case)]
 impl AmountAttribute {
     pub fn new(amount: u64, blinding_factor: Option<&[u8; 32]>) -> Self {
         let a = Scalar::from(amount);
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
-
-            AmountAttribute { r: r, a: a, Ma: None }
+            let Ma = GENERATORS.G_amount.clone() * &a + &(
+                    GENERATORS.G_blind.clone() * &r
+            );
+            AmountAttribute { r, a, Ma }
         } else {
             let r = Scalar::random();
-
-            AmountAttribute { r: r, a: a, Ma: None }
+            let Ma = GENERATORS.G_amount.clone() * &a + &(
+                GENERATORS.G_blind.clone() * &r
+            );
+            AmountAttribute { r, a, Ma }
         }
     }
 
-    pub fn commitment(&mut self) -> GroupElement{
-        if !self.Ma.is_some() {
-            self.Ma = Some(
-                GENERATORS.G_amount.clone() * &self.a + &(
-                    GENERATORS.G_blind.clone() * &self.r
-                )
-            )
-        }
-        self.Ma.as_ref().expect("Couldn't get ScriptAttribute Commitment").clone()
+    pub fn commitment(&self) -> &GroupElement {
+        self.Ma.as_ref()
     }
 }
 
@@ -218,7 +207,7 @@ pub struct RandomizedCoin {
 impl RandomizedCoin {
     #[allow(non_snake_case)]
     pub fn from_coin(
-        coin: &mut Coin,
+        coin: &Coin,
         reveal_script: bool,
     ) -> Result<Self, Error> {
         let t = coin.mac.t.clone();
@@ -228,11 +217,11 @@ impl RandomizedCoin {
         let Ma = coin.amount_attribute.commitment();
         let r = &coin.amount_attribute.r;
         let Ms: GroupElement;
-        if let Some(attr) = &mut coin.script_attribute {
+        if let Some(attr) = &coin.script_attribute {
             if reveal_script {
-                Ms = GENERATORS.G_blind.clone() * &attr.r;
+                Ms = GENERATORS.G_blind.clone() * attr.r.as_ref();
             } else {
-                Ms = attr.commitment();
+                Ms = attr.commitment().clone();
             }
         } else {
             Ms = GroupElement::new(&GROUP_ELEMENT_ZERO);

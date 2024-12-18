@@ -181,7 +181,7 @@ impl MacProof {
     }
 
     pub fn new(
-        mint_publickey: (GroupElement, GroupElement),
+        mint_publickey: (&GroupElement, &GroupElement),
         coin: &Coin,
         randomized_coin: &RandomizedCoin,
         transcript: &mut CashuTranscript,
@@ -192,7 +192,7 @@ impl MacProof {
         let r0 = -r_a.clone()*t.as_ref();
         let (_Cw, I) = mint_publickey;
         let Z = I.clone() * &coin.amount_attribute.r;
-        let statement = MacProof::statement(Z, I, randomized_coin);
+        let statement = MacProof::statement(Z, I.clone(), randomized_coin);
         SchnorrProver::new(
             transcript,
             vec![
@@ -202,7 +202,7 @@ impl MacProof {
     }
 
     pub fn verify(
-        mint_privkey: &mut MintPrivateKey,
+        mint_privkey: &MintPrivateKey,
         randomized_coin: &RandomizedCoin,
         script: Option<&[u8]>,
         proof: ZKP,
@@ -239,7 +239,7 @@ impl MacProof {
             )
         );
         let (_Cw, I) = mint_privkey.pubkey();
-        let statement = MacProof::statement(Z, I, randomized_coin);
+        let statement = MacProof::statement(Z, I.clone(), randomized_coin);
         SchnorrVerifier::new(transcript, proof)
             .add_statement(statement)
             .verify()
@@ -251,27 +251,27 @@ pub struct IParamsProof;
 #[allow(non_snake_case)]
 impl IParamsProof {
 
-    pub fn statement(mint_publickey: (GroupElement, GroupElement), coin: &mut Coin) -> Statement {
+    pub fn statement(mint_publickey: (&GroupElement, &GroupElement), coin: &Coin) -> Statement {
         let O = GroupElement::new(&GROUP_ELEMENT_ZERO);
         let t_tag_bytes: [u8; 32] = coin.mac.t.as_ref().into();
         let t = coin.mac.t.as_ref();
         let U = hash_to_curve(&t_tag_bytes).expect("Couldn't get map MAC tag to GroupElement");
         let V = coin.mac.V.clone();
         let (Cw, I) = mint_publickey;
-        let Ma = coin.amount_attribute.commitment();
+        let Ma = coin.amount_attribute.commitment().clone();
         let mut Ms = O.clone();
-        if let Some(scr_attr) = &mut coin.script_attribute {
-            Ms = scr_attr.commitment();
+        if let Some(scr_attr) = &coin.script_attribute {
+            Ms = scr_attr.commitment().clone();
         }
         Statement {
             domain_separator: b"Iparams_Statement_",
             equations: vec![
                 Equation {          // Cw = w*W  + w_*W_
-                    lhs: Cw,
+                    lhs: Cw.clone(),
                     rhs: vec![vec![GENERATORS.W.clone(), GENERATORS.W_.clone()]]
                 },
                 Equation {          // I = Gz_mac - x0*X0 - x1*X1 - ya*Gz_attribute - ys*Gz_script
-                    lhs: I - &GENERATORS.Gz_mac,
+                    lhs: I.clone() - &GENERATORS.Gz_mac,
                     rhs: vec![vec![
                         O.clone(),
                         O.clone(),
@@ -305,8 +305,8 @@ impl IParamsProof {
     }
 
     pub fn verify(
-        mint_publickey: (GroupElement, GroupElement),
-        coin: &mut Coin,
+        mint_publickey: (&GroupElement, &GroupElement),
+        coin: &Coin,
         proof: ZKP,
         transcript: &mut CashuTranscript,
     ) -> bool {
@@ -436,7 +436,7 @@ impl ScriptEqualityProof {
     pub fn new(
         inputs: &Vec<Coin>,
         randomized_inputs: &Vec<RandomizedCoin>,
-        outputs: &mut Vec<(AmountAttribute, ScriptAttribute)>,
+        outputs: &Vec<(AmountAttribute, ScriptAttribute)>,
         transcript: &mut CashuTranscript,
     ) -> Result<ZKP, Error> {
         if inputs.is_empty() ||
@@ -446,8 +446,8 @@ impl ScriptEqualityProof {
                 return Err(Error::EmptyList);
             }
         let commitments: Vec<(GroupElement, GroupElement)> = outputs
-            .iter_mut()
-            .map(|(aa, sa)| (aa.commitment(), sa.commitment()))
+            .iter()
+            .map(|(aa, sa)| (aa.commitment().clone(), sa.commitment().clone()))
             .collect();
         let statement = ScriptEqualityProof::statement(randomized_inputs, &commitments);
         let s = inputs[0].script_attribute.as_ref().ok_or(Error::NoScriptProvided)?.s.clone();
@@ -494,9 +494,9 @@ impl ScriptEqualityProof {
 #[cfg(test)]
 mod tests{
 
-    use crate::{errors::Error, generators::{hash_to_curve, GENERATORS}, models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, MAC}, secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO}, transcript::CashuTranscript};
+    use crate::{errors::Error, generators::{hash_to_curve, GENERATORS}, models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, ScriptAttribute, MAC}, secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO}, transcript::CashuTranscript};
 
-    use super::{BalanceProof, BootstrapProof, IParamsProof, MacProof};
+    use super::{BalanceProof, BootstrapProof, IParamsProof, MacProof, ScriptEqualityProof};
 
     fn transcripts() -> (CashuTranscript, CashuTranscript) {
         let mint_transcript = CashuTranscript::new();
@@ -536,7 +536,7 @@ mod tests{
     fn test_iparams() {
         let (mut mint_transcript, mut client_transcript) = transcripts();
         let mut mint_privkey = privkey();
-        let mut amount_attr = AmountAttribute::new(12, None);
+        let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None).expect("Couldn't generate MAC");
         let mut coin = Coin::new(amount_attr, None, mac);
         let proof = IParamsProof::new(&mut mint_privkey, &mut coin, &mut client_transcript);
@@ -547,8 +547,8 @@ mod tests{
     fn test_wrong_iparams() {
         let (mut mint_transcript, mut client_transcript) = transcripts();
         let mut mint_privkey = privkey();
-        let mut mint_privkey_1 = privkey();
-        let mut amount_attr = AmountAttribute::new(12, None);
+        let mint_privkey_1 = privkey();
+        let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None).expect("Couldn't generate MAC");
         let mut coin = Coin::new(amount_attr, None, mac);
         let proof = IParamsProof::new(&mut mint_privkey, &mut coin, &mut client_transcript);
@@ -558,19 +558,19 @@ mod tests{
     #[test]
     fn test_mac() {
         let (mut mint_transcript, mut client_transcript) = transcripts();
-        let mut mint_privkey = privkey();
-        let mut amount_attr = AmountAttribute::new(12, None);
+        let mint_privkey = privkey();
+        let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None).expect("Couldn't generate MAC");
-        let mut coin = Coin::new(amount_attr, None, mac);
-        let randomized_coin = RandomizedCoin::from_coin(&mut coin, false).expect("Expected a randomized coin");
+        let coin = Coin::new(amount_attr, None, mac);
+        let randomized_coin = RandomizedCoin::from_coin(&coin, false).expect("Expected a randomized coin");
         let proof = MacProof::new(mint_privkey.pubkey(), &coin, &randomized_coin, &mut client_transcript);
-        assert!(MacProof::verify(&mut mint_privkey, &randomized_coin, None, proof, &mut mint_transcript));
+        assert!(MacProof::verify(&mint_privkey, &randomized_coin, None, proof, &mut mint_transcript));
     }
 
     #[test]
     fn test_wrong_mac() {
         #[allow(non_snake_case)]
-        fn generate_custom_rand(coin: &mut Coin) -> Result<RandomizedCoin, Error> {
+        fn generate_custom_rand(coin: &Coin) -> Result<RandomizedCoin, Error> {
             let t = coin.mac.t.clone();
             let V = coin.mac.V.as_ref();
             let t_bytes: [u8; 32] = (&coin.mac.t).into();
@@ -580,7 +580,7 @@ mod tests{
             let z = Scalar::random();
             let Ms: GroupElement = GroupElement::new(&GROUP_ELEMENT_ZERO);
 
-            let Ca = GENERATORS.Gz_attribute.clone() * z.as_ref() + &Ma;
+            let Ca = GENERATORS.Gz_attribute.clone() * z.as_ref() + Ma;
             let Cs = GENERATORS.Gz_script.clone() * z.as_ref() + &Ms;
             let Cx0 = GENERATORS.X0.clone() * z.as_ref() + &U;
             let Cx1 = GENERATORS.X1.clone() * z.as_ref() + &(U * &t);
@@ -591,7 +591,7 @@ mod tests{
 
         let (mut mint_transcript, mut client_transcript) = transcripts();
         let mut mint_privkey = privkey();
-        let mut amount_attr = AmountAttribute::new(12, None);
+        let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None).expect("Couldn't generate MAC");
         let mut coin = Coin::new(amount_attr, None, mac);
         let randomized_coin = generate_custom_rand(&mut coin).expect("Expected a randomized coin");
@@ -603,12 +603,12 @@ mod tests{
     fn test_balance() {
         let (mut mint_transcript, mut client_transcript) = transcripts();
         let privkey = privkey();
-        let mut inputs = vec![AmountAttribute::new(12, None), AmountAttribute::new(11, None)];
+        let inputs = vec![AmountAttribute::new(12, None), AmountAttribute::new(11, None)];
         let outputs = vec![AmountAttribute::new(23, None)];
         // We assume the inputs were already attributed a MAC previously
         let macs: Vec<MAC> = inputs
-            .iter_mut()
-            .map(|input| MAC::generate(&privkey, &input.commitment(), None, None).expect("MAC expected"))
+            .iter()
+            .map(|input| MAC::generate(&privkey, input.commitment(), None, None).expect("MAC expected"))
             .collect();
         let proof = BalanceProof::new(&inputs, &outputs, &mut client_transcript);
         let mut coins: Vec<Coin> = macs.into_iter().zip(inputs.into_iter())
@@ -617,7 +617,7 @@ mod tests{
         let randomized_coins: Vec<RandomizedCoin> = coins.iter_mut()
             .map(|coin| RandomizedCoin::from_coin(coin, false).expect("RandomzedCoin expected"))
             .collect();
-        let outputs: Vec<GroupElement> = outputs.into_iter().map(|mut output| output.commitment()).collect();
+        let outputs: Vec<GroupElement> = outputs.into_iter().map(|output| output.commitment().clone()).collect();
         assert!(BalanceProof::verify(&randomized_coins, &outputs, 0, proof, &mut mint_transcript));
     }
 
@@ -639,7 +639,85 @@ mod tests{
         let randomized_coins: Vec<RandomizedCoin> = coins.iter_mut()
             .map(|coin| RandomizedCoin::from_coin(coin, false).expect("RandomzedCoin expected"))
             .collect();
-        let outputs: Vec<GroupElement> = outputs.into_iter().map(|mut output| output.commitment()).collect();
+        let outputs: Vec<GroupElement> = outputs.into_iter().map(|output| output.commitment().clone()).collect();
         assert!(!BalanceProof::verify(&randomized_coins, &outputs, 1, proof, &mut mint_transcript));
+    }
+
+    #[test]
+    fn test_script_equality() {
+        let (mut mint_transcript, mut client_transcript) = transcripts();
+        let script = b"testscript";
+        let privkey = privkey();
+        let inputs =  vec![
+            (AmountAttribute::new(12, None), ScriptAttribute::new(script, None)),
+            (AmountAttribute::new(11, None), ScriptAttribute::new(script, None))
+        ];
+        let outputs = vec![
+            (AmountAttribute::new(6, None), ScriptAttribute::new(script, None)),
+            (AmountAttribute::new(11, None), ScriptAttribute::new(script, None)),
+            (AmountAttribute::new(12, None), ScriptAttribute::new(script, None)),
+        ];
+        let macs: Vec<MAC> = inputs
+            .iter()
+            .map(|(amount_attr, script_attr)|
+                MAC::generate(&privkey, &amount_attr.commitment(), Some(&script_attr.commitment()), None).expect(""))
+            .collect();
+        let coins: Vec<Coin> = inputs.into_iter().zip(macs.into_iter())
+            .map(|((aa, sa), mac)| Coin::new(aa, Some(sa), mac))
+            .collect();
+        let randomized_coins: Vec<RandomizedCoin> = coins
+            .iter()
+            .map(|coin| RandomizedCoin::from_coin(coin, false).expect(""))
+            .collect();
+        let proof = ScriptEqualityProof::new(
+            &coins,
+            &randomized_coins,
+            &outputs,
+            client_transcript.as_mut(),
+        ).expect("");
+        let outputs  = outputs
+            .into_iter()
+            .map(|(aa, sa)| (aa.commitment().clone(), sa.commitment().clone()))
+            .collect();
+        assert!(ScriptEqualityProof::verify(&randomized_coins, &outputs, proof, mint_transcript.as_mut()))
+    }
+
+    #[test]
+    fn test_script_inequality() {
+        let (mut mint_transcript, mut client_transcript) = transcripts();
+        let script = b"testscript";
+        let privkey = privkey();
+        let inputs =  vec![
+            (AmountAttribute::new(12, None), ScriptAttribute::new(script, None)),
+            (AmountAttribute::new(11, None), ScriptAttribute::new(script, None))
+        ];
+        let outputs = vec![
+            (AmountAttribute::new(6, None), ScriptAttribute::new(b"testscript_", None)),
+            (AmountAttribute::new(11, None), ScriptAttribute::new(script, None)),
+            (AmountAttribute::new(12, None), ScriptAttribute::new(script, None)),
+        ];
+        let macs: Vec<MAC> = inputs
+            .iter()
+            .map(|(amount_attr, script_attr)|
+                MAC::generate(&privkey, &amount_attr.commitment(), Some(&script_attr.commitment()), None).expect(""))
+            .collect();
+        let coins: Vec<Coin> = inputs.into_iter().zip(macs.into_iter())
+            .map(|((aa, sa), mac)| Coin::new(aa, Some(sa), mac))
+            .collect();
+        let randomized_coins: Vec<RandomizedCoin> = coins
+            .iter()
+            .map(|coin| RandomizedCoin::from_coin(coin, false).expect(""))
+            .collect();
+        let proof = ScriptEqualityProof::new(
+            &coins,
+            &randomized_coins,
+            &outputs,
+            client_transcript.as_mut(),
+        ).expect("");
+        let outputs  = outputs
+            .into_iter()
+            .map(|(aa, sa)| (aa.commitment().clone(), sa.commitment().clone()))
+            .collect();
+        assert!(!ScriptEqualityProof::verify(&randomized_coins, &outputs, proof, mint_transcript.as_mut()))
     }
 }
