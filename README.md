@@ -7,8 +7,7 @@ Experimental implementation of the core crypto behind an anonymous credentials e
 * The Signal Private Group System and Anonymous Credentials Supporting Efficient Verifiable Encryption: https://eprint.iacr.org/2019/1416
 
 ### KVAC for Cashu:
-* Definitions and Protocol explaination (WIP): https://gist.github.com/lollerfirst/82644d9ef47cef15508054b9431b123b
-* Gist about steps to take (by nothingmuch): https://gist.github.com/nothingmuch/08bac12fcb58417e71b762721e77a71c
+* Definitions and Protocol explaination (WIP): [HERE](protocol_explanation.md)
 
 ### Extras
 * Deterministic Recovery: read `deterministic_recovery.md`
@@ -19,5 +18,4 @@ Experimental implementation of the core crypto behind an anonymous credentials e
   - $C_a$ becomes the serial
 
 ### Range proofs:
-Range proofs will be implemented as [BULLETPROOFS](https://eprint.iacr.org/2017/1066.pdf).
-In this repo there is also the folklore/naive implementation as a Schnorr proof ([here](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/kvac.py#L679))
+Range proofs are implemented as [BULLETPROOFS](https://eprint.iacr.org/2017/1066.pdf).
