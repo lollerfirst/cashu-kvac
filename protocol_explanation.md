@@ -353,7 +353,8 @@ The client also generates the following ZK-proofs:
 - $\pi_\text{script}$: Ensures all **new** `ScriptAttribute`s encode the same script hash $s$ as the **old** `RandomizedCredential`s. [(81)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L81).
 
 The client sends:
-- (**old** `RandomizedCoin`s, **new** `AmountAttribute`/`ScriptAttribute` pairs)   
+- **old** `RandomizedCoin`s
+- **new** (`AmountAttribute`/`ScriptAttribute`) pairs' **COMMITMENTS** (not the secret values)   
 - All proofs.
 
 The Mint then [(89-105)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L89):
