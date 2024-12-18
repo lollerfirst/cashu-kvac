@@ -3,6 +3,10 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("No script in this was found")]
+    NoScriptProvided,
+    #[error("Cannot create proofs of empty")]
+    EmptyList,
     #[error("Cannot instantiate SchnorrProver")]
     InvalidConfiguration,
     #[error("Cannot map hash to a valid point on the curve")]

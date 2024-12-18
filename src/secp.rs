@@ -25,6 +25,7 @@ pub struct Scalar {
     is_zero: bool,
 }
 
+#[derive(Clone)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
     is_zero: bool,

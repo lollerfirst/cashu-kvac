@@ -1,5 +1,6 @@
+use crate::errors::Error;
 use crate::generators::{hash_to_curve, GENERATORS};
-use crate::models::{AmountAttribute, Coin, Equation, MintPrivateKey, RandomizedCoin, Statement, ZKP};
+use crate::models::{AmountAttribute, Coin, Equation, MintPrivateKey, RandomizedCoin, ScriptAttribute, Statement, ZKP};
 use crate::transcript::CashuTranscript;
 use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
@@ -280,7 +281,7 @@ impl IParamsProof {
                         -GENERATORS.Gz_script.clone(),
                     ]]
                 },
-                Equation {         // V = w*W + x0*U + x1*t*U + ya*Ma + ys*Ms
+                Equation {          // V = w*W + x0*U + x1*t*U + ya*Ma + ys*Ms
                     lhs: V,
                     rhs: vec![vec![
                         GENERATORS.W.clone(),
@@ -378,6 +379,115 @@ impl BalanceProof {
             .add_statement(statement)
             .verify()
         
+    }
+}
+
+
+pub struct ScriptEqualityProof;
+
+#[allow(non_snake_case)]
+impl ScriptEqualityProof {
+    pub fn statement(
+        inputs: &Vec<RandomizedCoin>,
+        outputs: &Vec<(GroupElement, GroupElement)>
+    ) -> Statement {
+        let O: GroupElement = GENERATORS.O.clone();
+        let mut equations: Vec<Equation> = Vec::new();
+
+        for (i, zcoin) in inputs.iter().enumerate() {
+            let construction = vec![
+                vec![GENERATORS.G_script.clone()],
+                vec![O.clone(); i],
+                vec![GENERATORS.Gz_script.clone()],
+                vec![O.clone(); inputs.len() - 1],
+                vec![GENERATORS.G_blind.clone()],
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+            equations.push(Equation {
+                lhs: zcoin.Cs.clone(),
+                rhs: vec![construction],
+            });
+        }
+        for (i, commitments) in outputs.iter().enumerate() {
+            let construction = vec![
+                vec![GENERATORS.G_script.clone()],
+                vec![O.clone(); 2*inputs.len()+i],
+                vec![GENERATORS.G_blind.clone()],
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+            
+            let (_Ma, Ms) = commitments;
+            equations.push(Equation {
+                lhs: Ms.clone(),
+                rhs: vec![construction],
+            });
+        }
+        Statement {
+            domain_separator: b"Script_Equality_Statement_",
+            equations,
+        }
+    }
+
+    pub fn new(
+        inputs: &Vec<Coin>,
+        randomized_inputs: &Vec<RandomizedCoin>,
+        outputs: &mut Vec<(AmountAttribute, ScriptAttribute)>,
+        transcript: &mut CashuTranscript,
+    ) -> Result<ZKP, Error> {
+        if inputs.is_empty() ||
+            randomized_inputs.is_empty() ||
+            outputs.is_empty()
+            {
+                return Err(Error::EmptyList);
+            }
+        let commitments: Vec<(GroupElement, GroupElement)> = outputs
+            .iter_mut()
+            .map(|(aa, sa)| (aa.commitment(), sa.commitment()))
+            .collect();
+        let statement = ScriptEqualityProof::statement(randomized_inputs, &commitments);
+        let s = inputs[0].script_attribute.as_ref().ok_or(Error::NoScriptProvided)?.s.clone();
+        let r_a_list = inputs
+            .iter()
+            .map(|coin| coin.amount_attribute.r.clone())
+            .collect();
+        let r_s_list = inputs
+            .iter()
+            .map(|coin| coin.script_attribute.as_ref().expect("Expected Script Attribute").r.clone())
+            .collect();
+        let new_r_s_list = outputs
+            .iter()
+            .map(|(_, script_attr)| script_attr.r.clone())
+            .collect();
+        Ok(SchnorrProver::new(
+            transcript,
+            vec![vec![s], r_a_list, r_s_list, new_r_s_list]
+                .into_iter()
+                .flatten()
+                .collect()
+            ).add_statement(statement).prove()
+        )
+    }
+
+    pub fn verify(
+        randomized_inputs: &Vec<RandomizedCoin>,
+        outputs: &Vec<(GroupElement, GroupElement)>,
+        proof: ZKP,
+        transcript: &mut CashuTranscript,
+    ) -> bool {
+        if randomized_inputs.is_empty() ||
+            outputs.is_empty()
+            {
+                return false;
+            }
+        let statement = ScriptEqualityProof::statement(randomized_inputs, outputs);
+        SchnorrVerifier::new(transcript, proof)
+            .add_statement(statement)
+            .verify()
     }
 }
 

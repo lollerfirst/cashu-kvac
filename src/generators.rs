@@ -1,5 +1,5 @@
 use crate::errors::Error;
-use crate::secp::GroupElement;
+use crate::secp::{GroupElement, GROUP_ELEMENT_ZERO};
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::PublicKey;
@@ -35,6 +35,9 @@ pub fn hash_to_curve(message: &[u8]) -> Result<GroupElement, Error> {
 
 #[allow(non_snake_case)]
 pub struct Generators {
+    // Point at infinity (ZERO)
+    pub O: GroupElement,
+
     pub W: GroupElement,
     pub W_: GroupElement,
     pub X0: GroupElement,
@@ -61,6 +64,7 @@ impl Generators {
         let g_blind = hash_to_curve(b"G_blind").expect("Failed to hash to curve");
 
         Generators {
+            O: GroupElement::new(&GROUP_ELEMENT_ZERO),
             W: w,
             W_: w_,
             X0: x0,
