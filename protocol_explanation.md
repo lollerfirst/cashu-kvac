@@ -110,7 +110,7 @@ We use the blinding term $r_a$ used for `AmountAttribute` and compute:
 * $C_{x_0} = r_aG_{x_0} + U$
 * $C_{x_1} = r_aG_{x_1} + tU$
 * $C_v = r_aG_\text{zmac} + V$, where $V$ is the `MAC` public point value
-* RandomizedCredentials: $(C_a, C_s, C_{x_0}, C_{x_1}, C_v)$
+* RandomizedCoin: $(C_a, C_s, C_{x_0}, C_{x_1}, C_v)$
 
 > [!NOTE]
 > $r_a$ is the only scalar that will produce a valid randomization.
