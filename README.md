@@ -18,5 +18,4 @@ Experimental implementation of the core crypto behind an anonymous credentials e
   - $C_a$ becomes the serial
 
 ### Range proofs:
-Range proofs will be implemented as [BULLETPROOFS](https://eprint.iacr.org/2017/1066.pdf).
-In this repo there is also the folklore/naive implementation as a Schnorr proof ([here](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/kvac.py#L679))
+Range proofs are implemented as [BULLETPROOFS](https://eprint.iacr.org/2017/1066.pdf).
