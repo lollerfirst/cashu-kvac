@@ -96,7 +96,7 @@ We consider the `MAC` together with `AmountAttribute` and `ScriptAttribute` to b
 \text{Coin} = ((r_a, a), (r_s, s), (t, V))
 ```
 
-### RandomizedCoin
+### RanomizedCoin
 > [RandomizedCoin](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/kvac.py#L472)
 
 Before being sent to the Mint, the coin is "randomized" to break the link to the issuance.
@@ -353,7 +353,8 @@ The client also generates the following ZK-proofs:
 - $\pi_\text{script}$: Ensures all **new** `ScriptAttribute`s encode the same script hash $s$ as the **old** `RandomizedCredential`s. [(81)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L81).
 
 The client sends:
-- (**old** `RandomizedCoin`s, **new** `AmountAttribute`/`ScriptAttribute` pairs)   
+- **old** `RandomizedCoin`s
+- **new** (`AmountAttribute`/`ScriptAttribute`) pairs' **COMMITMENTS** (not the secret values)   
 - All proofs.
 
 The Mint then [(89-105)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L89):
