@@ -4,3 +4,4 @@ pub mod models;
 pub mod secp;
 pub mod transcript;
 pub mod kvac;
+pub mod bulletproof;
