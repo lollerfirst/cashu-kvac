@@ -146,7 +146,7 @@ impl Scalar {
         }
     }
 
-    pub fn invert(&mut self) -> &Self {
+    pub fn invert(self) -> Self {
         if self.is_zero {
             panic!("Scalar 0 doesn't have an inverse")
         } else {
@@ -159,8 +159,7 @@ impl Scalar {
             //let x_inv = x.clone().invert(&q).unwrap();
             let vec = x_inv.to_digits(rug::integer::Order::Msf);
             let inner = SecretKey::from_slice(&vec).expect("Could not instantiate Scalar");
-            self.inner = Some(inner);
-            self
+            Scalar { inner: Some(inner), is_zero: false }
         }
     }
 }
@@ -641,8 +640,7 @@ mod tests {
     fn test_scalar_modular_inversion() {
         let one = Scalar::new(&SCALAR_ONE);
         let scalar = Scalar::from("deadbeef");
-        let mut scalar_inv = scalar.clone();
-        scalar_inv.invert();
+        let scalar_inv = scalar.clone().invert();
         let prod = scalar * &scalar_inv;
         assert!(one == prod);
     }

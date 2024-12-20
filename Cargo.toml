@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 bitcoin = { version= "0.32.2", features = ["base64", "serde", "rand", "rand-std"] }
 hex = "0.4.3"
+itertools = "0.13.0"
 merlin = "3.0.0"
 once_cell = "1.20.2"
 rug = "1.26.1"
