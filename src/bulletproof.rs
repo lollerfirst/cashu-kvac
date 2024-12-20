@@ -124,6 +124,8 @@ impl InnerProductArgument {
             let x_inv = x.clone().invert();
 
             // fold a and b
+            // TODO: Avoid cloning vector elements by iterating over an index and
+            // moving the elements out of the vectors
             let mut new_a: Vec<Scalar> = Vec::new();
             for (a_i, a_n_i) in izip!(a[..n].into_iter(), a[n..].into_iter()) {
                 new_a.push(a_i.clone() * &x + &(a_n_i.clone() * &x_inv));
@@ -137,6 +139,7 @@ impl InnerProductArgument {
             b = new_b;
 
             // fold generators
+            // TODO: Same here
             let mut new_G: Vec<GroupElement> = Vec::new();
             for (G_i, G_n_i) in izip!(G_[..n].into_iter(), G_[n..].into_iter()) {
                 new_G.push(G_i.clone() * &x_inv + &(G_n_i.clone() * &x));
