@@ -1,3 +1,4 @@
+use bitcoin::hashes::serde::Serialize;
 use bitcoin::secp256k1::constants::CURVE_ORDER;
 use bitcoin::secp256k1::{rand, All, PublicKey, Scalar as SecpScalar, Secp256k1, SecretKey};
 use once_cell::sync::Lazy;
@@ -19,7 +20,7 @@ pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(|| {
     ctx
 });
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct Scalar {
     inner: Option<SecretKey>,
     is_zero: bool,
@@ -95,10 +96,18 @@ impl Scalar {
     }
 
     pub fn clone(&self) -> Self {
-        Scalar {
-            inner: Some(self.inner.unwrap().clone()),
-            is_zero: self.is_zero,
+        if !self.is_zero {
+            Scalar {
+                inner: Some(self.inner.unwrap().clone()),
+                is_zero: self.is_zero,
+            }
+        } else {
+            Scalar {
+                inner: None,
+                is_zero: self.is_zero,
+            }
         }
+        
     }
 
     pub fn tweak_mul(&mut self, other: &Scalar) -> &Self {
