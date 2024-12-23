@@ -17,7 +17,7 @@ def hash_to_curve(message: bytes) -> GroupElement:
     raise ValueError("No valid point found")
 
 # Generators drawn with NUMS
-W, W_, X0, X1, Gz_mac, Gz_attribute, Gz_script, G_amount, G_script, G_blind, G_serial = (
+W, W_, X0, X1, Gz_mac, Gz_attribute, Gz_script, G_amount, G_script, G_blind = (
     hash_to_curve(b"W"),
     hash_to_curve(b"W_"),
     hash_to_curve(b"X0"),
@@ -28,8 +28,19 @@ W, W_, X0, X1, Gz_mac, Gz_attribute, Gz_script, G_amount, G_script, G_blind, G_s
     hash_to_curve(b"G_amount"),
     hash_to_curve(b"G_script"),
     hash_to_curve(b"G_blind"),
-    hash_to_curve(b"G_serial"),
 )
 
 # Point at infinity
 O = GroupElement(ELEMENT_ZERO)
+
+if __name__ == '__main__':
+    print(f"{W.serialize(True).hex() = }\n")
+    print(f"{W_.serialize(True).hex() = }\n")
+    print(f"{X0.serialize(True).hex() = }\n")
+    print(f"{X1.serialize(True).hex() = }\n")
+    print(f"{Gz_mac.serialize(True).hex() = }\n")
+    print(f"{Gz_attribute.serialize(True).hex() = }\n")
+    print(f"{Gz_script.serialize(True).hex() = }\n")
+    print(f"{G_amount.serialize(True).hex() = }\n")
+    print(f"{G_script.serialize(True).hex() = }\n")
+    print(f"{G_blind.serialize(True).hex() = }\n")
