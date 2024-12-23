@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use crate::{generators::{hash_to_curve, GENERATORS}, models::{AmountAttribute, ScriptAttribute}, secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ONE, SCALAR_ZERO}, transcript::CashuTranscript};
+use crate::{generators::{hash_to_curve, GENERATORS}, models::{AmountAttribute, ScriptAttribute}, secp::{GroupElement, Scalar, SCALAR_ONE, SCALAR_ZERO}, transcript::CashuTranscript};
 use itertools::izip;
 
 // Maximum allowed for a single attribute
@@ -412,7 +412,7 @@ impl BulletProof {
         for (l_x_i, G_i, r_x_i, H_i) in izip!(l_x.iter(), G_.clone().into_iter(), r_x.iter(), H_.clone().into_iter()) {
             P = P + &(G_i*l_x_i) + &(H_i*r_x_i);
         }
-        
+
         // Now instead of sending l and r we fold them and send logarithmically fewer commitments
         // We get the IPA for l, r.
         let ipa = InnerProductArgument::new(transcript, (G_, H_, U_), P, l_x, r_x);
