@@ -217,12 +217,10 @@ impl InnerProductArgument {
         G_aH_b + &(U_ * &(a*&b)) == P
     }
 }
-
+#[allow(unused_imports)]
 mod tests{
     use itertools::izip;
-
     use crate::{generators::GENERATORS, secp::Scalar, transcript::CashuTranscript};
-
     use super::{get_generators, inner_product, pad_zeros, InnerProductArgument};
 
     #[allow(non_snake_case)]
