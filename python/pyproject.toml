@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "cashu-kvac"
+version = "0.0.1"
+description = ""
+authors = ["lollerfirst <lollerfirst@gmail.com>"]
+license = "GPL"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+secp256k1 = "^0.14.0"
+bitcoinlib = "^0.7.0"
+cffi = "^1.17.1"
+setuptools = "^75.6.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+pyperf = "^2.8.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
