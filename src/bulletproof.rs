@@ -1,9 +1,12 @@
 use once_cell::sync::Lazy;
-use crate::{generators::{hash_to_curve, GENERATORS}, secp::{GroupElement, Scalar, SCALAR_ONE, SCALAR_ZERO}, transcript::CashuTranscript};
+use crate::{generators::{hash_to_curve, GENERATORS}, models::{AmountAttribute, ScriptAttribute}, secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ONE, SCALAR_ZERO}, transcript::CashuTranscript};
 use itertools::izip;
 
 // Maximum allowed for a single attribute
+pub const RANGE_LIMIT: usize = 1 << 32;
 pub const LOG_RANGE_LIMIT: usize = 32;
+
+static FORMATTED_LABEL: &[u8] = b"Com(V_{j})";
 
 pub static POWERS_OF_TWO: Lazy<Vec<Scalar>> = Lazy::new(|| {
     let mut result = Vec::new();
@@ -217,6 +220,208 @@ impl InnerProductArgument {
         G_aH_b + &(U_ * &(a*&b)) == P
     }
 }
+
+#[allow(non_snake_case)]
+pub struct BulletProof {
+    pub A: GroupElement,
+    pub S: GroupElement,
+    pub T1: GroupElement,
+    pub T2: GroupElement,
+    pub t_x: Scalar,
+    pub tau_x: Scalar,
+    pub mu: Scalar,
+    pub ipa: InnerProductArgument,
+}
+
+#[allow(non_snake_case)]
+impl BulletProof {
+    pub fn new(
+        transcript: &mut CashuTranscript,
+        attributes: &Vec<(AmountAttribute, ScriptAttribute)>,
+    ) -> Self {
+        // Domain separation
+        transcript.domain_sep(b"Bulletproof_Statement_");
+
+        let mut m = attributes.len();
+        let n = LOG_RANGE_LIMIT;
+
+        // Decompose attribute's amounts into bits.
+        let mut a_left = Vec::new();
+        let mut a_right = Vec::new();
+        for attribute_pair in attributes {
+            let amount: u64 = attribute_pair.0.a.as_ref().into();
+            for i in 0..n {
+                let bit = ((amount >> i) & 1) as u64;
+                a_left.push(Scalar::from(bit));
+                a_right.push(Scalar::from(1-bit));
+            }
+        }
+
+        // pad a_left and a_right to a len power of 2
+        println!("log_2(n*m) + 1 = {}", (n*m).ilog2() + 1);
+        let next_len_pow2: usize = 1 << ((n*m).ilog2() + 1);
+        if next_len_pow2.count_ones() != 1 {
+            a_left = pad_zeros(a_left, next_len_pow2);
+            a_right = pad_ones(a_right,next_len_pow2);
+            m = next_len_pow2 / n;
+        }
+
+        // Append Ma and bit-length to the transcript
+        for attribute_pair in attributes.iter() {
+            let amount_commitment = attribute_pair.0.commitment();
+            transcript.append_element(b"Com(V)_", amount_commitment);
+        }
+        transcript.append_element(b"Com(m)_", &hash_to_curve(&m.to_be_bytes()).expect("Couldn't map m length to GroupElement"));
+
+        // Get generators
+        let (G_, mut H_, U_) = get_generators(m*n);
+
+        // Compute Com(A)
+        let alpha = Scalar::random();
+        let mut A = GENERATORS.G_blind.clone() * &alpha;
+        for (a_l_i, G_i, a_r_i, H_i) in izip!(a_left.iter(), G_.clone().into_iter(), a_right.iter(), H_.clone().into_iter()) {
+            A = A + &(G_i * a_l_i + &(H_i * a_r_i));
+        }
+
+        // s_l and s_r are the bits commitment blinding vectors
+        let (s_l, s_r) = (vec![Scalar::random(); a_left.len()], vec![Scalar::random(); a_right.len()]);
+
+        // Compute Com(S)
+        let rho = Scalar::random();
+        let mut S = GENERATORS.G_blind.clone() * &rho;
+        for (s_l_i, G_i, s_r_i, H_i) in izip!(s_l.iter(), G_.clone().into_iter(), s_r.iter(), H_.clone().into_iter()) {
+            S = S + &(G_i * s_l_i + &(H_i * s_r_i));
+        }
+
+        // Prover -> Verifier: A, S
+        // Verifier -> Prover: y, z
+
+        // Append A and S to transcript
+        transcript.append_element(b"Com(A)_", &A);
+        transcript.append_element(b"Com(S)_", &S);
+
+        // Get y challenge
+        let y = transcript.get_challenge(b"y_chall_");
+
+        // Commit y
+        let y_bytes: [u8; 32] = y.as_ref().into(); 
+        transcript.append_element(b"Com(y)_", &hash_to_curve(&y_bytes).unwrap());
+
+        // Get z challenge
+        let z = transcript.get_challenge(b"z_chall_");
+
+        let mut z_list = vec![Scalar::new(&SCALAR_ONE)];
+        for _ in 1..(3+m) {
+            z_list.push(z.clone() * z_list.last().unwrap());
+        }
+
+        // Calculate ẟ(y, z)     Definition (between 71-72)
+        let p = z.clone() + &z_list[2]; 
+
+        let mut y_list = vec![Scalar::new(&SCALAR_ONE)];
+        for _ in 1..(n*m) {
+            y_list.push(y.clone() * y_list.last().unwrap());
+        }
+
+        let mut delta_y_z = Scalar::new(&SCALAR_ZERO);
+        for (i, y_i) in y_list.iter().enumerate() {
+            delta_y_z = delta_y_z + &(p.clone() * y_i + &(z_list[3].clone() * &z_list[i/n] * &POWERS_OF_TWO[i%n]));
+        }
+
+        // l(X) and r(X) linear vector polynomials   (70-71)
+        // (of degree 1)
+        let mut l: Vec<Vec<Scalar>> = vec![Vec::new(), Vec::new()];
+        let mut r: Vec<Vec<Scalar>> = vec![Vec::new(), Vec::new()];
+        for j in 0..m {
+            for i in 0..n {
+                l[0].push(a_left[j*n+i].clone() + &z);  // vector coefficient for X^0
+                l[1].push(s_l[j*n+i].clone());          // vector coefficient for X^1
+
+                r[0].push(
+                    y_list[j*n+i].clone() * &(a_right[j*n+i].clone() + &z) +
+                    &(z_list[2].clone() * &z_list[j] * &POWERS_OF_TWO[i])
+                );
+                r[1].push(y_list[j*n+i].clone() * &s_r[j*n+i])
+            }
+        }
+
+        // t(X) = <l(X), r(X)> = t_0 + t_1 * X + t_2 * X^2
+        
+        // Calculate constant term t_0       
+        let t_0 = inner_product(&l[0], &r[0]);
+
+        // Calculate coefficient t_1. From definition (1)
+        let t_1 = inner_product(&l[1], &r[0]) + &inner_product(&l[0], &r[1]);
+
+        // Calculate coefficient t_2. From definition (1)
+        let t_2 = inner_product(&l[1], &r[1]);
+
+        // Hide t_1, t_2 coefficients of t(x)
+        // into Pedersen commitments     (52-53)
+        let (tau_1, tau_2) = (Scalar::random(), Scalar::random());
+        let T1 = GENERATORS.G_amount.clone() * &t_1  + &(GENERATORS.G_blind.clone()  * &tau_1);
+        let T2 = GENERATORS.G_amount.clone() * &t_2 + &(GENERATORS.G_blind.clone() * &tau_2);
+
+        // Prover -> Verifier: T_1, T_2
+        // Verifier -> Prover: x
+
+        // Append T_1, T_2 to transcript
+        transcript.append_element(b"Com(T_1)_", &T1);
+        transcript.append_element(b"Com(T_2)_", &T2);
+
+        // Get challenge x (named x because used for evaluation of t(x))
+        let x = transcript.get_challenge(b"x_chall_");
+        let x_2 = x.clone()*&x;
+
+        // now evaluate t(x) at x    (58-60)
+        let mut l_x = Vec::new();
+        let l0 = std::mem::take(&mut l[0]);
+        let l1  = std::mem::take(&mut l[1]);
+        for (l_0, l_1) in izip!(l0.into_iter(), l1.into_iter()) {
+            l_x.push(l_0 + &(l_1 * &x));
+        }
+        let mut r_x = Vec::new();
+        let r0 = std::mem::take(&mut r[0]);
+        let r1 = std::mem::take(&mut r[1]);
+        for (r_0, r_1) in izip!(r0.into_iter(), r1.into_iter()) {
+            r_x.push(r_0 + &(r_1 * &x));
+        }
+        let t_x = inner_product(&l_x, &r_x);
+
+        // and compute tau_x (the blinding part of t_x)    (61)
+        let mut tau_0 = Scalar::new(&SCALAR_ZERO);
+        let z_2 = z_list[2].clone();
+        for (attribute_pair, z_j) in izip!(attributes.iter(), z_list.into_iter()) {
+            tau_0 = tau_0 + &(z_j * &attribute_pair.0.r);
+        }
+        tau_0 = tau_0 * &z_2;
+        let tau_x = tau_0 + &(tau_1 * &x) + &(tau_2 * &x_2);
+
+        // blinding factors for A, S     (62)
+        let mu = alpha + &(rho * &x);
+
+        // Switch generators H -> y^-n*H    (64)
+        let mut H_new = Vec::new();
+        for (y_i, H_i) in izip!(y_list.into_iter(), H_.into_iter()) {
+            H_new.push(H_i*&y_i.invert());
+        }
+        H_ = H_new;
+
+        // Compute commitment to l(x) and r(x): P = l(x)*G + r(x)*H'
+        let mut P = GENERATORS.O.clone();
+        for (l_x_i, G_i, r_x_i, H_i) in izip!(l_x.iter(), G_.clone().into_iter(), r_x.iter(), H_.clone().into_iter()) {
+            P = P + &(G_i*l_x_i) + &(H_i*r_x_i);
+        }
+
+        // Now instead of sending l and r we fold them and send logarithmically fewer commitments
+        // We get the IPA for l, r.
+        let ipa = InnerProductArgument::new(transcript, (G_, H_, U_), P, l_x, r_x);
+
+        // Prover -> Verifier: t_x, tau_x, mu, ipa
+        BulletProof {A, S, T1, T2, t_x, tau_x, mu, ipa}
+    }
+}
+
 #[allow(unused_imports)]
 mod tests{
     use itertools::izip;

@@ -235,7 +235,7 @@ class BulletProof:
         # Append Ma and bit-length to the transcript
         for j, V_j in enumerate(V):
             transcript.append(f"Com(V_{j})_".encode(), V_j)
-        transcript.append(b"Com(n)_", hash_to_curve(n.to_bytes(32, "big")))
+        transcript.append(b"Com(m)_", hash_to_curve(m.to_bytes(32, "big")))
 
         # Get generators
         G, H, U = get_generators(m*n)

@@ -326,6 +326,22 @@ impl Into<[u8; 32]> for &Scalar {
     }
 }
 
+impl Into<u64> for &Scalar {
+    fn into(self) -> u64 {
+        if self.is_zero {
+            0
+        } else {
+            let bytes: [u8; 32] = self.into();
+            let mut result: u64 = 0;
+            for i in 0..8 {
+                result <<= 8;
+                result |= bytes[24+i] as u64;
+            }
+            result
+        }
+    }
+}
+
 impl Into<String> for &Scalar {
     fn into(self) -> String {
         if self.is_zero {
