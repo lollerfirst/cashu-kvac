@@ -166,7 +166,11 @@ impl Scalar {
             let q = Integer::from_digits(&CURVE_ORDER, rug::integer::Order::Msf);
             let x_inv = modinv(&q, &x);
             //let x_inv = x.clone().invert(&q).unwrap();
-            let vec = x_inv.to_digits(rug::integer::Order::Msf);
+            let mut vec: Vec<u8> = x_inv.to_digits(rug::integer::Order::Lsf);
+            if vec.len() < 32 {
+                vec.extend(vec![0; 32 - vec.len()]);
+            }
+            vec.reverse();
             let inner = SecretKey::from_slice(&vec).expect("Could not instantiate Scalar");
             Scalar { inner: Some(inner), is_zero: false }
         }
