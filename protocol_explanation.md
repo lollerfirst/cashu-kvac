@@ -74,7 +74,7 @@ Composition:
 
 Equivalent to Cashu's `BlindedSignature`.
 
-The Mint generates this algebraic MAC using its secret parameters (`sk`) after verifying `RandomizedCredentials` (see section Protocol). This MAC binds the `AmountAttribute` and `ScriptAttribute` together, ensuring neither can be presented alone.
+The Mint generates this algebraic MAC using its secret parameters (`sk`) after verifying `RandomizedCoins` (see section Protocol). This MAC binds the `AmountAttribute` and `ScriptAttribute` together, ensuring neither can be presented alone.
 
 Here $t$ can be picked by both the Mint or the wallet. If the wallet picks it, they will have to send it together with the `AmountAttribute` (and possibly `ScriptAttribute`).
 
@@ -96,7 +96,7 @@ We consider the `MAC` together with `AmountAttribute` and `ScriptAttribute` to b
 \text{Coin} = ((r_a, a), (r_s, s), (t, V))
 ```
 
-### RanomizedCoin
+### RandomizedCoin
 > [RandomizedCoin](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/kvac.py#L472)
 
 Before being sent to the Mint, the coin is "randomized" to break the link to the issuance.
@@ -273,7 +273,7 @@ c' &\overset{?}= c
 
 This proof shows that `RandomizedCoin` was computed from a `Coin` for which a valid `MAC` was issued.
 
-The public inputs to this proof are the `RandomizedCredentials` $(C_a, C_s, C_{x_0}, C_{x_1}, C_v)$
+The public inputs to this proof are the `RandomizedCoin`s $(C_a, C_s, C_{x_0}, C_{x_1}, C_v)$
 
 $\pi_\text{MAC}$ proves 3 relations:
 1) $Z = r_aI$ where $r_a$ is the blinding factor from `AmountAttribute`.
@@ -308,7 +308,7 @@ B = \Delta_aG_\text{amount} + \sum_{i=0}^{n}\left(C_{a_i}-M_{a_i}\right)
 
 During any swap operation, a client has the option to reveal the `Coin`'s script commitment $M_s$ to the Mint, whenever this is present ([code](https://github.com/lollerfirst/cashu-kvac/blob/c6497c8e69da1e3df7dcc2705114fe7d68986f30/src/models.py#L215)). If the script is disclosed, the Mint can evaluate and execute it, determining whether to accept the transaction based on the script's outcome.
 
-However, if the client chooses **not** to reveal the script, they must instead prove that the script encoded in each of the **new** `ScriptAttribute`s matches the script encoded in the **old** `RandomizedCredential`s. This proof can be accomplished in an all-to-all manner using a batch discrete logarithm equivalence.
+However, if the client chooses **not** to reveal the script, they must instead prove that the script encoded in each of the **new** `ScriptAttribute`s matches the script encoded in the **old** `RandomizedCoin`s. This proof can be accomplished in an all-to-all manner using a batch discrete logarithm equivalence.
 
 $\pi_\text{script}$ proves $n+m$ relations, where $m$ is the number of **old** `RandomizedCoin`s provided and $n$ is the number of **new** `Coin`s:
 
@@ -349,8 +349,8 @@ When a client wants to swap `Coin`s, they:
 The client also generates the following ZK-proofs:
 - $\pi_\text{balance}$: Proves that the balance difference $\Delta_a$ (should equal $0$ or the fees) between old and new wallet balances is valid. Inputs: **old** and **new** `AmountAttribute`s [(78)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L78).
 - $\pi_\text{range}$: For each new `AmountAttribute`, proves the value is within the range $[0, L-1]$. [(69)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L69).
-- $\pi_\text{MAC}$: Proves that the provided `RandomizedCredential`s are valid and unspent. [(75)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L75)
-- $\pi_\text{script}$: Ensures all **new** `ScriptAttribute`s encode the same script hash $s$ as the **old** `RandomizedCredential`s. [(81)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L81).
+- $\pi_\text{MAC}$: Proves that the provided `RandomizedCoin`s are valid and unspent. [(75)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L75)
+- $\pi_\text{script}$: Ensures all **new** `ScriptAttribute`s encode the same script hash $s$ as the **old** `RandomizedCoin`s. [(81)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L81).
 
 The client sends:
 - **old** `RandomizedCoin`s
