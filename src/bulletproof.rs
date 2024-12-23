@@ -7,8 +7,6 @@ use itertools::izip;
 pub const RANGE_LIMIT: usize = 1 << 32;
 pub const LOG_RANGE_LIMIT: usize = 32;
 
-static FORMATTED_LABEL: &[u8] = b"Com(V_{j})";
-
 pub static POWERS_OF_TWO: Lazy<Vec<Scalar>> = Lazy::new(|| {
     let mut result = Vec::new();
     for i in 0..LOG_RANGE_LIMIT {
@@ -261,9 +259,8 @@ impl BulletProof {
         }
 
         // pad a_left and a_right to a len power of 2
-        println!("log_2(n*m) + 1 = {}", (n*m).ilog2() + 1);
         let next_len_pow2: usize = 1 << ((n*m).ilog2() + 1);
-        if next_len_pow2.count_ones() != 1 {
+        if a_left.len().count_ones() != 1 {
             a_left = pad_zeros(a_left, next_len_pow2);
             a_right = pad_ones(a_right,next_len_pow2);
             m = next_len_pow2 / n;
@@ -362,7 +359,7 @@ impl BulletProof {
         // Hide t_1, t_2 coefficients of t(x)
         // into Pedersen commitments     (52-53)
         let (tau_1, tau_2) = (Scalar::random(), Scalar::random());
-        let T1 = GENERATORS.G_amount.clone() * &t_1  + &(GENERATORS.G_blind.clone()  * &tau_1);
+        let T1 = GENERATORS.G_amount.clone() * &t_1 + &(GENERATORS.G_blind.clone() * &tau_1);
         let T2 = GENERATORS.G_amount.clone() * &t_2 + &(GENERATORS.G_blind.clone() * &tau_2);
 
         // Prover -> Verifier: T_1, T_2
@@ -415,7 +412,7 @@ impl BulletProof {
         for (l_x_i, G_i, r_x_i, H_i) in izip!(l_x.iter(), G_.clone().into_iter(), r_x.iter(), H_.clone().into_iter()) {
             P = P + &(G_i*l_x_i) + &(H_i*r_x_i);
         }
-
+        
         // Now instead of sending l and r we fold them and send logarithmically fewer commitments
         // We get the IPA for l, r.
         let ipa = InnerProductArgument::new(transcript, (G_, H_, U_), P, l_x, r_x);
@@ -437,6 +434,19 @@ impl BulletProof {
         let n = LOG_RANGE_LIMIT;
         let len_pow2 = 1 << self.ipa.public_inputs.len();
         let m = len_pow2 / n;
+
+        // This check shouldn't be necessary but better safe than sorry
+        // plus we save some computation
+        let check = n*attribute_commitments.len();
+        if check.count_ones() == 1
+            && check.ilog2() != self.ipa.public_inputs.len() as u32
+        {
+            return false;
+        } else if check.count_ones() != 1
+            && check.ilog2() + 1 != self.ipa.public_inputs.len() as u32
+        {
+            return false;
+        }
 
         // Get generators
         let (G_, mut H_, U_) = get_generators(n*m);
@@ -584,5 +594,22 @@ mod tests{
         }
         let range_proof = BulletProof::new(&mut cli_tscr, &attributes);
         assert!(range_proof.verify(&mut mint_tscr, &attribute_commitments))
+    }
+    #[test]
+    fn test_wrong_range() {
+        let mut cli_tscr = CashuTranscript::new();
+        let mut mint_tscr = CashuTranscript::new();
+
+        let attributes: Vec<(AmountAttribute, Option<ScriptAttribute>)> = vec![
+            (AmountAttribute::new(1<<32, None), None),
+            (AmountAttribute::new(1, None), None),
+            (AmountAttribute::new(11, None), None),
+        ];
+        let mut attribute_commitments = Vec::new();
+        for attr in attributes.iter() {
+            attribute_commitments.push((attr.0.commitment().clone(), GENERATORS.O.clone()));
+        }
+        let range_proof = BulletProof::new(&mut cli_tscr, &attributes);
+        assert!(!range_proof.verify(&mut mint_tscr, &attribute_commitments))
     }
 }
