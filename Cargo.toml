@@ -3,6 +3,9 @@ name = "cashu-kvac"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+path = "crate/src/lib.rs"
+
 [dependencies]
 bitcoin = { version= "0.32.2", features = ["base64", "serde", "rand", "rand-std"] }
 hex = "0.4.3"
