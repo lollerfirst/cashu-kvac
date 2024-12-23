@@ -1,4 +1,8 @@
-use crate::{errors::Error, generators::{hash_to_curve, GENERATORS}, secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO}};
+use crate::{
+    errors::Error,
+    generators::{hash_to_curve, GENERATORS},
+    secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO},
+};
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
 
@@ -15,28 +19,19 @@ pub struct MintPrivateKey {
 
     // Public parameters
     pub Cw: GroupElement,
-    pub I: GroupElement
+    pub I: GroupElement,
 }
 
 #[allow(non_snake_case)]
 impl MintPrivateKey {
-
     pub fn from_scalars(scalars: &[Scalar; 6]) -> Self {
         let [w, w_, x0, x1, ya, ys] = scalars;
-        let Cw = GENERATORS.W.clone()*w + &(GENERATORS.W_.clone()*w_);
-        let I = 
-            GENERATORS.Gz_mac.clone() - &(
-                GENERATORS.X0.clone()*x0
-                + &(
-                    GENERATORS.X1.clone()*x1
-                    + &(
-                        GENERATORS.Gz_attribute.clone()*ya
-                        + &(
-                            GENERATORS.Gz_script.clone()*ys
-                        )
-                    ) 
-                ) 
-            );
+        let Cw = GENERATORS.W.clone() * w + &(GENERATORS.W_.clone() * w_);
+        let I = GENERATORS.Gz_mac.clone()
+            - &(GENERATORS.X0.clone() * x0
+                + &(GENERATORS.X1.clone() * x1
+                    + &(GENERATORS.Gz_attribute.clone() * ya
+                        + &(GENERATORS.Gz_script.clone() * ys))));
         MintPrivateKey {
             w: w.clone(),
             w_: w_.clone(),
@@ -50,7 +45,14 @@ impl MintPrivateKey {
     }
 
     pub fn to_scalars(&self) -> Vec<Scalar> {
-        vec![self.w.clone(), self.w_.clone(), self.x0.clone(), self.x1.clone(), self.ya.clone(), self.ys.clone()]
+        vec![
+            self.w.clone(),
+            self.w_.clone(),
+            self.x0.clone(),
+            self.x1.clone(),
+            self.ya.clone(),
+            self.ys.clone(),
+        ]
     }
 
     pub fn pubkey(&self) -> (&GroupElement, &GroupElement) {
@@ -58,10 +60,9 @@ impl MintPrivateKey {
     }
 }
 
-
 pub struct ZKP {
     pub s: Vec<Scalar>,
-    pub c: Scalar
+    pub c: Scalar,
 }
 
 #[allow(non_snake_case)]
@@ -77,15 +78,11 @@ impl ScriptAttribute {
         let s = Scalar::new(&Sha256Hash::hash(&script).to_byte_array());
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
-            let Ms = GENERATORS.G_script.clone() * &s + &(
-                GENERATORS.G_blind.clone() * &r
-            );
+            let Ms = GENERATORS.G_script.clone() * &s + &(GENERATORS.G_blind.clone() * &r);
             ScriptAttribute { r, s, Ms }
         } else {
             let r = Scalar::random();
-            let Ms = GENERATORS.G_script.clone() * &s + &(
-                GENERATORS.G_blind.clone() * &r
-            );
+            let Ms = GENERATORS.G_script.clone() * &s + &(GENERATORS.G_blind.clone() * &r);
             ScriptAttribute { r, s, Ms }
         }
     }
@@ -108,15 +105,11 @@ impl AmountAttribute {
         let a = Scalar::from(amount);
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
-            let Ma = GENERATORS.G_amount.clone() * &a + &(
-                    GENERATORS.G_blind.clone() * &r
-            );
+            let Ma = GENERATORS.G_amount.clone() * &a + &(GENERATORS.G_blind.clone() * &r);
             AmountAttribute { r, a, Ma }
         } else {
             let r = Scalar::random();
-            let Ma = GENERATORS.G_amount.clone() * &a + &(
-                GENERATORS.G_blind.clone() * &r
-            );
+            let Ma = GENERATORS.G_amount.clone() * &a + &(GENERATORS.G_blind.clone() * &r);
             AmountAttribute { r, a, Ma }
         }
     }
@@ -155,23 +148,17 @@ impl MAC {
         } else {
             Ms = GroupElement::new(&GROUP_ELEMENT_ZERO);
         }
-        let V = 
-            GENERATORS.W.clone() * &privkey.w + &(
-                U.clone() * &privkey.x0 + &(
-                    U.clone() * &(t.clone() * &privkey.x1) + &(
-                        Ma * &(privkey.ya) + &(
-                            Ms * &(privkey.ys)
-                        )
-                    )
-                )
-            );
+        let V = GENERATORS.W.clone() * &privkey.w
+            + &(U.clone() * &privkey.x0
+                + &(U.clone() * &(t.clone() * &privkey.x1)
+                    + &(Ma * &(privkey.ya) + &(Ms * &(privkey.ys)))));
         Ok(MAC { t, V })
     }
 }
 
 /// Spendable coin.
 /// Contains `AmountAttribute`, `ScriptAttribute`
-/// and the `MAC` approval by the Mint. 
+/// and the `MAC` approval by the Mint.
 pub struct Coin {
     pub amount_attribute: AmountAttribute,
     pub script_attribute: Option<ScriptAttribute>,
@@ -184,7 +171,11 @@ impl Coin {
         script_attribute: Option<ScriptAttribute>,
         mac: MAC,
     ) -> Self {
-        Coin { amount_attribute, script_attribute, mac }
+        Coin {
+            amount_attribute,
+            script_attribute,
+            mac,
+        }
     }
 }
 
@@ -206,10 +197,7 @@ pub struct RandomizedCoin {
 
 impl RandomizedCoin {
     #[allow(non_snake_case)]
-    pub fn from_coin(
-        coin: &Coin,
-        reveal_script: bool,
-    ) -> Result<Self, Error> {
+    pub fn from_coin(coin: &Coin, reveal_script: bool) -> Result<Self, Error> {
         let t = coin.mac.t.clone();
         let V = coin.mac.V.as_ref();
         let t_bytes: [u8; 32] = (&coin.mac.t).into();
@@ -233,7 +221,13 @@ impl RandomizedCoin {
         let Cx1 = GENERATORS.X1.clone() * r + &(U * &t);
         let Cv = GENERATORS.Gz_mac.clone() * r + V;
 
-        Ok(RandomizedCoin { Ca, Cs, Cx0, Cx1, Cv })
+        Ok(RandomizedCoin {
+            Ca,
+            Cs,
+            Cx0,
+            Cx1,
+            Cv,
+        })
     }
 }
 
@@ -248,5 +242,5 @@ pub struct Statement {
     /// Domain Separator of the proof
     pub domain_separator: &'static [u8],
     /// Relations
-    pub equations: Vec<Equation>
+    pub equations: Vec<Equation>,
 }

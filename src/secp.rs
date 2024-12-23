@@ -108,7 +108,6 @@ impl Scalar {
                 is_zero: self.is_zero,
             }
         }
-        
     }
 
     pub fn tweak_mul(&mut self, other: &Scalar) -> &Self {
@@ -173,7 +172,10 @@ impl Scalar {
             }
             vec.reverse();
             let inner = SecretKey::from_slice(&vec).expect("Could not instantiate Scalar");
-            Scalar { inner: Some(inner), is_zero: false }
+            Scalar {
+                inner: Some(inner),
+                is_zero: false,
+            }
         }
     }
 }
@@ -322,7 +324,10 @@ impl Into<[u8; 32]> for &Scalar {
         if self.is_zero {
             SCALAR_ZERO
         } else {
-            self.inner.as_ref().expect("Expected inner Scalar").secret_bytes()
+            self.inner
+                .as_ref()
+                .expect("Expected inner Scalar")
+                .secret_bytes()
         }
     }
 }
@@ -336,7 +341,7 @@ impl Into<u64> for &Scalar {
             let mut result: u64 = 0;
             for i in 0..8 {
                 result <<= 8;
-                result |= bytes[24+i] as u64;
+                result |= bytes[24 + i] as u64;
             }
             result
         }
@@ -505,10 +510,11 @@ impl Into<String> for &GroupElement {
         if self.is_zero {
             hex::encode(GROUP_ELEMENT_ZERO)
         } else {
-            hex::encode(self.inner
-                .as_ref()
-                .expect("Expected inner PublicKey")
-                .serialize()
+            hex::encode(
+                self.inner
+                    .as_ref()
+                    .expect("Expected inner PublicKey")
+                    .serialize(),
             )
         }
     }
