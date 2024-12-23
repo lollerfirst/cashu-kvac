@@ -308,7 +308,7 @@ class BulletProof:
         
         # Calculate constant term t_0       
         #t_0_check = zs[2] * sum([a_j*z_j for (a_j, z_j) in zip(a, zs)], scalar_zero) + delta_y_z
-        t_0 = inner_product(l[0], r[0])
+        #t_0 = inner_product(l[0], r[0])
         #print(f"{t_0 == t_0_check = }")
         #print(f"{t_0.serialize() = }\n{t_0_check.serialize() = }")
 
@@ -396,7 +396,7 @@ class BulletProof:
         V = attributes
         for i, V_i in enumerate(V):
             transcript.append(f"Com(V_{i})_".encode("utf-8"), V_i)
-        transcript.append(b"Com(n)_", hash_to_curve(n.to_bytes(32, "big")))
+        transcript.append(b"Com(m)_", hash_to_curve(m.to_bytes(32, "big")))
 
         # Append A and S to transcript
         A, S = self.A, self.S

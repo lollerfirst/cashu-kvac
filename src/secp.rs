@@ -4,6 +4,7 @@ use bitcoin::secp256k1::{rand, All, PublicKey, Scalar as SecpScalar, Secp256k1, 
 use once_cell::sync::Lazy;
 use rug::ops::RemRounding;
 use rug::Integer;
+use serde::Deserialize;
 use std::cmp::PartialEq;
 
 pub const SCALAR_ZERO: [u8; 32] = [0; 32];
@@ -20,13 +21,13 @@ pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(|| {
     ctx
 });
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Scalar {
     inner: Option<SecretKey>,
     is_zero: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
     is_zero: bool,

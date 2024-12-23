@@ -1,4 +1,5 @@
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use crate::{generators::{hash_to_curve, GENERATORS}, models::{AmountAttribute, ScriptAttribute}, secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ONE, SCALAR_ZERO}, transcript::CashuTranscript};
 use itertools::izip;
 
@@ -66,6 +67,7 @@ fn inner_product(l: &[Scalar], r: &[Scalar]) -> Scalar {
     result
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct InnerProductArgument {
     public_inputs: Vec<(GroupElement, GroupElement)>,
     tail_end_scalars: (Scalar, Scalar),
@@ -222,6 +224,7 @@ impl InnerProductArgument {
 }
 
 #[allow(non_snake_case)]
+#[derive(Serialize, Deserialize)]
 pub struct BulletProof {
     pub A: GroupElement,
     pub S: GroupElement,
@@ -237,7 +240,7 @@ pub struct BulletProof {
 impl BulletProof {
     pub fn new(
         transcript: &mut CashuTranscript,
-        attributes: &Vec<(AmountAttribute, ScriptAttribute)>,
+        attributes: &Vec<(AmountAttribute, Option<ScriptAttribute>)>,
     ) -> Self {
         // Domain separation
         transcript.domain_sep(b"Bulletproof_Statement_");
@@ -338,8 +341,8 @@ impl BulletProof {
                 l[1].push(s_l[j*n+i].clone());          // vector coefficient for X^1
 
                 r[0].push(
-                    y_list[j*n+i].clone() * &(a_right[j*n+i].clone() + &z) +
-                    &(z_list[2].clone() * &z_list[j] * &POWERS_OF_TWO[i])
+                    y_list[j*n+i].clone() * &(a_right[j*n+i].clone() + &z) +    // vector coefficient for X^0
+                    &(z_list[2].clone() * &z_list[j] * &POWERS_OF_TWO[i])       // vector coefficient for X^1
                 );
                 r[1].push(y_list[j*n+i].clone() * &s_r[j*n+i])
             }
@@ -348,7 +351,7 @@ impl BulletProof {
         // t(X) = <l(X), r(X)> = t_0 + t_1 * X + t_2 * X^2
         
         // Calculate constant term t_0       
-        let t_0 = inner_product(&l[0], &r[0]);
+        // let t_0 = inner_product(&l[0], &r[0]);
 
         // Calculate coefficient t_1. From definition (1)
         let t_1 = inner_product(&l[1], &r[0]) + &inner_product(&l[0], &r[1]);
@@ -420,13 +423,122 @@ impl BulletProof {
         // Prover -> Verifier: t_x, tau_x, mu, ipa
         BulletProof {A, S, T1, T2, t_x, tau_x, mu, ipa}
     }
+
+    pub fn verify(
+        self,
+        transcript: &mut CashuTranscript,
+        attribute_commitments: &Vec<(GroupElement, GroupElement)>,
+    ) -> bool {
+        transcript.domain_sep(b"Bulletproof_Statement_");
+        
+        // Prover -> Verifier: A, S
+        // Verifier -> Prover: y, z
+
+        let n = LOG_RANGE_LIMIT;
+        let len_pow2 = 1 << self.ipa.public_inputs.len();
+        let m = len_pow2 / n;
+
+        // Get generators
+        let (G_, mut H_, U_) = get_generators(n*m);
+
+        // Append amount commitments to the transcript
+        for V in attribute_commitments.iter() {
+            transcript.append_element(b"Com(V)_", &V.0);
+        }
+        // Commit to the padded-to-pow2 number of attributes
+        transcript.append_element(b"Com(m)_", &hash_to_curve(&m.to_be_bytes()).expect("Couldn't map m length to GroupElement"));
+
+        // Append A and S to transcript
+        let A = self.A;
+        let S = self.S;
+        transcript.append_element(b"Com(A)_", &A);
+        transcript.append_element(b"Com(S)_", &S);
+
+        // Get y challenge
+        let y = transcript.get_challenge(b"y_chall_");
+
+        // Commit y
+        let y_bytes: [u8; 32] = y.as_ref().into(); 
+        transcript.append_element(b"Com(y)_", &hash_to_curve(&y_bytes).unwrap());
+
+        // Get z challenge
+        let z = transcript.get_challenge(b"z_chall_");
+
+        let mut z_list = vec![Scalar::new(&SCALAR_ONE)];
+        for _ in 1..(3+m) {
+            z_list.push(z.clone() * z_list.last().unwrap());
+        }
+
+        // Calculate ẟ(y, z)     Definition (between 71-72)
+        let p = z.clone() + &z_list[2]; 
+
+        let mut y_list = vec![Scalar::new(&SCALAR_ONE)];
+        for _ in 1..(n*m) {
+            y_list.push(y.clone() * y_list.last().unwrap());
+        }
+
+        let mut delta_y_z = Scalar::new(&SCALAR_ZERO);
+        for (i, y_i) in y_list.iter().enumerate() {
+            delta_y_z = delta_y_z + &(p.clone() * y_i + &(z_list[3].clone() * &z_list[i/n] * &POWERS_OF_TWO[i%n]));
+        }
+
+        // Prover -> Verifier: T_1, T_2
+        // Verifier -> Prover: x
+
+        // Append T_1, T_2 to transcript
+        let (T1, T2)= (self.T1, self.T2);
+        transcript.append_element(b"Com(T_1)_", &T1);
+        transcript.append_element(b"Com(T_2)_", &T2);
+
+        // Get challenge x (named x because used for evaluation of t(x))
+        let x = transcript.get_challenge(b"x_chall_");
+        let x_2 = x.clone()*&x;
+
+        let t_x = self.t_x;
+        let tau_x = self.tau_x;
+        // Check that t_x = t(x) = t_0 + t_1*x + t_2*x^2     (72)
+        let mut V_z_m = GENERATORS.O.clone();
+        for (commitment_pair, z_j)in izip!(attribute_commitments.iter(), z_list.iter()) {
+            V_z_m = V_z_m + &(commitment_pair.0.clone() * z_j);
+        }
+        if 
+            GENERATORS.G_amount.clone() * &t_x + &(GENERATORS.G_blind.clone() * &tau_x)
+            !=
+            V_z_m * &z_list[2] + &(GENERATORS.G_amount.clone() * &delta_y_z) + &(T1 * &x) + &(T2 * &x_2) 
+        {
+            return false;
+        }
+
+        // Switch generators H -> y^(-n*H)    (64)
+        let mut H_new = Vec::new();
+        for (y_i, H_i) in izip!(y_list.clone().into_iter(), H_.into_iter()) {
+            H_new.push(H_i*&y_i.invert());
+        }
+        H_ = H_new;
+
+        // Compute commitment to l(x) and r(x)   (72)
+        let mu = self.mu;
+        let mut P = GENERATORS.G_blind.clone() * &(-mu) + &A + &(S*&x);
+        for j in 0..m {
+            for i in 0..n {
+                P = P + &(G_[j*n+i].clone() * &z)
+                    + &(H_[j*n+i].clone() * &(y_list[j*n+i].clone() * &z))
+                    + &(H_[j*n+i].clone() * &(z_list[2].clone() * &z_list[j] * &POWERS_OF_TWO[i]))
+            }
+        }
+
+        // Check l and r are correct using IPA   (67)
+        // Check t_x is correct                  (68)
+        self.ipa.verify(transcript, (G_, H_, U_), P, t_x)
+
+    }
 }
 
 #[allow(unused_imports)]
 mod tests{
     use itertools::izip;
-    use crate::{generators::GENERATORS, secp::Scalar, transcript::CashuTranscript};
-    use super::{get_generators, inner_product, pad_zeros, InnerProductArgument};
+    use crate::{generators::GENERATORS, models::{AmountAttribute, ScriptAttribute}, secp::Scalar, transcript::CashuTranscript};
+    use super::{get_generators, inner_product, pad_zeros, BulletProof, InnerProductArgument};
 
     #[allow(non_snake_case)]
     #[test]
@@ -454,5 +566,23 @@ mod tests{
 
         let c = inner_product(&a, &b);
         assert!(ipa.verify(&mut mint_tscr, get_generators(128), P, c))
+    }
+
+    #[test]
+    fn test_range_proof() {
+        let mut cli_tscr = CashuTranscript::new();
+        let mut mint_tscr = CashuTranscript::new();
+
+        let attributes: Vec<(AmountAttribute, Option<ScriptAttribute>)> = vec![
+            (AmountAttribute::new(14, None), None),
+            (AmountAttribute::new(1, None), None),
+            (AmountAttribute::new(11, None), None),
+        ];
+        let mut attribute_commitments = Vec::new();
+        for attr in attributes.iter() {
+            attribute_commitments.push((attr.0.commitment().clone(), GENERATORS.O.clone()));
+        }
+        let range_proof = BulletProof::new(&mut cli_tscr, &attributes);
+        assert!(range_proof.verify(&mut mint_tscr, &attribute_commitments))
     }
 }
