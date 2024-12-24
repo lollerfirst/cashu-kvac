@@ -3,7 +3,7 @@ use merlin::Transcript;
 use crate::secp::{GroupElement, Scalar};
 
 pub struct CashuTranscript {
-    inner: Transcript
+    inner: Transcript,
 }
 
 impl CashuTranscript {
