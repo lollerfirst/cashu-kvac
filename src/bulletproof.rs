@@ -64,7 +64,7 @@ fn get_generators(n: usize) -> (Vec<GroupElement>, Vec<GroupElement>, GroupEleme
 fn pad_zeros(mut l: Vec<Scalar>, to: usize) -> Vec<Scalar> {
     let pad_len = to - (l.len() % to);
     let scalar_zero = Scalar::new(&SCALAR_ZERO);
-    l.extend(vec![scalar_zero.clone(); pad_len].into_iter());
+    l.extend(vec![scalar_zero.clone(); pad_len]);
     l
 }
 
@@ -78,7 +78,7 @@ fn pad_ones(mut l: Vec<Scalar>, to: usize) -> Vec<Scalar> {
 fn inner_product(l: &[Scalar], r: &[Scalar]) -> Scalar {
     let mut result = Scalar::from(0);
     for (left, right) in l.iter().zip(r.iter()) {
-        result = result + (left.clone() * right.as_ref()).as_ref();
+        result = result + (left.clone() * right).as_ref();
     }
     result
 }
@@ -132,7 +132,7 @@ impl InnerProductArgument {
                 b[n..].iter(),
                 H_[..n].iter()
             ) {
-                L = L + &(G_i.clone() * &a_i + &(H_i.clone() * &b_i))
+                L = L + &(G_i.clone() * a_i + &(H_i.clone() * b_i))
             }
             let mut R = U_.clone() * &c_right;
             for (a_i, G_i, b_i, H_i) in izip!(
@@ -141,7 +141,7 @@ impl InnerProductArgument {
                 b[..n].iter(),
                 H_[n..2 * n].iter()
             ) {
-                R = R + &(G_i.clone() * &a_i + &(H_i.clone() * &b_i))
+                R = R + &(G_i.clone() * a_i + &(H_i.clone() * b_i))
             }
 
             // Prover -> Verifier : L, R
@@ -284,7 +284,7 @@ impl BulletProof {
         for attribute_pair in attributes {
             let amount: u64 = attribute_pair.0.a.as_ref().into();
             for i in 0..n {
-                let bit = ((amount >> i) & 1) as u64;
+                let bit = (amount >> i) & 1;
                 a_left.push(Scalar::from(bit));
                 a_right.push(Scalar::from(1 - bit));
             }
@@ -488,7 +488,7 @@ impl BulletProof {
     pub fn verify(
         self,
         transcript: &mut CashuTranscript,
-        attribute_commitments: &Vec<(GroupElement, GroupElement)>,
+        attribute_commitments: &[(GroupElement, GroupElement)],
     ) -> bool {
         transcript.domain_sep(b"Bulletproof_Statement_");
 
@@ -502,11 +502,9 @@ impl BulletProof {
         // This check shouldn't be necessary but better safe than sorry
         // plus we save some computation
         let check = n * attribute_commitments.len();
-        if check.count_ones() == 1 && check.ilog2() != self.ipa.public_inputs.len() as u32 {
-            return false;
-        } else if check.count_ones() != 1
-            && check.ilog2() + 1 != self.ipa.public_inputs.len() as u32
-        {
+        if (check.count_ones() == 1 && check.ilog2() != self.ipa.public_inputs.len() as u32) || 
+            (check.count_ones() != 1
+            && check.ilog2() + 1 != self.ipa.public_inputs.len() as u32) {
             return false;
         }
 

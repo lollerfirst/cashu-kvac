@@ -60,11 +60,11 @@ fn modinv(m: &Integer, x: &Integer) -> Integer {
         } else if g.is_odd() {
             g = (g + &f) >> 1;
             e = div2(m, e + &d);
-            delta = 1 + delta;
+            delta += 1;
         } else {
             g >>= 1;
             e = div2(m, e);
-            delta = 1 + delta;
+            delta += 1;
         }
     }
 
@@ -96,20 +96,6 @@ impl Scalar {
         }
     }
 
-    pub fn clone(&self) -> Self {
-        if !self.is_zero {
-            Scalar {
-                inner: Some(self.inner.unwrap().clone()),
-                is_zero: self.is_zero,
-            }
-        } else {
-            Scalar {
-                inner: None,
-                is_zero: self.is_zero,
-            }
-        }
-    }
-
     pub fn tweak_mul(&mut self, other: &Scalar) -> &Self {
         if other.is_zero || self.is_zero {
             self.is_zero = true;
@@ -130,7 +116,7 @@ impl Scalar {
         if other.is_zero {
             self
         } else if self.is_zero {
-            self.inner = Some(other.inner.unwrap().clone());
+            self.inner = Some(other.inner.unwrap());
             self.is_zero = false;
             self
         } else {
@@ -196,25 +182,11 @@ impl GroupElement {
         }
     }
 
-    pub fn clone(&self) -> Self {
-        if self.is_zero {
-            GroupElement {
-                inner: None,
-                is_zero: true,
-            }
-        } else {
-            GroupElement {
-                inner: Some(self.inner.unwrap().clone()),
-                is_zero: self.is_zero,
-            }
-        }
-    }
-
     pub fn combine_add(&mut self, other: &GroupElement) -> &Self {
         if other.is_zero {
             self
         } else if self.is_zero {
-            self.inner = other.inner.clone();
+            self.inner = other.inner;
             self.is_zero = other.is_zero;
             self
         } else {
@@ -261,7 +233,7 @@ impl std::ops::Add<&Scalar> for Scalar {
     type Output = Scalar;
 
     fn add(mut self, other: &Scalar) -> Scalar {
-        self.tweak_add(&other);
+        self.tweak_add(other);
         self
     }
 }
@@ -302,29 +274,29 @@ impl std::ops::Mul<&Scalar> for Scalar {
             // Multiplication is masked with random `r`
             let mut r = Scalar::random();
             self.tweak_add(&r);
-            self.tweak_mul(&other);
-            r.tweak_mul(&other);
+            self.tweak_mul(other);
+            r.tweak_mul(other);
             self - &r
         }
     }
 }
 
-impl Into<Vec<u8>> for Scalar {
-    fn into(self) -> Vec<u8> {
-        if self.is_zero {
+impl From<Scalar> for Vec<u8> {
+    fn from(val: Scalar) -> Self {
+        if val.is_zero {
             SCALAR_ZERO.to_vec()
         } else {
-            self.inner.unwrap().secret_bytes().to_vec()
+            val.inner.unwrap().secret_bytes().to_vec()
         }
     }
 }
 
-impl Into<[u8; 32]> for &Scalar {
-    fn into(self) -> [u8; 32] {
-        if self.is_zero {
+impl From<&Scalar> for [u8; 32] {
+    fn from(val: &Scalar) -> Self {
+        if val.is_zero {
             SCALAR_ZERO
         } else {
-            self.inner
+            val.inner
                 .as_ref()
                 .expect("Expected inner Scalar")
                 .secret_bytes()
@@ -332,12 +304,12 @@ impl Into<[u8; 32]> for &Scalar {
     }
 }
 
-impl Into<u64> for &Scalar {
-    fn into(self) -> u64 {
-        if self.is_zero {
+impl From<&Scalar> for u64 {
+    fn from(val: &Scalar) -> Self {
+        if val.is_zero {
             0
         } else {
-            let bytes: [u8; 32] = self.into();
+            let bytes: [u8; 32] = val.into();
             let mut result: u64 = 0;
             for i in 0..8 {
                 result <<= 8;
@@ -348,12 +320,12 @@ impl Into<u64> for &Scalar {
     }
 }
 
-impl Into<String> for &Scalar {
-    fn into(self) -> String {
-        if self.is_zero {
+impl From<&Scalar> for String {
+    fn from(val: &Scalar) -> Self {
+        if val.is_zero {
             hex::encode(SCALAR_ZERO)
         } else {
-            hex::encode(self.inner.unwrap().secret_bytes())
+            hex::encode(val.inner.unwrap().secret_bytes())
         }
     }
 }
@@ -473,7 +445,7 @@ impl PartialEq for GroupElement {
             return true;
         }
         if self.is_zero || other.is_zero {
-            return false;
+            false
         } else {
             self.inner.unwrap().eq(&other.inner.unwrap())
         }
@@ -492,12 +464,12 @@ impl From<&str> for GroupElement {
     }
 }
 
-impl Into<[u8; 33]> for &GroupElement {
-    fn into(self) -> [u8; 33] {
-        if self.is_zero {
+impl From<&GroupElement> for [u8; 33] {
+    fn from(val: &GroupElement) -> Self {
+        if val.is_zero {
             GROUP_ELEMENT_ZERO
         } else {
-            self.inner
+            val.inner
                 .as_ref()
                 .expect("Expected inner PublicKey")
                 .serialize()
@@ -505,13 +477,13 @@ impl Into<[u8; 33]> for &GroupElement {
     }
 }
 
-impl Into<String> for &GroupElement {
-    fn into(self) -> String {
-        if self.is_zero {
+impl From<&GroupElement> for String {
+    fn from(val: &GroupElement) -> Self {
+        if val.is_zero {
             hex::encode(GROUP_ELEMENT_ZERO)
         } else {
             hex::encode(
-                self.inner
+                val.inner
                     .as_ref()
                     .expect("Expected inner PublicKey")
                     .serialize(),

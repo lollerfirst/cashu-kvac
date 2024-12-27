@@ -6,7 +6,7 @@ use crate::{
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
 
-pub const RANGE_LIMIT: u64 = std::u32::MAX as u64;
+pub const RANGE_LIMIT: u64 = u32::MAX as u64;
 
 #[allow(non_snake_case)]
 pub struct MintPrivateKey {
@@ -24,24 +24,29 @@ pub struct MintPrivateKey {
 
 #[allow(non_snake_case)]
 impl MintPrivateKey {
-    pub fn from_scalars(scalars: &[Scalar; 6]) -> Self {
-        let [w, w_, x0, x1, ya, ys] = scalars;
-        let Cw = GENERATORS.W.clone() * w + &(GENERATORS.W_.clone() * w_);
-        let I = GENERATORS.Gz_mac.clone()
-            - &(GENERATORS.X0.clone() * x0
-                + &(GENERATORS.X1.clone() * x1
-                    + &(GENERATORS.Gz_attribute.clone() * ya
-                        + &(GENERATORS.Gz_script.clone() * ys))));
-        MintPrivateKey {
-            w: w.clone(),
-            w_: w_.clone(),
-            x0: x0.clone(),
-            x1: x1.clone(),
-            ya: ya.clone(),
-            ys: ys.clone(),
-            Cw,
-            I,
+    pub fn from_scalars(scalars: &[Scalar]) -> Result<Self, Error> {
+
+        if let [w, w_, x0, x1, ya, ys] = scalars {
+            let Cw = GENERATORS.W.clone() * w + &(GENERATORS.W_.clone() * w_);
+            let I = GENERATORS.Gz_mac.clone()
+                - &(GENERATORS.X0.clone() * x0
+                    + &(GENERATORS.X1.clone() * x1
+                        + &(GENERATORS.Gz_attribute.clone() * ya
+                            + &(GENERATORS.Gz_script.clone() * ys))));
+            Ok(MintPrivateKey {
+                w: w.clone(),
+                w_: w_.clone(),
+                x0: x0.clone(),
+                x1: x1.clone(),
+                ya: ya.clone(),
+                ys: ys.clone(),
+                Cw,
+                I,
+            })
+        } else {
+            Err(Error::InvalidMintPrivateKey)
         }
+        
     }
 
     pub fn to_scalars(&self) -> Vec<Scalar> {
@@ -75,7 +80,7 @@ pub struct ScriptAttribute {
 #[allow(non_snake_case)]
 impl ScriptAttribute {
     pub fn new(script: &[u8], blinding_factor: Option<&[u8; 32]>) -> Self {
-        let s = Scalar::new(&Sha256Hash::hash(&script).to_byte_array());
+        let s = Scalar::new(&Sha256Hash::hash(script).to_byte_array());
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
             let Ms = GENERATORS.G_script.clone() * &s + &(GENERATORS.G_blind.clone() * &r);
@@ -215,7 +220,7 @@ impl RandomizedCoin {
             Ms = GroupElement::new(&GROUP_ELEMENT_ZERO);
         }
 
-        let Ca = GENERATORS.Gz_attribute.clone() * r + &Ma;
+        let Ca = GENERATORS.Gz_attribute.clone() * r + Ma;
         let Cs = GENERATORS.Gz_script.clone() * r + &Ms;
         let Cx0 = GENERATORS.X0.clone() * r + &U;
         let Cx1 = GENERATORS.X1.clone() * r + &(U * &t);
