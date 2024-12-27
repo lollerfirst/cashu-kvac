@@ -75,7 +75,7 @@ pub struct ScriptAttribute {
 #[allow(non_snake_case)]
 impl ScriptAttribute {
     pub fn new(script: &[u8], blinding_factor: Option<&[u8; 32]>) -> Self {
-        let s = Scalar::new(&Sha256Hash::hash(&script).to_byte_array());
+        let s = Scalar::new(&Sha256Hash::hash(script).to_byte_array());
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
             let Ms = GENERATORS.G_script.clone() * &s + &(GENERATORS.G_blind.clone() * &r);
@@ -215,7 +215,7 @@ impl RandomizedCoin {
             Ms = GroupElement::new(&GROUP_ELEMENT_ZERO);
         }
 
-        let Ca = GENERATORS.Gz_attribute.clone() * r + &Ma;
+        let Ca = GENERATORS.Gz_attribute.clone() * r + Ma;
         let Cs = GENERATORS.Gz_script.clone() * r + &Ms;
         let Cx0 = GENERATORS.X0.clone() * r + &U;
         let Cx1 = GENERATORS.X1.clone() * r + &(U * &t);
