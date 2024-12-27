@@ -11,6 +11,8 @@ pub enum Error {
     InvalidConfiguration,
     #[error("Cannot map hash to a valid point on the curve")]
     InvalidPoint,
+    #[error("Wrong number of secrets for MintPrivateKey")]
+    InvalidMintPrivateKey,
     /// Secp256k1 error
     #[error(transparent)]
     Secp256k1(#[from] secp256k1::Error),

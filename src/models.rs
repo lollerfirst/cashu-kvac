@@ -24,24 +24,29 @@ pub struct MintPrivateKey {
 
 #[allow(non_snake_case)]
 impl MintPrivateKey {
-    pub fn from_scalars(scalars: &[Scalar; 6]) -> Self {
-        let [w, w_, x0, x1, ya, ys] = scalars;
-        let Cw = GENERATORS.W.clone() * w + &(GENERATORS.W_.clone() * w_);
-        let I = GENERATORS.Gz_mac.clone()
-            - &(GENERATORS.X0.clone() * x0
-                + &(GENERATORS.X1.clone() * x1
-                    + &(GENERATORS.Gz_attribute.clone() * ya
-                        + &(GENERATORS.Gz_script.clone() * ys))));
-        MintPrivateKey {
-            w: w.clone(),
-            w_: w_.clone(),
-            x0: x0.clone(),
-            x1: x1.clone(),
-            ya: ya.clone(),
-            ys: ys.clone(),
-            Cw,
-            I,
+    pub fn from_scalars(scalars: &[Scalar]) -> Result<Self, Error> {
+
+        if let [w, w_, x0, x1, ya, ys] = scalars {
+            let Cw = GENERATORS.W.clone() * w + &(GENERATORS.W_.clone() * w_);
+            let I = GENERATORS.Gz_mac.clone()
+                - &(GENERATORS.X0.clone() * x0
+                    + &(GENERATORS.X1.clone() * x1
+                        + &(GENERATORS.Gz_attribute.clone() * ya
+                            + &(GENERATORS.Gz_script.clone() * ys))));
+            Ok(MintPrivateKey {
+                w: w.clone(),
+                w_: w_.clone(),
+                x0: x0.clone(),
+                x1: x1.clone(),
+                ya: ya.clone(),
+                ys: ys.clone(),
+                Cw,
+                I,
+            })
+        } else {
+            Err(Error::InvalidMintPrivateKey)
         }
+        
     }
 
     pub fn to_scalars(&self) -> Vec<Scalar> {

@@ -511,15 +511,8 @@ mod tests {
     }
 
     fn privkey() -> MintPrivateKey {
-        let scalars = [
-            Scalar::random(),
-            Scalar::random(),
-            Scalar::random(),
-            Scalar::random(),
-            Scalar::random(),
-            Scalar::random(),
-        ];
-        MintPrivateKey::from_scalars(&scalars)
+        let scalars = vec![Scalar::random(); 6];
+        MintPrivateKey::from_scalars(&scalars).expect("Could not generate private key")
     }
 
     #[test]
