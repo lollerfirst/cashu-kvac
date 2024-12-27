@@ -6,6 +6,12 @@ pub struct CashuTranscript {
     inner: Transcript,
 }
 
+impl Default for CashuTranscript {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CashuTranscript {
     pub fn new() -> Self {
         let inner = Transcript::new(b"Secp256k1_Cashu_");

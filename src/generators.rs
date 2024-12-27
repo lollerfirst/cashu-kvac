@@ -79,7 +79,7 @@ impl Generators {
     }
 }
 
-pub static GENERATORS: Lazy<Generators> = Lazy::new(|| Generators::new());
+pub static GENERATORS: Lazy<Generators> = Lazy::new(Generators::new);
 
 #[cfg(test)]
 mod tests {
