@@ -6,7 +6,7 @@ use crate::{
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
 
-pub const RANGE_LIMIT: u64 = std::u32::MAX as u64;
+pub const RANGE_LIMIT: u64 = u32::MAX as u64;
 
 #[allow(non_snake_case)]
 pub struct MintPrivateKey {

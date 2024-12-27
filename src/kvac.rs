@@ -180,7 +180,7 @@ impl MacProof {
         }
     }
 
-    pub fn new(
+    pub fn create(
         mint_publickey: (&GroupElement, &GroupElement),
         coin: &Coin,
         randomized_coin: &RandomizedCoin,
@@ -287,7 +287,7 @@ impl IParamsProof {
         }
     }
 
-    pub fn new(
+    pub fn create(
         mint_privkey: &mut MintPrivateKey,
         coin: &mut Coin,
         transcript: &mut CashuTranscript,
@@ -329,9 +329,9 @@ impl BalanceProof {
         }
     }
 
-    pub fn new(
-        inputs: &Vec<AmountAttribute>,
-        outputs: &Vec<AmountAttribute>,
+    pub fn create(
+        inputs: &[AmountAttribute],
+        outputs: &[AmountAttribute],
         transcript: &mut CashuTranscript,
     ) -> ZKP {
         let mut r_sum = Scalar::new(&SCALAR_ZERO);
@@ -352,8 +352,8 @@ impl BalanceProof {
     }
 
     pub fn verify(
-        inputs: &Vec<RandomizedCoin>,
-        outputs: &Vec<GroupElement>,
+        inputs: &[RandomizedCoin],
+        outputs: &[GroupElement],
         delta_amount: i64,
         proof: ZKP,
         transcript: &mut CashuTranscript,
@@ -381,8 +381,8 @@ pub struct ScriptEqualityProof;
 #[allow(non_snake_case)]
 impl ScriptEqualityProof {
     pub fn statement(
-        inputs: &Vec<RandomizedCoin>,
-        outputs: &Vec<(GroupElement, GroupElement)>,
+        inputs: &[RandomizedCoin],
+        outputs: &[(GroupElement, GroupElement)],
     ) -> Statement {
         let O: GroupElement = GENERATORS.O.clone();
         let mut equations: Vec<Equation> = Vec::new();
@@ -426,10 +426,10 @@ impl ScriptEqualityProof {
         }
     }
 
-    pub fn new(
-        inputs: &Vec<Coin>,
-        randomized_inputs: &Vec<RandomizedCoin>,
-        outputs: &Vec<(AmountAttribute, ScriptAttribute)>,
+    pub fn create(
+        inputs: &[Coin],
+        randomized_inputs: &[RandomizedCoin],
+        outputs: &[(AmountAttribute, ScriptAttribute)],
         transcript: &mut CashuTranscript,
     ) -> Result<ZKP, Error> {
         if inputs.is_empty() || randomized_inputs.is_empty() || outputs.is_empty() {
@@ -476,8 +476,8 @@ impl ScriptEqualityProof {
     }
 
     pub fn verify(
-        randomized_inputs: &Vec<RandomizedCoin>,
-        outputs: &Vec<(GroupElement, GroupElement)>,
+        randomized_inputs: &[RandomizedCoin],
+        outputs: &[(GroupElement, GroupElement)],
         proof: ZKP,
         transcript: &mut CashuTranscript,
     ) -> bool {
@@ -554,7 +554,7 @@ mod tests {
         let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
         let mut coin = Coin::new(amount_attr, None, mac);
-        let proof = IParamsProof::new(&mut mint_privkey, &mut coin, &mut client_transcript);
+        let proof = IParamsProof::create(&mut mint_privkey, &mut coin, &mut client_transcript);
         assert!(IParamsProof::verify(
             mint_privkey.pubkey(),
             &mut coin,
@@ -572,7 +572,7 @@ mod tests {
         let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
         let mut coin = Coin::new(amount_attr, None, mac);
-        let proof = IParamsProof::new(&mut mint_privkey, &mut coin, &mut client_transcript);
+        let proof = IParamsProof::create(&mut mint_privkey, &mut coin, &mut client_transcript);
         assert!(!IParamsProof::verify(
             mint_privkey_1.pubkey(),
             &mut coin,
@@ -591,7 +591,7 @@ mod tests {
         let coin = Coin::new(amount_attr, None, mac);
         let randomized_coin =
             RandomizedCoin::from_coin(&coin, false).expect("Expected a randomized coin");
-        let proof = MacProof::new(
+        let proof = MacProof::create(
             mint_privkey.pubkey(),
             &coin,
             &randomized_coin,
@@ -641,7 +641,7 @@ mod tests {
             .expect("Couldn't generate MAC");
         let mut coin = Coin::new(amount_attr, None, mac);
         let randomized_coin = generate_custom_rand(&mut coin).expect("Expected a randomized coin");
-        let proof = MacProof::new(
+        let proof = MacProof::create(
             mint_privkey.pubkey(),
             &coin,
             &randomized_coin,
@@ -672,7 +672,7 @@ mod tests {
                 MAC::generate(&privkey, input.commitment(), None, None).expect("MAC expected")
             })
             .collect();
-        let proof = BalanceProof::new(&inputs, &outputs, &mut client_transcript);
+        let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
         let mut coins: Vec<Coin> = macs
             .into_iter()
             .zip(inputs)
@@ -711,7 +711,7 @@ mod tests {
                 MAC::generate(&privkey, input.commitment(), None, None).expect("MAC expected")
             })
             .collect();
-        let proof = BalanceProof::new(&inputs, &outputs, &mut client_transcript);
+        let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
         let mut coins: Vec<Coin> = macs
             .into_iter()
             .zip(inputs)
@@ -784,14 +784,14 @@ mod tests {
             .iter()
             .map(|coin| RandomizedCoin::from_coin(coin, false).expect(""))
             .collect();
-        let proof = ScriptEqualityProof::new(
+        let proof = ScriptEqualityProof::create(
             &coins,
             &randomized_coins,
             &outputs,
             client_transcript.as_mut(),
         )
         .expect("");
-        let outputs = outputs
+        let outputs: Vec<(GroupElement, GroupElement)> = outputs
             .into_iter()
             .map(|(aa, sa)| (aa.commitment().clone(), sa.commitment().clone()))
             .collect();
@@ -853,14 +853,14 @@ mod tests {
             .iter()
             .map(|coin| RandomizedCoin::from_coin(coin, false).expect(""))
             .collect();
-        let proof = ScriptEqualityProof::new(
+        let proof = ScriptEqualityProof::create(
             &coins,
             &randomized_coins,
             &outputs,
             client_transcript.as_mut(),
         )
         .expect("");
-        let outputs = outputs
+        let outputs: Vec<(GroupElement, GroupElement)> = outputs
             .into_iter()
             .map(|(aa, sa)| (aa.commitment().clone(), sa.commitment().clone()))
             .collect();

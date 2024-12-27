@@ -488,7 +488,7 @@ impl BulletProof {
     pub fn verify(
         self,
         transcript: &mut CashuTranscript,
-        attribute_commitments: &Vec<(GroupElement, GroupElement)>,
+        attribute_commitments: &[(GroupElement, GroupElement)],
     ) -> bool {
         transcript.domain_sep(b"Bulletproof_Statement_");
 
@@ -502,11 +502,9 @@ impl BulletProof {
         // This check shouldn't be necessary but better safe than sorry
         // plus we save some computation
         let check = n * attribute_commitments.len();
-        if check.count_ones() == 1 && check.ilog2() != self.ipa.public_inputs.len() as u32 {
-            return false;
-        } else if check.count_ones() != 1
-            && check.ilog2() + 1 != self.ipa.public_inputs.len() as u32
-        {
+        if (check.count_ones() == 1 && check.ilog2() != self.ipa.public_inputs.len() as u32) || 
+            (check.count_ones() != 1
+            && check.ilog2() + 1 != self.ipa.public_inputs.len() as u32) {
             return false;
         }
 

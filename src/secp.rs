@@ -96,20 +96,6 @@ impl Scalar {
         }
     }
 
-    pub fn clone(&self) -> Self {
-        if !self.is_zero {
-            Scalar {
-                inner: Some(self.inner.unwrap()),
-                is_zero: self.is_zero,
-            }
-        } else {
-            Scalar {
-                inner: None,
-                is_zero: self.is_zero,
-            }
-        }
-    }
-
     pub fn tweak_mul(&mut self, other: &Scalar) -> &Self {
         if other.is_zero || self.is_zero {
             self.is_zero = true;
@@ -192,20 +178,6 @@ impl GroupElement {
             GroupElement {
                 inner: Some(inner),
                 is_zero: false,
-            }
-        }
-    }
-
-    pub fn clone(&self) -> Self {
-        if self.is_zero {
-            GroupElement {
-                inner: None,
-                is_zero: true,
-            }
-        } else {
-            GroupElement {
-                inner: Some(self.inner.unwrap()),
-                is_zero: self.is_zero,
             }
         }
     }
