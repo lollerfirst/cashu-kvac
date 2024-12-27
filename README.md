@@ -98,12 +98,12 @@ let proof = BalanceProof::create(&inputs, &outputs, &mut transcript);
 > [!NOTE]
 > It is possible to prove/verify custom statement with `SchorrProver` and `SchnorrVerifier`
 
-### KVAC Scheme:
+### KVAC Scheme
 * Paper on KVAC used for CoinJoins: https://eprint.iacr.org/2021/206.pdf
 * The Signal Private Group System and Anonymous Credentials Supporting Efficient Verifiable Encryption: https://eprint.iacr.org/2019/1416
 
-### KVAC for Cashu:
-* Definitions and Protocol explaination (WIP): [HERE](protocol_explanation.md)
+### KVAC for Cashu
+Definitions and Protocol explaination (WIP): [HERE](protocol_explanation.md)
 
 ### Extras
 * [Deterministic Recovery](deterministic_recovery.md)
@@ -113,5 +113,5 @@ let proof = BalanceProof::create(&inputs, &outputs, &mut transcript);
   - Benefit: no $\pi_\text{serial}$ because not needed anymore.
   - $C_a$ (Randomized Amount Commitment) is chosen as the nullifier
 
-### Range proofs:
+### Range proofs
 Range proofs are implemented as [BULLETPROOFS](https://eprint.iacr.org/2017/1066.pdf).
