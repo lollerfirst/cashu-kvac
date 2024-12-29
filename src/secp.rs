@@ -29,7 +29,7 @@ pub struct Scalar {
     is_zero: bool,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
     is_zero: bool,
@@ -551,8 +551,31 @@ impl AsRef<GroupElement> for GroupElement {
     }
 }
 
+impl Serialize for GroupElement {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where 
+        S: Serializer
+    {
+        let ge_hex: String = self.into();
+        serializer.serialize_str(&ge_hex)
+    }
+}
+
+impl<'de> Deserialize<'de> for GroupElement {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hex: String = String::deserialize(deserializer)?;
+        let ge = GroupElement::try_from(hex.as_str()).map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
+        Ok(ge)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::generators::hash_to_curve;
+
     use super::*;
 
     #[test]
@@ -713,7 +736,7 @@ mod tests {
         // Serialize the Scalar instance
         let serialized = serde_json::to_string(&scalar).expect("Failed to serialize");
         println!("{}", serialized);
-        assert!(serialized.len() > 0); // Check that serialization produced some output
+        assert!(serialized.len() > 0);
     }
 
     #[test]
@@ -777,5 +800,27 @@ mod tests {
         let scalar_2 = Scalar::try_from("02").unwrap();
         let result = g.clone() * &scalar_2 - &g;
         assert!(result == g)
+    }
+
+    #[test]
+    fn test_ge_serialization() {
+        let ge = hash_to_curve(b"deadbeef").unwrap();
+
+        // Serialize the Scalar instance
+        let serialized = serde_json::to_string(&ge).expect("Failed to serialize");
+        println!("{}", serialized);
+        assert!(serialized.len() > 0);
+    }
+
+    #[test]
+    fn test_ge_deserialization() {
+        let ge = hash_to_curve(b"deadbeef").unwrap();
+
+        let serialized = serde_json::to_string(&ge).expect("Failed to serialize");
+        
+        let deserialized: GroupElement = serde_json::from_str(&serialized).expect("Failed to deserialize");
+
+        assert_eq!(ge.is_zero, deserialized.is_zero);
+        assert_eq!(ge.inner.is_some(), deserialized.inner.is_some());
     }
 }
