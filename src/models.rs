@@ -263,3 +263,27 @@ pub struct Statement {
     /// Relations
     pub equations: Vec<Equation>,
 }
+
+#[allow(unused_imports)]
+mod tests{
+    use super::AmountAttribute;
+
+    #[allow(dead_code)]
+    const B_FACTOR: &[u8; 32] = b"deadbeefdeadbeefdeadbeefdeadbeef";
+
+    #[test]
+    fn test_serialize_amount_attr() {
+        let a = AmountAttribute::new(10, Some(B_FACTOR));
+        let serialized = serde_json::to_string(&a).unwrap();
+        let target = "{\"a\":10,\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
+        assert_eq!(serialized.as_str(), target);
+    }
+
+    #[test]
+    fn test_deserialize_amount_attr() {
+        let a = AmountAttribute::new(10, Some(B_FACTOR));
+        let serialized = "{\"a\":10,\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
+        let deserialized: AmountAttribute = serde_json::from_str(&serialized).expect("Cannot deserialize");
+        assert!(deserialized.a == a.a);
+    }
+}
