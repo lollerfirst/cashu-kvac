@@ -619,7 +619,7 @@ mod tests {
             let z = Scalar::random();
             let Ms: GroupElement = GroupElement::new(&GROUP_ELEMENT_ZERO);
 
-            let Ca = GENERATORS.Gz_attribute.clone() * z.as_ref() + Ma;
+            let Ca = GENERATORS.Gz_attribute.clone() * z.as_ref() + &Ma;
             let Cs = GENERATORS.Gz_script.clone() * z.as_ref() + &Ms;
             let Cx0 = GENERATORS.X0.clone() * z.as_ref() + &U;
             let Cx1 = GENERATORS.X1.clone() * z.as_ref() + &(U * &t);
@@ -669,7 +669,7 @@ mod tests {
         let macs: Vec<MAC> = inputs
             .iter()
             .map(|input| {
-                MAC::generate(&privkey, input.commitment(), None, None).expect("MAC expected")
+                MAC::generate(&privkey, &input.commitment(), None, None).expect("MAC expected")
             })
             .collect();
         let proof = BalanceProof::new(&inputs, &outputs, &mut client_transcript);

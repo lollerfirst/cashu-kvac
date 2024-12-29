@@ -5,6 +5,7 @@ use crate::{
 };
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
+use serde::{ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
 
 pub const RANGE_LIMIT: u64 = std::u32::MAX as u64;
 
@@ -60,16 +61,17 @@ impl MintPrivateKey {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct ZKP {
     pub s: Vec<Scalar>,
     pub c: Scalar,
 }
 
 #[allow(non_snake_case)]
+#[derive(Serialize, Deserialize)]
 pub struct ScriptAttribute {
     pub r: Scalar,
     pub s: Scalar,
-    Ms: GroupElement,
 }
 
 #[allow(non_snake_case)]
@@ -78,25 +80,41 @@ impl ScriptAttribute {
         let s = Scalar::new(&Sha256Hash::hash(&script).to_byte_array());
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
-            let Ms = GENERATORS.G_script.clone() * &s + &(GENERATORS.G_blind.clone() * &r);
-            ScriptAttribute { r, s, Ms }
+            
+            ScriptAttribute { r, s }
         } else {
             let r = Scalar::random();
-            let Ms = GENERATORS.G_script.clone() * &s + &(GENERATORS.G_blind.clone() * &r);
-            ScriptAttribute { r, s, Ms }
+            ScriptAttribute { r, s }
         }
     }
 
-    pub fn commitment(&self) -> &GroupElement {
-        self.Ms.as_ref()
+    pub fn commitment(&self) -> GroupElement {
+        GENERATORS.G_script.clone() * &self.s + &(GENERATORS.G_blind.clone() * &self.r)
     }
 }
 
 #[allow(non_snake_case)]
+#[derive(Serialize, Deserialize)]
 pub struct AmountAttribute {
+    #[serde(serialize_with = "serialize_amount", deserialize_with = "deserialize_amount")]
     pub a: Scalar,
     pub r: Scalar,
-    Ma: GroupElement,
+}
+
+fn serialize_amount<S>(a: &Scalar, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let amount: u64 = a.into();
+    serializer.serialize_u64(amount) 
+}
+
+fn deserialize_amount<'de, D>(deserializer: D) -> Result<Scalar, D::Error>
+where 
+    D: Deserializer<'de>,
+{
+    let amount = u64::deserialize(deserializer)?;
+    Ok(Scalar::from(amount))
 }
 
 #[allow(non_snake_case)]
@@ -105,21 +123,20 @@ impl AmountAttribute {
         let a = Scalar::from(amount);
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
-            let Ma = GENERATORS.G_amount.clone() * &a + &(GENERATORS.G_blind.clone() * &r);
-            AmountAttribute { r, a, Ma }
+            AmountAttribute { r, a }
         } else {
             let r = Scalar::random();
-            let Ma = GENERATORS.G_amount.clone() * &a + &(GENERATORS.G_blind.clone() * &r);
-            AmountAttribute { r, a, Ma }
+            AmountAttribute { r, a }
         }
     }
 
-    pub fn commitment(&self) -> &GroupElement {
-        self.Ma.as_ref()
+    pub fn commitment(&self) -> GroupElement {
+        GENERATORS.G_amount.clone() * &self.a + &(GENERATORS.G_blind.clone() * &self.r)
     }
 }
 
 #[allow(non_snake_case)]
+#[derive(Serialize, Deserialize)]
 pub struct MAC {
     pub t: Scalar,
     pub V: GroupElement,
@@ -159,6 +176,7 @@ impl MAC {
 /// Spendable coin.
 /// Contains `AmountAttribute`, `ScriptAttribute`
 /// and the `MAC` approval by the Mint.
+#[derive(Serialize, Deserialize)]
 pub struct Coin {
     pub amount_attribute: AmountAttribute,
     pub script_attribute: Option<ScriptAttribute>,
@@ -182,6 +200,7 @@ impl Coin {
 /// Contains randomized commitments of a `Coin`.
 /// Used for unlinkable multi-show.
 #[allow(non_snake_case)]
+#[derive(Serialize, Deserialize)]
 pub struct RandomizedCoin {
     /// Randomized Attribute Commitment
     pub Ca: GroupElement,
