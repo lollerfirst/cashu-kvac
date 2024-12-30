@@ -23,13 +23,13 @@ pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(|| {
     ctx
 });
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Scalar {
     inner: Option<SecretKey>,
     is_zero: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
     is_zero: bool,
