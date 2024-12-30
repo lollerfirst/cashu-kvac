@@ -26,7 +26,6 @@ pub struct MintPrivateKey {
 #[allow(non_snake_case)]
 impl MintPrivateKey {
     pub fn from_scalars(scalars: &[Scalar]) -> Result<Self, Error> {
-
         if let [w, w_, x0, x1, ya, ys] = scalars {
             let Cw = GENERATORS.W.clone() * w + &(GENERATORS.W_.clone() * w_);
             let I = GENERATORS.Gz_mac.clone()
@@ -47,7 +46,6 @@ impl MintPrivateKey {
         } else {
             Err(Error::InvalidMintPrivateKey)
         }
-        
     }
 
     pub fn to_scalars(&self) -> Vec<Scalar> {
@@ -85,7 +83,7 @@ impl ScriptAttribute {
         let s = Scalar::new(&Sha256Hash::hash(script).to_byte_array());
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
-            
+
             ScriptAttribute { r, s }
         } else {
             let r = Scalar::random();
@@ -101,7 +99,10 @@ impl ScriptAttribute {
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AmountAttribute {
-    #[serde(serialize_with = "serialize_amount", deserialize_with = "deserialize_amount")]
+    #[serde(
+        serialize_with = "serialize_amount",
+        deserialize_with = "deserialize_amount"
+    )]
     pub a: Scalar,
     pub r: Scalar,
 }
@@ -111,11 +112,11 @@ where
     S: Serializer,
 {
     let amount: u64 = a.into();
-    serializer.serialize_u64(amount) 
+    serializer.serialize_u64(amount)
 }
 
 fn deserialize_amount<'de, D>(deserializer: D) -> Result<Scalar, D::Error>
-where 
+where
     D: Deserializer<'de>,
 {
     let amount = u64::deserialize(deserializer)?;
@@ -270,7 +271,7 @@ pub struct Statement {
 }
 
 #[allow(unused_imports)]
-mod tests{
+mod tests {
     use crate::{generators::hash_to_curve, models::ScriptAttribute, secp::Scalar};
 
     use super::{AmountAttribute, MAC};
@@ -282,15 +283,18 @@ mod tests{
     fn test_serialize_amount_attr() {
         let a = AmountAttribute::new(10, Some(B_FACTOR));
         let serialized = serde_json::to_string(&a).unwrap();
-        let target = "{\"a\":10,\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
+        let target =
+            "{\"a\":10,\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
         assert_eq!(serialized.as_str(), target);
     }
 
     #[test]
     fn test_deserialize_amount_attr() {
         let a = AmountAttribute::new(10, Some(B_FACTOR));
-        let serialized = "{\"a\":10,\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
-        let deserialized: AmountAttribute = serde_json::from_str(&serialized).expect("Cannot deserialize");
+        let serialized =
+            "{\"a\":10,\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
+        let deserialized: AmountAttribute =
+            serde_json::from_str(&serialized).expect("Cannot deserialize");
         assert!(deserialized.a == a.a);
     }
 
@@ -314,9 +318,14 @@ mod tests{
     fn test_serialize_mac() {
         let target = "{\"t\":\"fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4\",\"V\":\"022b5028285ab8646380eed0a07d76cab4379a43680df72428ee792a6f7a3910d0\"}";
         // fake MAC for testing purposes
-        let t = Scalar::try_from("fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4").unwrap();
+        let t =
+            Scalar::try_from("fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4")
+                .unwrap();
         let t_bytes: [u8; 32] = t.as_ref().into();
-        let mac = MAC { t, V: hash_to_curve(&t_bytes).unwrap()};
+        let mac = MAC {
+            t,
+            V: hash_to_curve(&t_bytes).unwrap(),
+        };
         let serialized = serde_json::to_string(&mac).unwrap();
         assert_eq!(serialized, target);
     }
@@ -324,9 +333,14 @@ mod tests{
     #[test]
     fn test_deserialize_mac() {
         let serialized = "{\"t\":\"fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4\",\"V\":\"022b5028285ab8646380eed0a07d76cab4379a43680df72428ee792a6f7a3910d0\"}";
-        let t = Scalar::try_from("fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4").unwrap();
+        let t =
+            Scalar::try_from("fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4")
+                .unwrap();
         let t_bytes: [u8; 32] = t.as_ref().into();
-        let mac = MAC { t, V: hash_to_curve(&t_bytes).unwrap()};
+        let mac = MAC {
+            t,
+            V: hash_to_curve(&t_bytes).unwrap(),
+        };
         let deserialized: MAC = serde_json::from_str(&serialized).unwrap();
         assert_eq!(mac.t, deserialized.t);
         assert_eq!(mac.V, deserialized.V);

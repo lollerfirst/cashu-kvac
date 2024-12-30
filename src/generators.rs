@@ -92,7 +92,8 @@ mod tests {
         let msg = b"G_amount";
         let g_amount = GroupElement::try_from(
             "024e76426e405fa7f7d3403ea8671fe11b8bec2da6dcda5583ce1ac37ed0de9b04",
-        ).unwrap();
+        )
+        .unwrap();
         let g_amount_ = hash_to_curve(msg).expect("Couldn't map hash to groupelement");
         assert!(g_amount == g_amount_)
     }
@@ -102,7 +103,8 @@ mod tests {
         let msg = b"G_blind";
         let g_blind = GroupElement::try_from(
             "0264f39fbee428ab6165e907b5d463a17e315b9f06f6200ed7e9c4bcbe0df73383",
-        ).unwrap();
+        )
+        .unwrap();
         let g_blind_ = hash_to_curve(msg).expect("Couldn't map hash to groupelement");
         assert!(g_blind == g_blind_)
     }

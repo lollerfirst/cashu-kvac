@@ -391,8 +391,8 @@ impl PartialEq for Scalar {
 
 impl Serialize for Scalar {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where 
-        S: Serializer
+    where
+        S: Serializer,
     {
         let scalar_hex: String = self.into();
         serializer.serialize_str(&scalar_hex)
@@ -405,7 +405,8 @@ impl<'de> Deserialize<'de> for Scalar {
         D: Deserializer<'de>,
     {
         let hex: String = String::deserialize(deserializer)?;
-        let scalar = Scalar::try_from(hex.as_str()).map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
+        let scalar = Scalar::try_from(hex.as_str())
+            .map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
         Ok(scalar)
     }
 }
@@ -525,8 +526,8 @@ impl AsRef<GroupElement> for GroupElement {
 
 impl Serialize for GroupElement {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where 
-        S: Serializer
+    where
+        S: Serializer,
     {
         let ge_hex: String = self.into();
         serializer.serialize_str(&ge_hex)
@@ -539,7 +540,8 @@ impl<'de> Deserialize<'de> for GroupElement {
         D: Deserializer<'de>,
     {
         let hex: String = String::deserialize(deserializer)?;
-        let ge = GroupElement::try_from(hex.as_str()).map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
+        let ge = GroupElement::try_from(hex.as_str())
+            .map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
         Ok(ge)
     }
 }
@@ -717,9 +719,10 @@ mod tests {
 
         // Serialize the Scalar instance to JSON
         let serialized = serde_json::to_string(&scalar).expect("Failed to serialize");
-        
+
         // Deserialize back to Scalar
-        let deserialized: Scalar = serde_json::from_str(&serialized).expect("Failed to deserialize");
+        let deserialized: Scalar =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
 
         // Check that the deserialized Scalar matches the original
         assert_eq!(scalar.is_zero, deserialized.is_zero);
@@ -730,7 +733,8 @@ mod tests {
     fn test_ge_from_hex() {
         let g = GroupElement::try_from(
             "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-        ).unwrap();
+        )
+        .unwrap();
         assert!(!g.is_zero)
     }
 
@@ -746,10 +750,12 @@ mod tests {
     fn test_cmp_neq() {
         let g1 = GroupElement::try_from(
             "0264f39fbee428ab6165e907b5d463a17e315b9f06f6200ed7e9c4bcbe0df73383",
-        ).unwrap();
+        )
+        .unwrap();
         let g2 = GroupElement::try_from(
             "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-        ).unwrap();
+        )
+        .unwrap();
         assert!(g1 != g2);
     }
 
@@ -757,7 +763,8 @@ mod tests {
     fn test_ge_add_mul() {
         let g = GroupElement::try_from(
             "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-        ).unwrap();
+        )
+        .unwrap();
         let scalar_2 = Scalar::try_from("02").unwrap();
         let result = g.clone() + &g;
         let result_ = g * &scalar_2;
@@ -768,7 +775,8 @@ mod tests {
     fn test_ge_sub_mul() {
         let g = GroupElement::try_from(
             "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-        ).unwrap();
+        )
+        .unwrap();
         let scalar_2 = Scalar::try_from("02").unwrap();
         let result = g.clone() * &scalar_2 - &g;
         assert!(result == g)
@@ -789,8 +797,9 @@ mod tests {
         let ge = hash_to_curve(b"deadbeef").unwrap();
 
         let serialized = serde_json::to_string(&ge).expect("Failed to serialize");
-        
-        let deserialized: GroupElement = serde_json::from_str(&serialized).expect("Failed to deserialize");
+
+        let deserialized: GroupElement =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
 
         assert_eq!(ge.is_zero, deserialized.is_zero);
         assert_eq!(ge.inner.is_some(), deserialized.inner.is_some());

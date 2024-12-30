@@ -274,14 +274,7 @@ impl IParamsProof {
                 Equation {
                     // V = w*W + x0*U + x1*t*U + ya*Ma + ys*Ms
                     lhs: V,
-                    rhs: vec![vec![
-                        GENERATORS.W.clone(),
-                        O,
-                        U.clone(),
-                        U * t,
-                        Ma,
-                        Ms,
-                    ]],
+                    rhs: vec![vec![GENERATORS.W.clone(), O, U.clone(), U * t, Ma, Ms]],
                 },
             ],
         }
