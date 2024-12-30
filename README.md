@@ -65,7 +65,10 @@ Randomizing a `Coin` into a `RandomizedCoin` (mandatory before perfoming a swap,
 ```rust
 use cashu_kvac::models::RandomizedCoin;
 
-let randomized_coin = RandomizedCoin::from_coin(&coin).unwrap();
+let randomized_coin = RandomizedCoin::from_coin(&coin, false).unwrap();
+
+// Randomized coin, but the script will be revealed
+let randomized_coin_with_script_reveal = RandomizedCoin::from_coin(&coin, true).unwrap();
 ```
 
 Proving the balance between inputs and outputs of a swap:
