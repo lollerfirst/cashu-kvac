@@ -239,7 +239,7 @@ impl RandomizedCoin {
             Ms = GroupElement::new(&GROUP_ELEMENT_ZERO);
         }
 
-        let Ca = GENERATORS.Gz_attribute.clone() * r + Ma;
+        let Ca = GENERATORS.Gz_attribute.clone() * r + &Ma;
         let Cs = GENERATORS.Gz_script.clone() * r + &Ms;
         let Cx0 = GENERATORS.X0.clone() * r + &U;
         let Cx1 = GENERATORS.X1.clone() * r + &(U * &t);
