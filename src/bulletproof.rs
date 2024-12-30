@@ -155,29 +155,34 @@ impl InnerProductArgument {
             let x_inv = x.clone().invert();
 
             // fold a and b
-            // TODO: Avoid cloning vector elements by iterating over an index and
-            // moving the elements out of the vectors
             let mut new_a: Vec<Scalar> = Vec::new();
-            for (a_i, a_n_i) in izip!(a[..n].iter(), a[n..].iter()) {
-                new_a.push(a_i.clone() * &x + &(a_n_i.clone() * &x_inv));
+            for i in 0..n {
+                let a_i = std::mem::take(&mut a[i]);
+                let a_n_i = std::mem::take(&mut a[i+n]);
+                new_a.push(a_i * &x + &(a_n_i * &x_inv));
             }
             let mut new_b: Vec<Scalar> = Vec::new();
-            for (b_i, b_n_i) in izip!(b[..n].iter(), b[n..].iter()) {
-                new_b.push(b_i.clone() * &x_inv + &(b_n_i.clone() * &x));
+            for i in 0..n {
+                let b_i = std::mem::take(&mut b[i]);
+                let b_n_i = std::mem::take(&mut b[i+n]);
+                new_b.push(b_i * &x_inv + &(b_n_i * &x));
             }
 
             a = new_a;
             b = new_b;
 
             // fold generators
-            // TODO: Same here
             let mut new_G: Vec<GroupElement> = Vec::new();
-            for (G_i, G_n_i) in izip!(G_[..n].iter(), G_[n..2 * n].iter()) {
-                new_G.push(G_i.clone() * &x_inv + &(G_n_i.clone() * &x));
+            for i in 0..n {
+                let G_i = std::mem::take(&mut G_[i]);
+                let G_n_i = std::mem::take(&mut G_[i+n]);
+                new_G.push(G_i * &x_inv + &(G_n_i * &x));
             }
             let mut new_H: Vec<GroupElement> = Vec::new();
-            for (H_i, H_n_i) in izip!(H_[..n].iter(), H_[n..2 * n].iter()) {
-                new_H.push(H_i.clone() * &x + &(H_n_i.clone() * &x_inv));
+            for i in 0..n {
+                let H_i = std::mem::take(&mut H_[i]);
+                let H_n_i = std::mem::take(&mut H_[i+n]);
+                new_H.push(H_i * &x + &(H_n_i * &x_inv));
             }
 
             G_ = new_G;
@@ -452,8 +457,11 @@ impl BulletProof {
 
         // Switch generators H -> y^-n*H    (64)
         let mut H_new = Vec::new();
-        for (y_i, H_i) in izip!(y_list.into_iter(), H_.into_iter()) {
-            H_new.push(H_i * &y_i.invert());
+        let y_inv = y.invert();
+        let mut y_inv_geometric = Scalar::new(&SCALAR_ONE);
+        for H_i in H_.into_iter() {
+            H_new.push(H_i * &y_inv_geometric);
+            y_inv_geometric = y_inv_geometric * &y_inv;
         }
         H_ = H_new;
 
@@ -585,10 +593,13 @@ impl BulletProof {
             return false;
         }
 
-        // Switch generators H -> y^(-n*H)    (64)
+        // Switch generators H -> y^(-n)*H)    (64)
         let mut H_new = Vec::new();
-        for (y_i, H_i) in izip!(y_list.clone().into_iter(), H_.into_iter()) {
-            H_new.push(H_i * &y_i.invert());
+        let y_inv = y.invert();
+        let mut y_inv_geometric = Scalar::new(&SCALAR_ONE);
+        for H_i in H_.into_iter() {
+            H_new.push(H_i * &y_inv_geometric);
+            y_inv_geometric = y_inv_geometric * &y_inv;
         }
         H_ = H_new;
 
