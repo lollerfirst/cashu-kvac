@@ -118,7 +118,7 @@ impl BootstrapProof {
     }
 
     pub fn create(amount_attribute: &mut AmountAttribute, transcript: &mut CashuTranscript) -> ZKP {
-        let statement = BootstrapProof::statement(amount_attribute.commitment());
+        let statement = BootstrapProof::statement(&amount_attribute.commitment());
         SchnorrProver::new(transcript, vec![amount_attribute.r.clone()])
             .add_statement(statement)
             .prove()
@@ -274,14 +274,7 @@ impl IParamsProof {
                 Equation {
                     // V = w*W + x0*U + x1*t*U + ya*Ma + ys*Ms
                     lhs: V,
-                    rhs: vec![vec![
-                        GENERATORS.W.clone(),
-                        O,
-                        U.clone(),
-                        U * t,
-                        Ma,
-                        Ms,
-                    ]],
+                    rhs: vec![vec![GENERATORS.W.clone(), O, U.clone(), U * t, Ma, Ms]],
                 },
             ],
         }
@@ -521,7 +514,7 @@ mod tests {
         let mut bootstrap_attr = AmountAttribute::new(0, None);
         let proof = BootstrapProof::create(&mut bootstrap_attr, client_transcript.as_mut());
         assert!(BootstrapProof::verify(
-            bootstrap_attr.commitment(),
+            &bootstrap_attr.commitment(),
             proof,
             &mut mint_transcript
         ))
@@ -533,7 +526,7 @@ mod tests {
         let mut bootstrap_attr = AmountAttribute::new(1, None);
         let proof = BootstrapProof::create(&mut bootstrap_attr, client_transcript.as_mut());
         assert!(!BootstrapProof::verify(
-            bootstrap_attr.commitment(),
+            &bootstrap_attr.commitment(),
             proof,
             &mut mint_transcript
         ))
@@ -544,7 +537,7 @@ mod tests {
         let (mut mint_transcript, mut client_transcript) = transcripts();
         let mut mint_privkey = privkey();
         let amount_attr = AmountAttribute::new(12, None);
-        let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, None)
+        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
         let mut coin = Coin::new(amount_attr, None, mac);
         let proof = IParamsProof::create(&mut mint_privkey, &mut coin, &mut client_transcript);
@@ -562,7 +555,7 @@ mod tests {
         let mut mint_privkey = privkey();
         let mint_privkey_1 = privkey();
         let amount_attr = AmountAttribute::new(12, None);
-        let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, None)
+        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
         let mut coin = Coin::new(amount_attr, None, mac);
         let proof = IParamsProof::create(&mut mint_privkey, &mut coin, &mut client_transcript);
@@ -579,7 +572,7 @@ mod tests {
         let (mut mint_transcript, mut client_transcript) = transcripts();
         let mint_privkey = privkey();
         let amount_attr = AmountAttribute::new(12, None);
-        let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, None)
+        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
         let coin = Coin::new(amount_attr, None, mac);
         let randomized_coin =
@@ -612,7 +605,7 @@ mod tests {
             let z = Scalar::random();
             let Ms: GroupElement = GroupElement::new(&GROUP_ELEMENT_ZERO);
 
-            let Ca = GENERATORS.Gz_attribute.clone() * z.as_ref() + Ma;
+            let Ca = GENERATORS.Gz_attribute.clone() * z.as_ref() + &Ma;
             let Cs = GENERATORS.Gz_script.clone() * z.as_ref() + &Ms;
             let Cx0 = GENERATORS.X0.clone() * z.as_ref() + &U;
             let Cx1 = GENERATORS.X1.clone() * z.as_ref() + &(U * &t);
@@ -630,7 +623,7 @@ mod tests {
         let (mut mint_transcript, mut client_transcript) = transcripts();
         let mut mint_privkey = privkey();
         let amount_attr = AmountAttribute::new(12, None);
-        let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, None)
+        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
         let mut coin = Coin::new(amount_attr, None, mac);
         let randomized_coin = generate_custom_rand(&mut coin).expect("Expected a randomized coin");
@@ -662,7 +655,7 @@ mod tests {
         let macs: Vec<MAC> = inputs
             .iter()
             .map(|input| {
-                MAC::generate(&privkey, input.commitment(), None, None).expect("MAC expected")
+                MAC::generate(&privkey, &input.commitment(), None, None).expect("MAC expected")
             })
             .collect();
         let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
@@ -701,7 +694,7 @@ mod tests {
         let macs: Vec<MAC> = inputs
             .iter_mut()
             .map(|input| {
-                MAC::generate(&privkey, input.commitment(), None, None).expect("MAC expected")
+                MAC::generate(&privkey, &input.commitment(), None, None).expect("MAC expected")
             })
             .collect();
         let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
@@ -761,8 +754,8 @@ mod tests {
             .map(|(amount_attr, script_attr)| {
                 MAC::generate(
                     &privkey,
-                    amount_attr.commitment(),
-                    Some(script_attr.commitment()),
+                    &amount_attr.commitment(),
+                    Some(&script_attr.commitment()),
                     None,
                 )
                 .expect("")
@@ -830,8 +823,8 @@ mod tests {
             .map(|(amount_attr, script_attr)| {
                 MAC::generate(
                     &privkey,
-                    amount_attr.commitment(),
-                    Some(script_attr.commitment()),
+                    &amount_attr.commitment(),
+                    Some(&script_attr.commitment()),
                     None,
                 )
                 .expect("")

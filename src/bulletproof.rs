@@ -301,7 +301,7 @@ impl BulletProof {
         // Append Ma and bit-length to the transcript
         for attribute_pair in attributes.iter() {
             let amount_commitment = attribute_pair.0.commitment();
-            transcript.append_element(b"Com(V)_", amount_commitment);
+            transcript.append_element(b"Com(V)_", &amount_commitment);
         }
         transcript.append_element(
             b"Com(m)_",
@@ -502,9 +502,9 @@ impl BulletProof {
         // This check shouldn't be necessary but better safe than sorry
         // plus we save some computation
         let check = n * attribute_commitments.len();
-        if (check.count_ones() == 1 && check.ilog2() != self.ipa.public_inputs.len() as u32) || 
-            (check.count_ones() != 1
-            && check.ilog2() + 1 != self.ipa.public_inputs.len() as u32) {
+        if (check.count_ones() == 1 && check.ilog2() != self.ipa.public_inputs.len() as u32)
+            || (check.count_ones() != 1 && check.ilog2() + 1 != self.ipa.public_inputs.len() as u32)
+        {
             return false;
         }
 

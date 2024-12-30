@@ -1,11 +1,13 @@
-use bitcoin::hashes::serde::Serialize;
+use bitcoin::hashes::serde::{Serialize, Serializer};
 use bitcoin::secp256k1::constants::CURVE_ORDER;
 use bitcoin::secp256k1::{rand, All, PublicKey, Scalar as SecpScalar, Secp256k1, SecretKey};
 use once_cell::sync::Lazy;
 use rug::ops::RemRounding;
 use rug::Integer;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::cmp::PartialEq;
+
+use crate::errors::Error;
 
 pub const SCALAR_ZERO: [u8; 32] = [0; 32];
 pub const SCALAR_ONE: [u8; 32] = [
@@ -21,13 +23,13 @@ pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(|| {
     ctx
 });
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Scalar {
     inner: Option<SecretKey>,
     is_zero: bool,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
     is_zero: bool,
@@ -345,15 +347,16 @@ impl From<u64> for Scalar {
     }
 }
 
-impl From<&str> for Scalar {
-    fn from(hex_string: &str) -> Self {
-        let bytes = hex::decode(hex_string).expect("Invalid hex string");
+impl TryFrom<&str> for Scalar {
+    type Error = Error;
+    fn try_from(hex_string: &str) -> Result<Self, Error> {
+        let bytes = hex::decode(hex_string)?;
         if bytes.len() > 32 {
-            panic!("Hex string is too long");
+            return Err(Error::HexStringTooLong);
         }
         let mut padded_bytes = [0u8; 32];
         padded_bytes[32 - bytes.len()..32].copy_from_slice(&bytes);
-        Scalar::new(&padded_bytes)
+        Ok(Scalar::new(&padded_bytes))
     }
 }
 
@@ -383,6 +386,28 @@ impl PartialEq for Scalar {
             b |= x ^ y;
         }
         b == 0
+    }
+}
+
+impl Serialize for Scalar {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let scalar_hex: String = self.into();
+        serializer.serialize_str(&scalar_hex)
+    }
+}
+
+impl<'de> Deserialize<'de> for Scalar {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hex: String = String::deserialize(deserializer)?;
+        let scalar = Scalar::try_from(hex.as_str())
+            .map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
+        Ok(scalar)
     }
 }
 
@@ -452,15 +477,16 @@ impl PartialEq for GroupElement {
     }
 }
 
-impl From<&str> for GroupElement {
-    fn from(hex_string: &str) -> Self {
-        let bytes = hex::decode(hex_string).expect("Invalid hex string");
+impl TryFrom<&str> for GroupElement {
+    type Error = Error;
+    fn try_from(hex_string: &str) -> Result<Self, Error> {
+        let bytes = hex::decode(hex_string)?;
         if bytes.len() > 33 {
-            panic!("Hex string is too long");
+            return Err(Error::HexStringTooLong);
         }
         let mut padded_bytes = [0u8; 33];
         padded_bytes[33 - bytes.len()..33].copy_from_slice(&bytes);
-        GroupElement::new(&padded_bytes)
+        Ok(GroupElement::new(&padded_bytes))
     }
 }
 
@@ -498,8 +524,32 @@ impl AsRef<GroupElement> for GroupElement {
     }
 }
 
+impl Serialize for GroupElement {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let ge_hex: String = self.into();
+        serializer.serialize_str(&ge_hex)
+    }
+}
+
+impl<'de> Deserialize<'de> for GroupElement {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hex: String = String::deserialize(deserializer)?;
+        let ge = GroupElement::try_from(hex.as_str())
+            .map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
+        Ok(ge)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::generators::hash_to_curve;
+
     use super::*;
 
     #[test]
@@ -531,45 +581,45 @@ mod tests {
 
     #[test]
     fn test_scalar_tweak_mul() {
-        let mut scalar1 = Scalar::from("02");
-        let scalar2 = Scalar::from("03");
-        let result = Scalar::from("06");
+        let mut scalar1 = Scalar::try_from("02").unwrap();
+        let scalar2 = Scalar::try_from("03").unwrap();
+        let result = Scalar::try_from("06").unwrap();
         let result_ = scalar1.tweak_mul(&scalar2);
         assert!(*result_ == result);
     }
 
     #[test]
     fn test_scalar_tweak_add() {
-        let mut scalar1 = Scalar::from("02");
-        let scalar2 = Scalar::from("03");
-        let result = Scalar::from("05");
+        let mut scalar1 = Scalar::try_from("02").unwrap();
+        let scalar2 = Scalar::try_from("03").unwrap();
+        let result = Scalar::try_from("05").unwrap();
         let result_ = scalar1.tweak_add(&scalar2);
         assert!(result == *result_);
     }
 
     #[test]
     fn test_scalar_add() {
-        let scalar1 = Scalar::from("02");
-        let scalar2 = Scalar::from("03");
-        let result = Scalar::from("05");
+        let scalar1 = Scalar::try_from("02").unwrap();
+        let scalar2 = Scalar::try_from("03").unwrap();
+        let result = Scalar::try_from("05").unwrap();
         let result_ = scalar1 + &scalar2;
         assert!(result_ == result);
     }
 
     #[test]
     fn test_scalar_sub() {
-        let scalar1 = Scalar::from("10");
-        let scalar2 = Scalar::from("02");
-        let result = Scalar::from("0e");
+        let scalar1 = Scalar::try_from("10").unwrap();
+        let scalar2 = Scalar::try_from("02").unwrap();
+        let result = Scalar::try_from("0e").unwrap();
         let result_ = scalar1 - &scalar2;
         assert!(result == result_);
     }
 
     #[test]
     fn test_scalar_mul() {
-        let scalar1 = Scalar::from("02");
-        let scalar2 = Scalar::from("03");
-        let result = Scalar::from("06");
+        let scalar1 = Scalar::try_from("02").unwrap();
+        let scalar2 = Scalar::try_from("03").unwrap();
+        let result = Scalar::try_from("06").unwrap();
         let result_ = scalar1 * &scalar2;
         assert!(result_ == result);
     }
@@ -647,45 +697,75 @@ mod tests {
     #[test]
     fn test_scalar_modular_inversion() {
         let one = Scalar::new(&SCALAR_ONE);
-        let scalar = Scalar::from("deadbeef");
+        let scalar = Scalar::try_from("deadbeef").unwrap();
         let scalar_inv = scalar.clone().invert();
         let prod = scalar * &scalar_inv;
         assert!(one == prod);
     }
 
     #[test]
+    fn test_scalar_serialization() {
+        let scalar = Scalar::random();
+
+        // Serialize the Scalar instance
+        let serialized = serde_json::to_string(&scalar).expect("Failed to serialize");
+        println!("{}", serialized);
+        assert!(serialized.len() > 0);
+    }
+
+    #[test]
+    fn test_scalar_deserialization() {
+        let scalar = Scalar::random();
+
+        // Serialize the Scalar instance to JSON
+        let serialized = serde_json::to_string(&scalar).expect("Failed to serialize");
+
+        // Deserialize back to Scalar
+        let deserialized: Scalar =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
+
+        // Check that the deserialized Scalar matches the original
+        assert_eq!(scalar.is_zero, deserialized.is_zero);
+        assert_eq!(scalar.inner.is_some(), deserialized.inner.is_some());
+    }
+
+    #[test]
     fn test_ge_from_hex() {
-        let g = GroupElement::from(
+        let g = GroupElement::try_from(
             "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-        );
+        )
+        .unwrap();
         assert!(!g.is_zero)
     }
 
     #[test]
     fn test_ge_into() {
         let hex_str = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
-        let g = GroupElement::from(hex_str);
+        let g = GroupElement::try_from(hex_str).unwrap();
         let g_string: String = g.as_ref().into();
         assert!(hex_str == g_string)
     }
 
     #[test]
     fn test_cmp_neq() {
-        let g1 = GroupElement::from(
+        let g1 = GroupElement::try_from(
             "0264f39fbee428ab6165e907b5d463a17e315b9f06f6200ed7e9c4bcbe0df73383",
-        );
-        let g2 = GroupElement::from(
+        )
+        .unwrap();
+        let g2 = GroupElement::try_from(
             "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-        );
+        )
+        .unwrap();
         assert!(g1 != g2);
     }
 
     #[test]
     fn test_ge_add_mul() {
-        let g = GroupElement::from(
+        let g = GroupElement::try_from(
             "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-        );
-        let scalar_2 = Scalar::from("02");
+        )
+        .unwrap();
+        let scalar_2 = Scalar::try_from("02").unwrap();
         let result = g.clone() + &g;
         let result_ = g * &scalar_2;
         assert!(result == result_)
@@ -693,11 +773,35 @@ mod tests {
 
     #[test]
     fn test_ge_sub_mul() {
-        let g = GroupElement::from(
+        let g = GroupElement::try_from(
             "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-        );
-        let scalar_2 = Scalar::from("02");
+        )
+        .unwrap();
+        let scalar_2 = Scalar::try_from("02").unwrap();
         let result = g.clone() * &scalar_2 - &g;
         assert!(result == g)
+    }
+
+    #[test]
+    fn test_ge_serialization() {
+        let ge = hash_to_curve(b"deadbeef").unwrap();
+
+        // Serialize the Scalar instance
+        let serialized = serde_json::to_string(&ge).expect("Failed to serialize");
+        println!("{}", serialized);
+        assert!(serialized.len() > 0);
+    }
+
+    #[test]
+    fn test_ge_deserialization() {
+        let ge = hash_to_curve(b"deadbeef").unwrap();
+
+        let serialized = serde_json::to_string(&ge).expect("Failed to serialize");
+
+        let deserialized: GroupElement =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
+
+        assert_eq!(ge.is_zero, deserialized.is_zero);
+        assert_eq!(ge.inner.is_some(), deserialized.inner.is_some());
     }
 }

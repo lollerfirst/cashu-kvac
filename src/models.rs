@@ -5,6 +5,7 @@ use crate::{
 };
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub const RANGE_LIMIT: u64 = u32::MAX as u64;
 
@@ -25,7 +26,6 @@ pub struct MintPrivateKey {
 #[allow(non_snake_case)]
 impl MintPrivateKey {
     pub fn from_scalars(scalars: &[Scalar]) -> Result<Self, Error> {
-
         if let [w, w_, x0, x1, ya, ys] = scalars {
             let Cw = GENERATORS.W.clone() * w + &(GENERATORS.W_.clone() * w_);
             let I = GENERATORS.Gz_mac.clone()
@@ -46,7 +46,6 @@ impl MintPrivateKey {
         } else {
             Err(Error::InvalidMintPrivateKey)
         }
-        
     }
 
     pub fn to_scalars(&self) -> Vec<Scalar> {
@@ -65,16 +64,17 @@ impl MintPrivateKey {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ZKP {
     pub s: Vec<Scalar>,
     pub c: Scalar,
 }
 
 #[allow(non_snake_case)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ScriptAttribute {
-    pub r: Scalar,
     pub s: Scalar,
-    Ms: GroupElement,
+    pub r: Scalar,
 }
 
 #[allow(non_snake_case)]
@@ -83,25 +83,44 @@ impl ScriptAttribute {
         let s = Scalar::new(&Sha256Hash::hash(script).to_byte_array());
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
-            let Ms = GENERATORS.G_script.clone() * &s + &(GENERATORS.G_blind.clone() * &r);
-            ScriptAttribute { r, s, Ms }
+
+            ScriptAttribute { r, s }
         } else {
             let r = Scalar::random();
-            let Ms = GENERATORS.G_script.clone() * &s + &(GENERATORS.G_blind.clone() * &r);
-            ScriptAttribute { r, s, Ms }
+            ScriptAttribute { r, s }
         }
     }
 
-    pub fn commitment(&self) -> &GroupElement {
-        self.Ms.as_ref()
+    pub fn commitment(&self) -> GroupElement {
+        GENERATORS.G_script.clone() * &self.s + &(GENERATORS.G_blind.clone() * &self.r)
     }
 }
 
 #[allow(non_snake_case)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AmountAttribute {
+    #[serde(
+        serialize_with = "serialize_amount",
+        deserialize_with = "deserialize_amount"
+    )]
     pub a: Scalar,
     pub r: Scalar,
-    Ma: GroupElement,
+}
+
+fn serialize_amount<S>(a: &Scalar, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let amount: u64 = a.into();
+    serializer.serialize_u64(amount)
+}
+
+fn deserialize_amount<'de, D>(deserializer: D) -> Result<Scalar, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let amount = u64::deserialize(deserializer)?;
+    Ok(Scalar::from(amount))
 }
 
 #[allow(non_snake_case)]
@@ -110,21 +129,20 @@ impl AmountAttribute {
         let a = Scalar::from(amount);
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
-            let Ma = GENERATORS.G_amount.clone() * &a + &(GENERATORS.G_blind.clone() * &r);
-            AmountAttribute { r, a, Ma }
+            AmountAttribute { r, a }
         } else {
             let r = Scalar::random();
-            let Ma = GENERATORS.G_amount.clone() * &a + &(GENERATORS.G_blind.clone() * &r);
-            AmountAttribute { r, a, Ma }
+            AmountAttribute { r, a }
         }
     }
 
-    pub fn commitment(&self) -> &GroupElement {
-        self.Ma.as_ref()
+    pub fn commitment(&self) -> GroupElement {
+        GENERATORS.G_amount.clone() * &self.a + &(GENERATORS.G_blind.clone() * &self.r)
     }
 }
 
 #[allow(non_snake_case)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct MAC {
     pub t: Scalar,
     pub V: GroupElement,
@@ -164,6 +182,7 @@ impl MAC {
 /// Spendable coin.
 /// Contains `AmountAttribute`, `ScriptAttribute`
 /// and the `MAC` approval by the Mint.
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Coin {
     pub amount_attribute: AmountAttribute,
     pub script_attribute: Option<ScriptAttribute>,
@@ -187,6 +206,7 @@ impl Coin {
 /// Contains randomized commitments of a `Coin`.
 /// Used for unlinkable multi-show.
 #[allow(non_snake_case)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct RandomizedCoin {
     /// Randomized Attribute Commitment
     pub Ca: GroupElement,
@@ -220,7 +240,7 @@ impl RandomizedCoin {
             Ms = GroupElement::new(&GROUP_ELEMENT_ZERO);
         }
 
-        let Ca = GENERATORS.Gz_attribute.clone() * r + Ma;
+        let Ca = GENERATORS.Gz_attribute.clone() * r + &Ma;
         let Cs = GENERATORS.Gz_script.clone() * r + &Ms;
         let Cx0 = GENERATORS.X0.clone() * r + &U;
         let Cx1 = GENERATORS.X1.clone() * r + &(U * &t);
@@ -248,4 +268,81 @@ pub struct Statement {
     pub domain_separator: &'static [u8],
     /// Relations
     pub equations: Vec<Equation>,
+}
+
+#[allow(unused_imports)]
+mod tests {
+    use crate::{generators::hash_to_curve, models::ScriptAttribute, secp::Scalar};
+
+    use super::{AmountAttribute, MAC};
+
+    #[allow(dead_code)]
+    const B_FACTOR: &[u8; 32] = b"deadbeefdeadbeefdeadbeefdeadbeef";
+
+    #[test]
+    fn test_serialize_amount_attr() {
+        let a = AmountAttribute::new(10, Some(B_FACTOR));
+        let serialized = serde_json::to_string(&a).unwrap();
+        let target =
+            "{\"a\":10,\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
+        assert_eq!(serialized.as_str(), target);
+    }
+
+    #[test]
+    fn test_deserialize_amount_attr() {
+        let a = AmountAttribute::new(10, Some(B_FACTOR));
+        let serialized =
+            "{\"a\":10,\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
+        let deserialized: AmountAttribute =
+            serde_json::from_str(&serialized).expect("Cannot deserialize");
+        assert!(deserialized.a == a.a);
+    }
+
+    #[test]
+    fn test_serialize_script_attr() {
+        let script_attr = ScriptAttribute::new(b"38c3", Some(B_FACTOR));
+        let serialized = serde_json::to_string(&script_attr).unwrap();
+        let target = "{\"s\":\"c87557af1c5e640a085df471d68a5a97c9aaf4d379add58da3d7d5e0fe0df487\",\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
+        assert_eq!(serialized.as_str(), target);
+    }
+
+    #[test]
+    fn test_deserialize_script_attr() {
+        let script_attr = ScriptAttribute::new(b"38c3", Some(B_FACTOR));
+        let serialized = "{\"s\":\"c87557af1c5e640a085df471d68a5a97c9aaf4d379add58da3d7d5e0fe0df487\",\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
+        let deserialized: ScriptAttribute = serde_json::from_str(serialized).unwrap();
+        assert!(deserialized.s == script_attr.s);
+    }
+
+    #[test]
+    fn test_serialize_mac() {
+        let target = "{\"t\":\"fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4\",\"V\":\"022b5028285ab8646380eed0a07d76cab4379a43680df72428ee792a6f7a3910d0\"}";
+        // fake MAC for testing purposes
+        let t =
+            Scalar::try_from("fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4")
+                .unwrap();
+        let t_bytes: [u8; 32] = t.as_ref().into();
+        let mac = MAC {
+            t,
+            V: hash_to_curve(&t_bytes).unwrap(),
+        };
+        let serialized = serde_json::to_string(&mac).unwrap();
+        assert_eq!(serialized, target);
+    }
+
+    #[test]
+    fn test_deserialize_mac() {
+        let serialized = "{\"t\":\"fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4\",\"V\":\"022b5028285ab8646380eed0a07d76cab4379a43680df72428ee792a6f7a3910d0\"}";
+        let t =
+            Scalar::try_from("fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4")
+                .unwrap();
+        let t_bytes: [u8; 32] = t.as_ref().into();
+        let mac = MAC {
+            t,
+            V: hash_to_curve(&t_bytes).unwrap(),
+        };
+        let deserialized: MAC = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(mac.t, deserialized.t);
+        assert_eq!(mac.V, deserialized.V);
+    }
 }
