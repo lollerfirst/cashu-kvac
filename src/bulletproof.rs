@@ -158,13 +158,13 @@ impl InnerProductArgument {
             let mut new_a: Vec<Scalar> = Vec::new();
             for i in 0..n {
                 let a_i = std::mem::take(&mut a[i]);
-                let a_n_i = std::mem::take(&mut a[i+n]);
+                let a_n_i = std::mem::take(&mut a[i + n]);
                 new_a.push(a_i * &x + &(a_n_i * &x_inv));
             }
             let mut new_b: Vec<Scalar> = Vec::new();
             for i in 0..n {
                 let b_i = std::mem::take(&mut b[i]);
-                let b_n_i = std::mem::take(&mut b[i+n]);
+                let b_n_i = std::mem::take(&mut b[i + n]);
                 new_b.push(b_i * &x_inv + &(b_n_i * &x));
             }
 
@@ -175,13 +175,13 @@ impl InnerProductArgument {
             let mut new_G: Vec<GroupElement> = Vec::new();
             for i in 0..n {
                 let G_i = std::mem::take(&mut G_[i]);
-                let G_n_i = std::mem::take(&mut G_[i+n]);
+                let G_n_i = std::mem::take(&mut G_[i + n]);
                 new_G.push(G_i * &x_inv + &(G_n_i * &x));
             }
             let mut new_H: Vec<GroupElement> = Vec::new();
             for i in 0..n {
                 let H_i = std::mem::take(&mut H_[i]);
-                let H_n_i = std::mem::take(&mut H_[i+n]);
+                let H_n_i = std::mem::take(&mut H_[i + n]);
                 new_H.push(H_i * &x + &(H_n_i * &x_inv));
             }
 
