@@ -12,6 +12,8 @@ pub enum Error {
     InvalidConfiguration,
     #[error("Cannot map hash to a valid point on the curve")]
     InvalidPoint,
+    #[error("Wrong number of secrets for MintPrivateKey")]
+    InvalidMintPrivateKey,
     #[error("Hex string is too long")]
     HexStringTooLong,
     #[error("Cannot deserialize from this object")]
