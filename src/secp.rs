@@ -411,6 +411,15 @@ impl<'de> Deserialize<'de> for Scalar {
     }
 }
 
+impl Default for Scalar {
+    fn default() -> Self {
+        Scalar {
+            inner: None,
+            is_zero: true,
+        }
+    }
+}
+
 impl std::ops::Add<&GroupElement> for GroupElement {
     type Output = GroupElement;
 
@@ -543,6 +552,15 @@ impl<'de> Deserialize<'de> for GroupElement {
         let ge = GroupElement::try_from(hex.as_str())
             .map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
         Ok(ge)
+    }
+}
+
+impl Default for GroupElement {
+    fn default() -> Self {
+        GroupElement {
+            inner: None,
+            is_zero: true,
+        }
     }
 }
 
@@ -701,6 +719,13 @@ mod tests {
         let scalar_inv = scalar.clone().invert();
         let prod = scalar * &scalar_inv;
         assert!(one == prod);
+    }
+
+    #[test]
+    fn test_invert_scalar_one() {
+        let one = Scalar::new(&SCALAR_ONE);
+        let one_inv = one.clone().invert();
+        assert!(one == one_inv)
     }
 
     #[test]
