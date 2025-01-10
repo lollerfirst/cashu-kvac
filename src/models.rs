@@ -64,7 +64,7 @@ impl MintPrivateKey {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ZKP {
     pub s: Vec<Scalar>,
     pub c: Scalar,
