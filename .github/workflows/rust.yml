@@ -22,6 +22,7 @@ jobs:
           toolchain: nightly
           override: true
           override-with: cargo
+          components: rustfmt
 
       - name: Format code
         run: cargo fmt -- --check
