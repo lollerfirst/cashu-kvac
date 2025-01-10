@@ -273,12 +273,8 @@ impl std::ops::Mul<&Scalar> for Scalar {
             self.is_zero = true;
             self
         } else {
-            // Multiplication is masked with random `r`
-            let mut r = Scalar::random();
-            self.tweak_add(&r);
             self.tweak_mul(other);
-            r.tweak_mul(other);
-            self - &r
+            self
         }
     }
 }
