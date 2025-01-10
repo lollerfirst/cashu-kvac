@@ -552,16 +552,16 @@ mod tests {
     #[test]
     fn test_wrong_iparams() {
         let (mut mint_transcript, mut client_transcript) = transcripts();
-        let mut mint_privkey = privkey();
+        let mint_privkey = privkey();
         let mint_privkey_1 = privkey();
         let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
-        let mut coin = Coin::new(amount_attr, None, mac);
-        let proof = IParamsProof::create(&mut mint_privkey, &mut coin, &mut client_transcript);
+        let coin = Coin::new(amount_attr, None, mac);
+        let proof = IParamsProof::create(&mint_privkey, &coin, &mut client_transcript);
         assert!(!IParamsProof::verify(
             mint_privkey_1.pubkey(),
-            &mut coin,
+            &coin,
             proof,
             &mut mint_transcript
         ))
@@ -621,7 +621,7 @@ mod tests {
         }
 
         let (mut mint_transcript, mut client_transcript) = transcripts();
-        let mut mint_privkey = privkey();
+        let mint_privkey = privkey();
         let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
@@ -634,7 +634,7 @@ mod tests {
             &mut client_transcript,
         );
         assert!(!MacProof::verify(
-            &mut mint_privkey,
+            &mint_privkey,
             &randomized_coin,
             None,
             proof,
