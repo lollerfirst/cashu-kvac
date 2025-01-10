@@ -625,8 +625,8 @@ mod tests {
         let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
-        let mut coin = Coin::new(amount_attr, None, mac);
-        let randomized_coin = generate_custom_rand(&mut coin).expect("Expected a randomized coin");
+        let coin = Coin::new(amount_attr, None, mac);
+        let randomized_coin = generate_custom_rand(&coin).expect("Expected a randomized coin");
         let proof = MacProof::create(
             mint_privkey.pubkey(),
             &coin,
