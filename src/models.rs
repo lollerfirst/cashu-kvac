@@ -294,7 +294,7 @@ mod tests {
         let serialized =
             "{\"a\":10,\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
         let deserialized: AmountAttribute =
-            serde_json::from_str(&serialized).expect("Cannot deserialize");
+            serde_json::from_str(serialized).expect("Cannot deserialize");
         assert!(deserialized.a == a.a);
     }
 
@@ -341,7 +341,7 @@ mod tests {
             t,
             V: hash_to_curve(&t_bytes).unwrap(),
         };
-        let deserialized: MAC = serde_json::from_str(&serialized).unwrap();
+        let deserialized: MAC = serde_json::from_str(serialized).unwrap();
         assert_eq!(mac.t, deserialized.t);
         assert_eq!(mac.V, deserialized.V);
     }

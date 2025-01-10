@@ -731,7 +731,7 @@ mod tests {
         // Serialize the Scalar instance
         let serialized = serde_json::to_string(&scalar).expect("Failed to serialize");
         println!("{}", serialized);
-        assert!(serialized.len() > 0);
+        assert!(!serialized.is_empty());
     }
 
     #[test]
@@ -810,7 +810,7 @@ mod tests {
         // Serialize the Scalar instance
         let serialized = serde_json::to_string(&ge).expect("Failed to serialize");
         println!("{}", serialized);
-        assert!(serialized.len() > 0);
+        assert!(!serialized.is_empty());
     }
 
     #[test]
