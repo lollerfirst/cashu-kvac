@@ -281,8 +281,8 @@ impl IParamsProof {
     }
 
     pub fn create(
-        mint_privkey: &mut MintPrivateKey,
-        coin: &mut Coin,
+        mint_privkey: &MintPrivateKey,
+        coin: &Coin,
         transcript: &mut CashuTranscript,
     ) -> ZKP {
         let mint_pubkey = mint_privkey.pubkey();
