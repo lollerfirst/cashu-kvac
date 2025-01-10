@@ -1,9 +1,13 @@
 #![feature(test)]
 extern crate test;
-use test::Bencher;
 use cashu_kvac::{
-    bulletproof::BulletProof, generators::GENERATORS, models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, ScriptAttribute, MAC}, secp::{GroupElement, Scalar}, transcript::CashuTranscript
+    bulletproof::BulletProof,
+    generators::GENERATORS,
+    models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, ScriptAttribute, MAC},
+    secp::{GroupElement, Scalar},
+    transcript::CashuTranscript,
 };
+use test::Bencher;
 
 use cashu_kvac::kvac::{BalanceProof, BootstrapProof, IParamsProof, MacProof, ScriptEqualityProof};
 
@@ -46,7 +50,14 @@ fn bench_mac_proof(bencher: &mut Bencher) {
     let coin = Coin::new(amount_attr, None, mac);
     let randomized_coin =
         RandomizedCoin::from_coin(&coin, false).expect("Expected a randomized coin");
-    bencher.iter(|| MacProof::create(mint_privkey.pubkey(), &coin, &randomized_coin, &mut client_transcript));
+    bencher.iter(|| {
+        MacProof::create(
+            mint_privkey.pubkey(),
+            &coin,
+            &randomized_coin,
+            &mut client_transcript,
+        )
+    });
 }
 
 #[bench]
@@ -106,12 +117,14 @@ fn bench_script_proofs(bencher: &mut Bencher) {
         .iter()
         .map(|coin| RandomizedCoin::from_coin(coin, false).expect(""))
         .collect();
-    bencher.iter(|| ScriptEqualityProof::create(
-        &coins,
-        &randomized_coins,
-        &outputs,
-        client_transcript.as_mut(),
-    ));
+    bencher.iter(|| {
+        ScriptEqualityProof::create(
+            &coins,
+            &randomized_coins,
+            &outputs,
+            client_transcript.as_mut(),
+        )
+    });
 }
 
 #[bench]
@@ -135,11 +148,13 @@ fn bench_bootstrap_proof_verification(bencher: &mut Bencher) {
     let (mut mint_transcript, mut client_transcript) = transcripts();
     let mut bootstrap_attr = AmountAttribute::new(0, None);
     let proof = BootstrapProof::create(&mut bootstrap_attr, client_transcript.as_mut());
-    bencher.iter(|| BootstrapProof::verify(
-        &bootstrap_attr.commitment(),
-        proof.clone(),
-        &mut mint_transcript
-    ));
+    bencher.iter(|| {
+        BootstrapProof::verify(
+            &bootstrap_attr.commitment(),
+            proof.clone(),
+            &mut mint_transcript,
+        )
+    });
 }
 
 #[bench]
@@ -151,12 +166,14 @@ fn bench_iparams_proof_verification(bencher: &mut Bencher) {
         .expect("Couldn't generate MAC");
     let mut coin = Coin::new(amount_attr, None, mac);
     let proof = IParamsProof::create(&mut mint_privkey, &mut coin, &mut client_transcript);
-    bencher.iter(|| IParamsProof::verify(
-        mint_privkey.pubkey(),
-        &mut coin,
-        proof.clone(),
-        &mut mint_transcript
-    ));
+    bencher.iter(|| {
+        IParamsProof::verify(
+            mint_privkey.pubkey(),
+            &mut coin,
+            proof.clone(),
+            &mut mint_transcript,
+        )
+    });
 }
 
 #[bench]
@@ -189,12 +206,15 @@ fn bench_balance_proof_verification(bencher: &mut Bencher) {
         .into_iter()
         .map(|output| output.commitment().clone())
         .collect();
-    bencher.iter(|| BalanceProof::verify(
-        &randomized_coins,
-        &outputs,
-        0,
-        proof.clone(),
-        &mut mint_transcript));
+    bencher.iter(|| {
+        BalanceProof::verify(
+            &randomized_coins,
+            &outputs,
+            0,
+            proof.clone(),
+            &mut mint_transcript,
+        )
+    });
 }
 
 #[bench]
@@ -213,13 +233,15 @@ fn bench_mac_proof_verification(bencher: &mut Bencher) {
         &randomized_coin,
         &mut client_transcript,
     );
-    bencher.iter(|| MacProof::verify(
-        &mint_privkey,
-        &randomized_coin,
-        None,
-        proof.clone(),
-        &mut mint_transcript
-    ));
+    bencher.iter(|| {
+        MacProof::verify(
+            &mint_privkey,
+            &randomized_coin,
+            None,
+            proof.clone(),
+            &mut mint_transcript,
+        )
+    });
 }
 
 #[bench]
@@ -283,12 +305,14 @@ fn bench_script_proof_verification(bencher: &mut Bencher) {
         .into_iter()
         .map(|(aa, sa)| (aa.commitment().clone(), sa.commitment().clone()))
         .collect();
-    bencher.iter(|| ScriptEqualityProof::verify(
-        &randomized_coins,
-        &outputs,
-        proof.clone(),
-        mint_transcript.as_mut()
-    ));
+    bencher.iter(|| {
+        ScriptEqualityProof::verify(
+            &randomized_coins,
+            &outputs,
+            proof.clone(),
+            mint_transcript.as_mut(),
+        )
+    });
 }
 
 #[bench]

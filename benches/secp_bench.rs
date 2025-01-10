@@ -1,8 +1,8 @@
 #![feature(test)]
 extern crate test;
-use test::Bencher;
-use cashu_kvac::secp::Scalar;
 use cashu_kvac::generators::hash_to_curve;
+use cashu_kvac::secp::Scalar;
+use test::Bencher;
 
 #[bench]
 fn scalar_bench_add(bencher: &mut Bencher) {
