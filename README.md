@@ -3,8 +3,15 @@
 Experimental implementation of the core crypto behind an anonymous credentials enabled Mint.
 
 ### Compile and Run Tests
+
 ```shell
 cargo build && cargo test
+```
+
+### Run Benchmarks
+
+```shell
+cargo +nightly bench
 ```
 
 ### Usage Examples
@@ -16,7 +23,7 @@ use cashu_kvac::models::AmountAttribute;
 // Normal
 let amount_attribute = AmountAttribute::new(10, None);
 
-// Chosen blinding factor (derived from BIP32)
+// Chosen blinding factor (e.g. derived from BIP32)
 let custom_blinding_factor = b"deadbeefdeadbeefdeadbeefdeadbeef";
 let amount_attribute_1 = AmountAttribute::new(10, Some(custom_blinding_factor));
 ```

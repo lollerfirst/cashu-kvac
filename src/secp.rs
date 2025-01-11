@@ -273,12 +273,8 @@ impl std::ops::Mul<&Scalar> for Scalar {
             self.is_zero = true;
             self
         } else {
-            // Multiplication is masked with random `r`
-            let mut r = Scalar::random();
-            self.tweak_add(&r);
             self.tweak_mul(other);
-            r.tweak_mul(other);
-            self - &r
+            self
         }
     }
 }
@@ -735,7 +731,7 @@ mod tests {
         // Serialize the Scalar instance
         let serialized = serde_json::to_string(&scalar).expect("Failed to serialize");
         println!("{}", serialized);
-        assert!(serialized.len() > 0);
+        assert!(!serialized.is_empty());
     }
 
     #[test]
@@ -814,7 +810,7 @@ mod tests {
         // Serialize the Scalar instance
         let serialized = serde_json::to_string(&ge).expect("Failed to serialize");
         println!("{}", serialized);
-        assert!(serialized.len() > 0);
+        assert!(!serialized.is_empty());
     }
 
     #[test]
