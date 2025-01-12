@@ -1,7 +1,8 @@
 [package]
 name = "cashu_kvac"
 version = "0.1.0"
-edition = "2021"
+edition = "2025"
+rust-version = "1.80.1"
 
 [lib]
 path = "src/lib.rs"
