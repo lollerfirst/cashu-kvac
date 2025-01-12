@@ -10,6 +10,28 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub const RANGE_LIMIT: u64 = u32::MAX as u64;
 
 #[allow(non_snake_case)]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct MintPublicKey {
+    pub Cw: GroupElement,
+    pub I: GroupElement,
+}
+
+#[allow(non_snake_case)]
+impl MintPublicKey {
+    pub fn tweak_epoch(self, epoch: u64) -> MintPublicKey {
+        let e = Scalar::from(epoch);
+        let Cw = self.Cw
+            + &(GENERATORS.W.clone() * &e)
+            + &(GENERATORS.W_.clone() * &e);
+        let I = self.I - &(GENERATORS.X0.clone() * &e
+            + &(GENERATORS.X1.clone() * &e)
+            + &(GENERATORS.Gz_attribute.clone() * &e)
+            + &(GENERATORS.Gz_script.clone() * &e));
+        MintPublicKey { Cw, I }
+    }
+}
+
+#[allow(non_snake_case)]
 pub struct MintPrivateKey {
     pub w: Scalar,
     pub w_: Scalar,
@@ -18,12 +40,6 @@ pub struct MintPrivateKey {
     pub ya: Scalar,
     pub ys: Scalar,
     pub public_key: MintPublicKey,
-}
-
-#[allow(non_snake_case)]
-pub struct MintPublicKey {
-    pub Cw: GroupElement,
-    pub I: GroupElement,
 }
 
 #[allow(non_snake_case)]
@@ -60,6 +76,19 @@ impl MintPrivateKey {
             self.ya.clone(),
             self.ys.clone(),
         ]
+    }
+
+    pub fn tweak_epoch(self, epoch: u64) -> MintPrivateKey {
+        let e = Scalar::from(epoch);
+        MintPrivateKey {
+            w: self.w + &e,
+            w_: self.w_ + &e,
+            x0: self.x0 + &e,
+            x1: self.x1 + &e,
+            ya: self.ya + &e,
+            ys: self.ys + &e,
+            public_key: self.public_key.tweak_epoch(epoch) 
+        }
     }
 }
 
