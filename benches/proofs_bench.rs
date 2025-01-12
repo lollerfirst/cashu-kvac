@@ -52,7 +52,7 @@ fn bench_mac_proof(bencher: &mut Bencher) {
         RandomizedCoin::from_coin(&coin, false).expect("Expected a randomized coin");
     bencher.iter(|| {
         MacProof::create(
-            mint_privkey.pubkey(),
+            &mint_privkey.public_key,
             &coin,
             &randomized_coin,
             &mut client_transcript,
@@ -168,7 +168,7 @@ fn bench_iparams_proof_verification(bencher: &mut Bencher) {
     let proof = IParamsProof::create(&mut mint_privkey, &mut coin, &mut client_transcript);
     bencher.iter(|| {
         IParamsProof::verify(
-            mint_privkey.pubkey(),
+            &mint_privkey.public_key,
             &mut coin,
             proof.clone(),
             &mut mint_transcript,
@@ -228,7 +228,7 @@ fn bench_mac_proof_verification(bencher: &mut Bencher) {
     let randomized_coin =
         RandomizedCoin::from_coin(&coin, false).expect("Expected a randomized coin");
     let proof = MacProof::create(
-        mint_privkey.pubkey(),
+        &mint_privkey.public_key,
         &coin,
         &randomized_coin,
         &mut client_transcript,
