@@ -17,8 +17,11 @@ pub struct MintPrivateKey {
     pub x1: Scalar,
     pub ya: Scalar,
     pub ys: Scalar,
+    pub public_key: MintPublicKey,
+}
 
-    // Public parameters
+#[allow(non_snake_case)]
+pub struct MintPublicKey {
     pub Cw: GroupElement,
     pub I: GroupElement,
 }
@@ -33,6 +36,7 @@ impl MintPrivateKey {
                     + &(GENERATORS.X1.clone() * x1)
                     + &(GENERATORS.Gz_attribute.clone() * ya)
                     + &(GENERATORS.Gz_script.clone() * ys));
+            let public_key = MintPublicKey { Cw, I };
             Ok(MintPrivateKey {
                 w: w.clone(),
                 w_: w_.clone(),
@@ -40,8 +44,7 @@ impl MintPrivateKey {
                 x1: x1.clone(),
                 ya: ya.clone(),
                 ys: ys.clone(),
-                Cw,
-                I,
+                public_key,
             })
         } else {
             Err(Error::InvalidMintPrivateKey)
@@ -57,10 +60,6 @@ impl MintPrivateKey {
             self.ya.clone(),
             self.ys.clone(),
         ]
-    }
-
-    pub fn pubkey(&self) -> (&GroupElement, &GroupElement) {
-        (self.Cw.as_ref(), self.I.as_ref())
     }
 }
 
