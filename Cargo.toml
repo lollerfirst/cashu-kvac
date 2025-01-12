@@ -1,6 +1,6 @@
 [package]
 name = "cashu_kvac"
-version = "0.1.0"
+version = "0.0.1-alpha"
 edition = "2025"
 rust-version = "1.80.1"
 
