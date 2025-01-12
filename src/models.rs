@@ -20,13 +20,12 @@ pub struct MintPublicKey {
 impl MintPublicKey {
     pub fn tweak_epoch(self, epoch: u64) -> MintPublicKey {
         let e = Scalar::from(epoch);
-        let Cw = self.Cw
-            + &(GENERATORS.W.clone() * &e)
-            + &(GENERATORS.W_.clone() * &e);
-        let I = self.I - &(GENERATORS.X0.clone() * &e
-            + &(GENERATORS.X1.clone() * &e)
-            + &(GENERATORS.Gz_attribute.clone() * &e)
-            + &(GENERATORS.Gz_script.clone() * &e));
+        let Cw = self.Cw + &(GENERATORS.W.clone() * &e) + &(GENERATORS.W_.clone() * &e);
+        let I = self.I
+            - &(GENERATORS.X0.clone() * &e
+                + &(GENERATORS.X1.clone() * &e)
+                + &(GENERATORS.Gz_attribute.clone() * &e)
+                + &(GENERATORS.Gz_script.clone() * &e));
         MintPublicKey { Cw, I }
     }
 }
@@ -87,7 +86,7 @@ impl MintPrivateKey {
             x1: self.x1 + &e,
             ya: self.ya + &e,
             ys: self.ys + &e,
-            public_key: self.public_key.tweak_epoch(epoch) 
+            public_key: self.public_key.tweak_epoch(epoch),
         }
     }
 }
