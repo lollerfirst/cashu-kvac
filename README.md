@@ -124,4 +124,4 @@ Definitions and Protocol explaination (WIP): [HERE](protocol_explanation.md)
   - $C_a$ (Randomized Amount Commitment) is chosen as the nullifier
 
 ### Range proofs
-Range proofs are implemented as [BULLETPROOFS](https://eprint.iacr.org/2017/1066.pdf).
+Range proofs are implemented as [BULLETPROOFS](https://eprint.iacr.org/2017/1066.pdf), from which the next logical improvement will be  [BULLETPROOFS++](https://eprint.iacr.org/2022/510.pdf) arithmetic circuits.
