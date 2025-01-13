@@ -82,7 +82,11 @@ impl MintPrivateKey {
     }
 
     pub fn tweak_epoch(self, epoch: u64) -> MintPrivateKey {
-        let e = Scalar::from(epoch);
+        let mut preimage_e = self.public_key.Cw.to_bytes();
+        preimage_e.extend(self.public_key.I.to_bytes());
+        preimage_e.extend(epoch.to_be_bytes());
+        let hash_e = Sha256Hash::hash(&preimage_e).to_byte_array();
+        let e = Scalar::new(&hash_e);
         MintPrivateKey {
             w: self.w + &e,
             w_: self.w_ + &e,
