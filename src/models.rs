@@ -19,7 +19,11 @@ pub struct MintPublicKey {
 #[allow(non_snake_case)]
 impl MintPublicKey {
     pub fn tweak_epoch(self, epoch: u64) -> MintPublicKey {
-        let e = Scalar::from(epoch);
+        let mut preimage_e = self.Cw.to_bytes();
+        preimage_e.extend(self.I.to_bytes());
+        preimage_e.extend(epoch.to_be_bytes());
+        let hash_e = Sha256Hash::hash(&preimage_e).to_byte_array();
+        let e = Scalar::new(&hash_e);
         let Cw = self.Cw + &(GENERATORS.W.clone() * &e) + &(GENERATORS.W_.clone() * &e);
         let I = self.I
             - &(GENERATORS.X0.clone() * &e

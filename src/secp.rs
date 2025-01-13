@@ -229,6 +229,14 @@ impl GroupElement {
             self
         }
     }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        if self.is_zero {
+            Vec::from(GROUP_ELEMENT_ZERO)
+        } else {
+            Vec::from(self.inner.unwrap().serialize())
+        }
+    }
 }
 
 impl std::ops::Add<&Scalar> for Scalar {
