@@ -10,6 +10,31 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub const RANGE_LIMIT: u64 = u32::MAX as u64;
 
 #[allow(non_snake_case)]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct MintPublicKey {
+    pub Cw: GroupElement,
+    pub I: GroupElement,
+}
+
+#[allow(non_snake_case)]
+impl MintPublicKey {
+    pub fn tweak_epoch(self, epoch: u64) -> MintPublicKey {
+        let mut preimage_e = self.Cw.to_bytes();
+        preimage_e.extend(self.I.to_bytes());
+        preimage_e.extend(epoch.to_be_bytes());
+        let hash_e = Sha256Hash::hash(&preimage_e).to_byte_array();
+        let e = Scalar::new(&hash_e);
+        let Cw = self.Cw + &(GENERATORS.W.clone() * &e) + &(GENERATORS.W_.clone() * &e);
+        let I = self.I
+            - &(GENERATORS.X0.clone() * &e
+                + &(GENERATORS.X1.clone() * &e)
+                + &(GENERATORS.Gz_attribute.clone() * &e)
+                + &(GENERATORS.Gz_script.clone() * &e));
+        MintPublicKey { Cw, I }
+    }
+}
+
+#[allow(non_snake_case)]
 pub struct MintPrivateKey {
     pub w: Scalar,
     pub w_: Scalar,
@@ -17,10 +42,7 @@ pub struct MintPrivateKey {
     pub x1: Scalar,
     pub ya: Scalar,
     pub ys: Scalar,
-
-    // Public parameters
-    pub Cw: GroupElement,
-    pub I: GroupElement,
+    pub public_key: MintPublicKey,
 }
 
 #[allow(non_snake_case)]
@@ -33,6 +55,7 @@ impl MintPrivateKey {
                     + &(GENERATORS.X1.clone() * x1)
                     + &(GENERATORS.Gz_attribute.clone() * ya)
                     + &(GENERATORS.Gz_script.clone() * ys));
+            let public_key = MintPublicKey { Cw, I };
             Ok(MintPrivateKey {
                 w: w.clone(),
                 w_: w_.clone(),
@@ -40,8 +63,7 @@ impl MintPrivateKey {
                 x1: x1.clone(),
                 ya: ya.clone(),
                 ys: ys.clone(),
-                Cw,
-                I,
+                public_key,
             })
         } else {
             Err(Error::InvalidMintPrivateKey)
@@ -59,8 +81,21 @@ impl MintPrivateKey {
         ]
     }
 
-    pub fn pubkey(&self) -> (&GroupElement, &GroupElement) {
-        (self.Cw.as_ref(), self.I.as_ref())
+    pub fn tweak_epoch(self, epoch: u64) -> MintPrivateKey {
+        let mut preimage_e = self.public_key.Cw.to_bytes();
+        preimage_e.extend(self.public_key.I.to_bytes());
+        preimage_e.extend(epoch.to_be_bytes());
+        let hash_e = Sha256Hash::hash(&preimage_e).to_byte_array();
+        let e = Scalar::new(&hash_e);
+        MintPrivateKey {
+            w: self.w + &e,
+            w_: self.w_ + &e,
+            x0: self.x0 + &e,
+            x1: self.x1 + &e,
+            ya: self.ya + &e,
+            ys: self.ys + &e,
+            public_key: self.public_key.tweak_epoch(epoch),
+        }
     }
 }
 

@@ -1,8 +1,8 @@
 use crate::errors::Error;
 use crate::generators::{hash_to_curve, GENERATORS};
 use crate::models::{
-    AmountAttribute, Coin, Equation, MintPrivateKey, RandomizedCoin, ScriptAttribute, Statement,
-    ZKP,
+    AmountAttribute, Coin, Equation, MintPrivateKey, MintPublicKey, RandomizedCoin,
+    ScriptAttribute, Statement, ZKP,
 };
 use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use crate::transcript::CashuTranscript;
@@ -181,7 +181,7 @@ impl MacProof {
     }
 
     pub fn create(
-        mint_publickey: (&GroupElement, &GroupElement),
+        mint_publickey: &MintPublicKey,
         coin: &Coin,
         randomized_coin: &RandomizedCoin,
         transcript: &mut CashuTranscript,
@@ -190,7 +190,7 @@ impl MacProof {
         let a = coin.amount_attribute.a.clone();
         let t = coin.mac.t.clone();
         let r0 = -r_a.clone() * t.as_ref();
-        let (_Cw, I) = mint_publickey;
+        let (_Cw, I) = (mint_publickey.Cw.as_ref(), mint_publickey.I.as_ref());
         let Z = I.clone() * &coin.amount_attribute.r;
         let statement = MacProof::statement(Z, I.clone(), randomized_coin);
         SchnorrProver::new(transcript, vec![r_a, r0, t, a])
@@ -227,7 +227,10 @@ impl MacProof {
         let Z = Cv
             - &(GENERATORS.W.clone() * w
                 + &(Cx0 * x0 + &(Cx1 * x1 + &(Ca * ya + &((Cs + &S) * ys)))));
-        let (_Cw, I) = mint_privkey.pubkey();
+        let (_Cw, I) = (
+            mint_privkey.public_key.Cw.as_ref(),
+            mint_privkey.public_key.I.as_ref(),
+        );
         let statement = MacProof::statement(Z, I.clone(), randomized_coin);
         SchnorrVerifier::new(transcript, proof)
             .add_statement(statement)
@@ -239,13 +242,13 @@ pub struct IParamsProof;
 
 #[allow(non_snake_case)]
 impl IParamsProof {
-    pub fn statement(mint_publickey: (&GroupElement, &GroupElement), coin: &Coin) -> Statement {
+    pub fn statement(mint_publickey: &MintPublicKey, coin: &Coin) -> Statement {
         let O = GroupElement::new(&GROUP_ELEMENT_ZERO);
         let t_tag_bytes: [u8; 32] = coin.mac.t.as_ref().into();
         let t = coin.mac.t.as_ref();
         let U = hash_to_curve(&t_tag_bytes).expect("Couldn't get map MAC tag to GroupElement");
         let V = coin.mac.V.clone();
-        let (Cw, I) = mint_publickey;
+        let (Cw, I) = (mint_publickey.Cw.as_ref(), mint_publickey.I.as_ref());
         let Ma = coin.amount_attribute.commitment().clone();
         let mut Ms = O.clone();
         if let Some(scr_attr) = &coin.script_attribute {
@@ -285,15 +288,14 @@ impl IParamsProof {
         coin: &Coin,
         transcript: &mut CashuTranscript,
     ) -> ZKP {
-        let mint_pubkey = mint_privkey.pubkey();
-        let statement = IParamsProof::statement(mint_pubkey, coin);
+        let statement = IParamsProof::statement(&mint_privkey.public_key, coin);
         SchnorrProver::new(transcript, mint_privkey.to_scalars())
             .add_statement(statement)
             .prove()
     }
 
     pub fn verify(
-        mint_publickey: (&GroupElement, &GroupElement),
+        mint_publickey: &MintPublicKey,
         coin: &Coin,
         proof: ZKP,
         transcript: &mut CashuTranscript,
@@ -542,7 +544,7 @@ mod tests {
         let coin = Coin::new(amount_attr, None, mac);
         let proof = IParamsProof::create(&mint_privkey, &coin, &mut client_transcript);
         assert!(IParamsProof::verify(
-            mint_privkey.pubkey(),
+            &mint_privkey.public_key,
             &coin,
             proof,
             &mut mint_transcript
@@ -560,7 +562,7 @@ mod tests {
         let coin = Coin::new(amount_attr, None, mac);
         let proof = IParamsProof::create(&mint_privkey, &coin, &mut client_transcript);
         assert!(!IParamsProof::verify(
-            mint_privkey_1.pubkey(),
+            &mint_privkey_1.public_key,
             &coin,
             proof,
             &mut mint_transcript
@@ -578,7 +580,7 @@ mod tests {
         let randomized_coin =
             RandomizedCoin::from_coin(&coin, false).expect("Expected a randomized coin");
         let proof = MacProof::create(
-            mint_privkey.pubkey(),
+            &mint_privkey.public_key,
             &coin,
             &randomized_coin,
             &mut client_transcript,
@@ -628,7 +630,7 @@ mod tests {
         let coin = Coin::new(amount_attr, None, mac);
         let randomized_coin = generate_custom_rand(&coin).expect("Expected a randomized coin");
         let proof = MacProof::create(
-            mint_privkey.pubkey(),
+            &mint_privkey.public_key,
             &coin,
             &randomized_coin,
             &mut client_transcript,
