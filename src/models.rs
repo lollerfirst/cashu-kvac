@@ -10,7 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub const RANGE_LIMIT: u64 = u32::MAX as u64;
 
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct MintPublicKey {
     pub Cw: GroupElement,
     pub I: GroupElement,
@@ -35,7 +35,7 @@ impl MintPublicKey {
 }
 
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct MintPrivateKey {
     pub w: Scalar,
     pub w_: Scalar,
