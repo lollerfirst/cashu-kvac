@@ -178,7 +178,7 @@ impl AmountAttribute {
 }
 
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct MAC {
     pub t: Scalar,
     pub V: GroupElement,
