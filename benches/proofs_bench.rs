@@ -36,8 +36,15 @@ fn bench_iparams_proof(bencher: &mut Bencher) {
     let amount_attr = AmountAttribute::new(12, None);
     let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
         .expect("Couldn't generate MAC");
-    let mut coin = Coin::new(amount_attr, None, mac);
-    bencher.iter(|| IParamsProof::create(&mut mint_privkey, &mut coin, &mut client_transcript));
+    bencher.iter(|| {
+        IParamsProof::create(
+            &mut mint_privkey,
+            &mac,
+            &amount_attr.commitment(),
+            None,
+            &mut client_transcript,
+        )
+    });
 }
 
 #[bench]
@@ -164,8 +171,14 @@ fn bench_iparams_proof_verification(bencher: &mut Bencher) {
     let amount_attr = AmountAttribute::new(12, None);
     let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
         .expect("Couldn't generate MAC");
+    let proof = IParamsProof::create(
+        &mut mint_privkey,
+        &mac,
+        &amount_attr.commitment(),
+        None,
+        &mut client_transcript,
+    );
     let mut coin = Coin::new(amount_attr, None, mac);
-    let proof = IParamsProof::create(&mut mint_privkey, &mut coin, &mut client_transcript);
     bencher.iter(|| {
         IParamsProof::verify(
             &mint_privkey.public_key,

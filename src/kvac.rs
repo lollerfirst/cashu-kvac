@@ -2,7 +2,7 @@ use crate::errors::Error;
 use crate::generators::{hash_to_curve, GENERATORS};
 use crate::models::{
     AmountAttribute, Coin, Equation, MintPrivateKey, MintPublicKey, RandomizedCoin,
-    ScriptAttribute, Statement, ZKP,
+    ScriptAttribute, Statement, MAC, ZKP,
 };
 use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use crate::transcript::CashuTranscript;
@@ -242,18 +242,20 @@ pub struct IParamsProof;
 
 #[allow(non_snake_case)]
 impl IParamsProof {
-    pub fn statement(mint_publickey: &MintPublicKey, coin: &Coin) -> Statement {
+    pub fn statement(
+        mint_publickey: &MintPublicKey,
+        mac: &MAC,
+        amount_commitment: &GroupElement,
+        script_commitment: &GroupElement,
+    ) -> Statement {
         let O = GroupElement::new(&GROUP_ELEMENT_ZERO);
-        let t_tag_bytes: [u8; 32] = coin.mac.t.as_ref().into();
-        let t = coin.mac.t.as_ref();
+        let t_tag_bytes: [u8; 32] = mac.t.as_ref().into();
+        let t = mac.t.as_ref();
         let U = hash_to_curve(&t_tag_bytes).expect("Couldn't get map MAC tag to GroupElement");
-        let V = coin.mac.V.clone();
+        let V = mac.V.clone();
         let (Cw, I) = (mint_publickey.Cw.as_ref(), mint_publickey.I.as_ref());
-        let Ma = coin.amount_attribute.commitment().clone();
-        let mut Ms = O.clone();
-        if let Some(scr_attr) = &coin.script_attribute {
-            Ms = scr_attr.commitment().clone();
-        }
+        let Ma = amount_commitment.clone();
+        let Ms = script_commitment.clone();
         Statement {
             domain_separator: b"Iparams_Statement_",
             equations: vec![
@@ -285,10 +287,21 @@ impl IParamsProof {
 
     pub fn create(
         mint_privkey: &MintPrivateKey,
-        coin: &Coin,
+        mac: &MAC,
+        amount_commitment: &GroupElement,
+        script_commitment: Option<&GroupElement>,
         transcript: &mut CashuTranscript,
     ) -> ZKP {
-        let statement = IParamsProof::statement(&mint_privkey.public_key, coin);
+        let script_commitment: &GroupElement = match script_commitment {
+            Some(scr) => scr,
+            None => GENERATORS.O.as_ref(),
+        };
+        let statement = IParamsProof::statement(
+            &mint_privkey.public_key,
+            mac,
+            amount_commitment,
+            script_commitment,
+        );
         SchnorrProver::new(transcript, mint_privkey.to_scalars())
             .add_statement(statement)
             .prove()
@@ -300,7 +313,16 @@ impl IParamsProof {
         proof: ZKP,
         transcript: &mut CashuTranscript,
     ) -> bool {
-        let statement = IParamsProof::statement(mint_publickey, coin);
+        let script_commitment: GroupElement = match &coin.script_attribute {
+            Some(scr) => scr.commitment(),
+            None => GENERATORS.O.clone(),
+        };
+        let statement = IParamsProof::statement(
+            mint_publickey,
+            &coin.mac,
+            &coin.amount_attribute.commitment(),
+            &script_commitment,
+        );
         SchnorrVerifier::new(transcript, proof)
             .add_statement(statement)
             .verify()
@@ -541,8 +563,14 @@ mod tests {
         let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
+        let proof = IParamsProof::create(
+            &mint_privkey,
+            &mac,
+            &amount_attr.commitment(),
+            None,
+            &mut client_transcript,
+        );
         let coin = Coin::new(amount_attr, None, mac);
-        let proof = IParamsProof::create(&mint_privkey, &coin, &mut client_transcript);
         assert!(IParamsProof::verify(
             &mint_privkey.public_key,
             &coin,
@@ -559,8 +587,14 @@ mod tests {
         let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
+        let proof = IParamsProof::create(
+            &mint_privkey,
+            &mac,
+            &amount_attr.commitment(),
+            None,
+            &mut client_transcript,
+        );
         let coin = Coin::new(amount_attr, None, mac);
-        let proof = IParamsProof::create(&mint_privkey, &coin, &mut client_transcript);
         assert!(!IParamsProof::verify(
             &mint_privkey_1.public_key,
             &coin,
