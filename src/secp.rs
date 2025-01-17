@@ -76,7 +76,7 @@ fn modinv(m: &Integer, x: &Integer) -> Integer {
 }
 
 impl Scalar {
-    pub fn new(data: &[u8; 32]) -> Self {
+    pub fn new(data: &[u8]) -> Self {
         if *data == SCALAR_ZERO {
             Scalar {
                 inner: None,
@@ -170,7 +170,7 @@ impl Scalar {
 }
 
 impl GroupElement {
-    pub fn new(data: &[u8; 33]) -> Self {
+    pub fn new(data: &[u8]) -> Self {
         if *data == GROUP_ELEMENT_ZERO {
             GroupElement {
                 inner: None,
