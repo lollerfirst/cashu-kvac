@@ -107,7 +107,7 @@ pub struct ZKP {
 }
 
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScriptAttribute {
     pub s: Scalar,
     pub r: Scalar,
@@ -133,7 +133,7 @@ impl ScriptAttribute {
 }
 
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AmountAttribute {
     #[serde(
         serialize_with = "serialize_amount",
@@ -218,7 +218,7 @@ impl MAC {
 /// Spendable coin.
 /// Contains `AmountAttribute`, `ScriptAttribute`
 /// and the `MAC` approval by the Mint.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Coin {
     pub amount_attribute: AmountAttribute,
     pub script_attribute: Option<ScriptAttribute>,
@@ -242,7 +242,7 @@ impl Coin {
 /// Contains randomized commitments of a `Coin`.
 /// Used for unlinkable multi-show.
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RandomizedCoin {
     /// Randomized Attribute Commitment
     pub Ca: GroupElement,
