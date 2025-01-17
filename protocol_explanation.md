@@ -51,14 +51,14 @@ A point encoding an amount `a` with blindness `r_a`.
 Composition:
 * $r_a \leftarrow \text{BIP39}(\text{seed}, \text{"r-amount"}, \text{derivation})$
 * secret: $(a, r_a)$
-* public: $M_a = r_aG_\text{blind} + aG_\text{amount}$
+* public: $M_a = r_a\cdot G_\text{blind} + a\cdot G_\text{amount}$
 
 ### Bootstrap AmountAttribute
 Simply a `AmountAttribute` encoding $0$.
 Composition:
 * $r_a \leftarrow \text{BIP39}(\text{seed}, \text{"r-amount"}, \text{derivation})$
 * secret: $(r_a)$
-* public: $M_a = r_aG_\text{blind}$
+* public: $M_a = r_a\cdot G_\text{blind}$
 
 ### ScriptAttribute
 > [ScriptAttribute](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/models.py#L48)
@@ -67,7 +67,7 @@ A point encoding a script hash `s` with blindness `r_s`.
 Composition:
 * $r_s \leftarrow \text{BIP39}(\text{seed}, \text{"r-script"}, \text{derivation})$
 * secret: $(s, r_s)$
-* public: $M_s = r_sG_\text{blind} + sG_\text{script}$
+* public: $M_s = r_s\cdot G_\text{blind} + s\cdot G_\text{script}$
 
 ### MAC
 > [MAC](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/models.py#L140)
@@ -86,7 +86,7 @@ Composition:
 * $M_a$ from `AmountAttribute`
 * $M_s$ from `ScriptAttribute` or point at infinity if no script.
 * $U = \text{HashToCurve}(t)$
-* $V = wG_w + x_0U + x_1tU + y_aM_a + y_sM_s$
+* $V = w\cdot G_w + x_0\cdot U + x_1tU + y_a\cdot M_a + y_s\cdot M_s$
 * MAC: $(t, V)$
 
 ### Coin
@@ -105,11 +105,11 @@ In other words, they are blinded a second time with a different generator.
 We use the blinding term $r_a$ used for `AmountAttribute` and compute:
 
 * $U = \text{HashToCurve}(t)$, where $t$ is the `MAC` scalar value
-* $C_a = r_aG_\text{zamount} + M_a$
-* $C_s = r_aG_\text{zscript} + M_s$
-* $C_{x_0} = r_aG_{x_0} + U$
-* $C_{x_1} = r_aG_{x_1} + tU$
-* $C_v = r_aG_\text{zmac} + V$, where $V$ is the `MAC` public point value
+* $C_a = r_a\cdot G_\text{zamount} + M_a$
+* $C_s = r_a\cdot G_\text{zscript} + M_s$
+* $C_{x_0} = r_a\cdot G_{x_0} + U$
+* $C_{x_1} = r_a\cdot G_{x_1} + t\cdot U$
+* $C_v = r_a\cdot G_\text{zmac} + V$, where $V$ is the `MAC` public point value
 * RandomizedCoin: $(C_a, C_s, C_{x_0}, C_{x_1}, C_v)$
 
 > [!NOTE]
@@ -133,15 +133,15 @@ Proof $\pi_\text{iparams}$ of knowledge of $(w, w', x_0, x_1, y_a)$ such that:
 
 1) $w, w'$ were used to construct $C_w$:
 ```math
-C_w = wG_w + w'G_{w'}
+C_w = w\cdot G_w + w'\cdot G_{w'}
 ```
 2) $x0, x1, y_a, y_s$ were used to construct $I$:
 ```math
-G_\text{z-mac} - I = x_0G_{x_0} + x_1G_{x_1} + y_aG_\text{z-amount} + y_sG_\text{z-script}
+G_\text{z-mac} - I = x_0\cdot G_{x_0} + x_1\cdot G_{x_1} + y_a\cdot G_\text{z-amount} + y_s\cdot G_\text{z-script}
 ```
 3) the same secret values were used to construct $V$:
 ```math
-V = wG_w + x_0U + x_1tU + y_aM_a + y_sM_s
+V = w\cdot G_w + x_0\cdot U + x_1\cdot t\cdot U + y_a\cdot M_a + y_s\cdot M_s
 ```
 
 This is the equivalent of Cashu's current DLEQ proofs, where the Mint proves to the client they are signing with the same
@@ -201,7 +201,7 @@ $\mathbf{b}$ is then committed to:
 $\pi_\text{range}$ then proves 3 relations in zero knowledge:
 1) The bit decomposition sums up to `a`:
 ```math
-a = \sum_{i=0}^l2^ib_i
+a = \sum_{i=0}^l2^i\cdot b_i
 ```
 2) Knowledge of the discrete logs behind the bit-commitments vector $B$:
 ```math
@@ -276,13 +276,13 @@ This proof shows that `RandomizedCoin` was computed from a `Coin` for which a va
 The public inputs to this proof are the `RandomizedCoin`s $(C_a, C_s, C_{x_0}, C_{x_1}, C_v)$
 
 $\pi_\text{MAC}$ proves 3 relations:
-1) $Z = r_aI$ where $r_a$ is the blinding factor from `AmountAttribute`.
-2) $C_a = r_aG_\text{zamount} + r_aG_\text{blind} + aG_\text{amount}$ to prove $r_a$ is indeed the same as in `AmountAttribute`.
-3) $C_{x_1} = tC_{x_0} + (-tr_a)G_{x_0} + r_aG_{x_1}$, where $t$ is the scalar value in the `MAC`.
+1) $Z = r_a\cdot I$ where $r_a$ is the blinding factor from `AmountAttribute`.
+2) $C_a = r_a\cdot G_\text{zamount} + r_a\cdot G_\text{blind} + a\cdot G_\text{amount}$ to prove $r_a$ is indeed the same as in `AmountAttribute`.
+3) $C_{x_1} = t\cdot C_{x_0} - t\cdot r_a\cdot G_{x_0} + r_a\cdot G_{x_1}$, where $t$ is the scalar value in the `MAC`.
 
 Statement 1 works because the Mint uses private keys $sk$ and the `RandomizedCoin`'s commitments to re-calculate $Z$ autonomously as:
 ```math
-Z = C_v - (wC_w + x_0C_{x_0} + x_1C_{x_1} + y_aC_a + y_sC_s)
+Z = C_v - (w\cdot C_w + x_0\cdot C_{x_0} + x_1\cdot C_{x_1} + y_a\cdot C_a + y_s\cdot C_s)
 ```
 
 ### Proof of Balance ($\pi_\text{balance}$):
@@ -292,14 +292,14 @@ This proof shows that the difference in encoded amount between the sum of many `
 
 $\pi_\text{balance}$ proves 1 relation:
 ```math
-B = \sum_{i=0}^n\left(r_{a_i}\right)G_\text{zamount} + \sum_{i=0}^n\left(r_{a_i}-r'_{a_i}\right)G_\text{blind}
+B = \sum_{i=0}^n\left(r_{a_i}\right)\cdot G_\text{zamount} + \sum_{i=0}^n\left(r_{a_i}-r'_{a_i}\right)\cdot G_\text{blind}
 ```
 Where $r'_{a_i}$ (with the apex $'$) are the amount blinding terms for the new attributes.
 
 This statement works because the Mint uses $\Delta_a$ to re-compute the verification value $B$ autonomously as:
 
 ```math
-B = \Delta_aG_\text{amount} + \sum_{i=0}^{n}\left(C_{a_i}-M_{a_i}\right)
+B = \Delta_a\cdot G_\text{amount} + \sum_{i=0}^{n}\left(C_{a_i}-M_{a_i}\right)
 ```
 
 ### Proof Of Same Script ($\pi_\text{script}$)
@@ -327,7 +327,7 @@ C_{s_i} &= s \cdot G_\text{script} + r_{s_i} \cdot G_\text{blind} + r_{a_i}\cdot
 This section explains how a _client/wallet_ (used interchangeably) interacts with a _Mint_ (capital 'M' to distinguish it from the verb "minting").
 
 ### Bootstrapping
-To perform any interaction (e.g., mint, swap, or melt) with the Mint, a client needs `Coin`s worth $0$ ([46](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L46)). This is because the Mint always requires a valid set of `RandomizedCoin`s for every operation.
+To perform any interaction (e.g., mint, swap, or melt) with the Mint, a client needs `Coin`s worth $0$ ([46](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L46)). This is because the Mint always requires a valid set of input `RandomizedCoin`s for any other operation (mint/melt/swap).
 
 To handle this, the client makes a special `BootstrapRequest`:
 1. The client requests a `MAC` for an `AmountAttribute` $M_a$ that encodes $0$, optionally including a `ScriptAttribute` $M_s$ with a script hash $s$.
@@ -343,8 +343,8 @@ From the wallet's perspective, this bootstrapping process is only needed once pe
 
 ### SwapRequest
 When a client wants to swap `Coin`s, they:
-1. Create **new** `AmountAttribute` and `ScriptAttribute` pairs that encode the current wallet balance (minus any fees) and, if applicable, the same script hash as in the current `ScriptAttribute` [(65-66)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L65).
-2. Generate `RandomizedCoin` from the **old** `Coin` [(72)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L72).
+1. Create **new** `AmountAttribute` and `ScriptAttribute` pairs that encode the final wallet balance (minus any fees) and, if applicable, the same script hash as in the current `ScriptAttribute` [(65-66)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L65).
+2. Generate `RandomizedCoin` from the **old** `Coin` which contains the attribute encoding the current balance and the MAC (the Mint's attestation). If the client doesn't have any such `Coin`, they have to `Bootstrap` first. [(72)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L72).
 
 The client also generates the following ZK-proofs:
 - $\pi_\text{balance}$: Proves that the balance difference $\Delta_a$ (should equal $0$ or the fees) between old and new wallet balances is valid. Inputs: **old** and **new** `AmountAttribute`s [(78)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L78).
@@ -352,17 +352,16 @@ The client also generates the following ZK-proofs:
 - $\pi_\text{MAC}$: Proves that the provided `RandomizedCoin`s are valid and unspent. [(75)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L75)
 - $\pi_\text{script}$: Ensures all **new** `ScriptAttribute`s encode the same script hash $s$ as the **old** `RandomizedCoin`s. [(81)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L81).
 
-The client sends:
-- **old** `RandomizedCoin`s
-- **new** (`AmountAttribute`/`ScriptAttribute`) pairs' **COMMITMENTS** (not the secret values)   
-- All proofs.
+Then the client sends:
+- **old** `RandomizedCoin`s defined in (2) as inputs
+- **new** (`AmountAttribute`/`ScriptAttribute`) pairs' **COMMITMENTS** (not the secret values) as described in (1) 
+- All proofs as described above.
 
 The Mint then [(89-105)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L89):
-1. Acknowledges the balance difference $\Delta_a$.
+1. Acknowledges the balance difference $\Delta_a$ between inputs and outputs.
 2. Verifies that it hasn’t seen the `RandomizedCoin` $C_a$ before.
-3. Validates all proofs.
-
-If verification passes, the Mint issues new `MAC`s for the new `AmountAttribute` and `ScriptAttribute` pairs [(108)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L108). As with the `BootstrapRequest`, the Mint also produces $\pi_\text{iparams}$ to prove to the wallet its private key usage [(109)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L109).
+3. Verifies all proofs.
+4. If all verifications are successful, the Mint issues new `MAC`s for the outputs commitment pairs [(108)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L108). As with the `BootstrapRequest`, the Mint also produces $\pi_\text{iparams}$ to prove to the wallet its private key usage [(109)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L109).
 
 ### Wallet-to-Wallet
 Sending coins to another wallet is simpler, as sending wallet only needs to communicate the
