@@ -6,6 +6,7 @@ use rug::ops::RemRounding;
 use rug::Integer;
 use serde::{Deserialize, Deserializer};
 use std::cmp::PartialEq;
+use std::hash::{Hash, Hasher};
 
 use crate::errors::Error;
 
@@ -29,7 +30,7 @@ pub struct Scalar {
     is_zero: bool,
 }
 
-#[derive(Clone, Debug, Eq)]
+#[derive(Hash, Clone, Debug, Eq)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
     is_zero: bool,
@@ -420,6 +421,15 @@ impl Default for Scalar {
         Scalar {
             inner: None,
             is_zero: true,
+        }
+    }
+}
+
+impl Hash for Scalar {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.is_zero.hash(state);
+        if !self.is_zero {
+            self.inner.unwrap().secret_bytes().hash(state);
         }
     }
 }
