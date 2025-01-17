@@ -1,3 +1,4 @@
+use crate::bulletproof::BulletProof;
 use crate::errors::Error;
 use crate::generators::{hash_to_curve, GENERATORS};
 use crate::models::{
@@ -505,6 +506,26 @@ impl ScriptEqualityProof {
         SchnorrVerifier::new(transcript, proof)
             .add_statement(statement)
             .verify()
+    }
+}
+
+pub struct RangeProof;
+
+#[allow(non_snake_case)]
+impl RangeProof {
+    pub fn create_bulletproof(
+        transcript: &mut CashuTranscript,
+        attributes: &Vec<(AmountAttribute, Option<ScriptAttribute>)>,
+    ) -> BulletProof {
+        BulletProof::new(transcript, attributes)
+    }
+
+    pub fn verify_bulletproof(
+        transcript: &mut CashuTranscript,
+        attribute_commitments: &Vec<(GroupElement, Option<GroupElement>)>,
+        proof: BulletProof,
+    ) -> bool {
+        proof.verify(transcript, attribute_commitments)
     }
 }
 
