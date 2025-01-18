@@ -118,7 +118,7 @@ impl BootstrapProof {
         }
     }
 
-    pub fn create(amount_attribute: &mut AmountAttribute, transcript: &mut CashuTranscript) -> ZKP {
+    pub fn create(amount_attribute: &AmountAttribute, transcript: &mut CashuTranscript) -> ZKP {
         let statement = BootstrapProof::statement(&amount_attribute.commitment());
         SchnorrProver::new(transcript, vec![amount_attribute.r.clone()])
             .add_statement(statement)
