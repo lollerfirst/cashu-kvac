@@ -220,7 +220,9 @@ impl MAC {
 /// and the `MAC` approval by the Mint.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Coin {
+    #[serde(rename = "amount")]
     pub amount_attribute: AmountAttribute,
+    #[serde(rename = "script")]
     pub script_attribute: Option<ScriptAttribute>,
     pub mac: MAC,
 }
