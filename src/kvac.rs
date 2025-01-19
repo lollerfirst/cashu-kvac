@@ -556,8 +556,8 @@ mod tests {
     #[test]
     fn test_bootstrap() {
         let (mut mint_transcript, mut client_transcript) = transcripts();
-        let mut bootstrap_attr = AmountAttribute::new(0, None);
-        let proof = BootstrapProof::create(&mut bootstrap_attr, client_transcript.as_mut());
+        let bootstrap_attr = AmountAttribute::new(0, None);
+        let proof = BootstrapProof::create(&bootstrap_attr, client_transcript.as_mut());
         assert!(BootstrapProof::verify(
             &bootstrap_attr.commitment(),
             proof,

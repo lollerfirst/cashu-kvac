@@ -496,7 +496,7 @@ impl BulletProof {
     pub fn verify(
         self,
         transcript: &mut CashuTranscript,
-        attribute_commitments: &Vec<(GroupElement, Option<GroupElement>)>,
+        attribute_commitments: &[(GroupElement, Option<GroupElement>)],
     ) -> bool {
         transcript.domain_sep(b"Bulletproof_Statement_");
 
