@@ -25,19 +25,26 @@ fn privkey() -> MintPrivateKey {
 #[bench]
 fn bench_bootstrap_proof(bencher: &mut Bencher) {
     let (_, mut client_transcript) = transcripts();
-    let mut bootstrap_attr = AmountAttribute::new(0, None);
-    bencher.iter(|| BootstrapProof::create(&mut bootstrap_attr, client_transcript.as_mut()));
+    let bootstrap_attr = AmountAttribute::new(0, None);
+    bencher.iter(|| BootstrapProof::create(&bootstrap_attr, client_transcript.as_mut()));
 }
 
 #[bench]
 fn bench_iparams_proof(bencher: &mut Bencher) {
     let (_, mut client_transcript) = transcripts();
-    let mut mint_privkey = privkey();
+    let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(12, None);
     let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
         .expect("Couldn't generate MAC");
-    let mut coin = Coin::new(amount_attr, None, mac);
-    bencher.iter(|| IParamsProof::create(&mut mint_privkey, &mut coin, &mut client_transcript));
+    bencher.iter(|| {
+        IParamsProof::create(
+            &mint_privkey,
+            &mac,
+            &amount_attr.commitment(),
+            None,
+            &mut client_transcript,
+        )
+    });
 }
 
 #[bench]
@@ -146,8 +153,8 @@ fn bench_range_proof(bencher: &mut Bencher) {
 #[bench]
 fn bench_bootstrap_proof_verification(bencher: &mut Bencher) {
     let (mut mint_transcript, mut client_transcript) = transcripts();
-    let mut bootstrap_attr = AmountAttribute::new(0, None);
-    let proof = BootstrapProof::create(&mut bootstrap_attr, client_transcript.as_mut());
+    let bootstrap_attr = AmountAttribute::new(0, None);
+    let proof = BootstrapProof::create(&bootstrap_attr, client_transcript.as_mut());
     bencher.iter(|| {
         BootstrapProof::verify(
             &bootstrap_attr.commitment(),
@@ -160,16 +167,22 @@ fn bench_bootstrap_proof_verification(bencher: &mut Bencher) {
 #[bench]
 fn bench_iparams_proof_verification(bencher: &mut Bencher) {
     let (mut mint_transcript, mut client_transcript) = transcripts();
-    let mut mint_privkey = privkey();
+    let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(12, None);
     let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
         .expect("Couldn't generate MAC");
-    let mut coin = Coin::new(amount_attr, None, mac);
-    let proof = IParamsProof::create(&mut mint_privkey, &mut coin, &mut client_transcript);
+    let proof = IParamsProof::create(
+        &mint_privkey,
+        &mac,
+        &amount_attr.commitment(),
+        None,
+        &mut client_transcript,
+    );
+    let coin = Coin::new(amount_attr, None, mac);
     bencher.iter(|| {
         IParamsProof::verify(
             &mint_privkey.public_key,
-            &mut coin,
+            &coin,
             proof.clone(),
             &mut mint_transcript,
         )
@@ -331,7 +344,7 @@ fn bench_range_proof_verification(bencher: &mut Bencher) {
     let proof = BulletProof::new(&mut cli_tscr, &attributes);
     let mut attribute_commitments = Vec::new();
     for attr in attributes.iter() {
-        attribute_commitments.push((attr.0.commitment().clone(), GENERATORS.O.clone()));
+        attribute_commitments.push((attr.0.commitment().clone(), None));
     }
     bencher.iter(|| proof.clone().verify(&mut mint_tscr, &attribute_commitments));
 }

@@ -496,7 +496,7 @@ impl BulletProof {
     pub fn verify(
         self,
         transcript: &mut CashuTranscript,
-        attribute_commitments: &[(GroupElement, GroupElement)],
+        attribute_commitments: &[(GroupElement, Option<GroupElement>)],
     ) -> bool {
         transcript.domain_sep(b"Bulletproof_Statement_");
 
@@ -673,7 +673,7 @@ mod tests {
         ];
         let mut attribute_commitments = Vec::new();
         for attr in attributes.iter() {
-            attribute_commitments.push((attr.0.commitment().clone(), GENERATORS.O.clone()));
+            attribute_commitments.push((attr.0.commitment().clone(), None));
         }
         let range_proof = BulletProof::new(&mut cli_tscr, &attributes);
         assert!(range_proof.verify(&mut mint_tscr, &attribute_commitments))
@@ -690,7 +690,7 @@ mod tests {
         ];
         let mut attribute_commitments = Vec::new();
         for attr in attributes.iter() {
-            attribute_commitments.push((attr.0.commitment().clone(), GENERATORS.O.clone()));
+            attribute_commitments.push((attr.0.commitment().clone(), None));
         }
         let range_proof = BulletProof::new(&mut cli_tscr, &attributes);
         assert!(!range_proof.verify(&mut mint_tscr, &attribute_commitments))

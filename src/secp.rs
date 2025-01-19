@@ -6,6 +6,7 @@ use rug::ops::RemRounding;
 use rug::Integer;
 use serde::{Deserialize, Deserializer};
 use std::cmp::PartialEq;
+use std::hash::{Hash, Hasher};
 
 use crate::errors::Error;
 
@@ -23,13 +24,13 @@ pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(|| {
     ctx
 });
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq)]
 pub struct Scalar {
     inner: Option<SecretKey>,
     is_zero: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Hash, Clone, Debug, Eq)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
     is_zero: bool,
@@ -75,7 +76,7 @@ fn modinv(m: &Integer, x: &Integer) -> Integer {
 }
 
 impl Scalar {
-    pub fn new(data: &[u8; 32]) -> Self {
+    pub fn new(data: &[u8]) -> Self {
         if *data == SCALAR_ZERO {
             Scalar {
                 inner: None,
@@ -169,7 +170,7 @@ impl Scalar {
 }
 
 impl GroupElement {
-    pub fn new(data: &[u8; 33]) -> Self {
+    pub fn new(data: &[u8]) -> Self {
         if *data == GROUP_ELEMENT_ZERO {
             GroupElement {
                 inner: None,
@@ -420,6 +421,15 @@ impl Default for Scalar {
         Scalar {
             inner: None,
             is_zero: true,
+        }
+    }
+}
+
+impl Hash for Scalar {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.is_zero.hash(state);
+        if !self.is_zero {
+            self.inner.unwrap().secret_bytes().hash(state);
         }
     }
 }

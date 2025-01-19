@@ -10,7 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub const RANGE_LIMIT: u64 = u32::MAX as u64;
 
 #[allow(non_snake_case)]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Hash, Deserialize, Debug, Eq, PartialEq)]
 pub struct MintPublicKey {
     pub Cw: GroupElement,
     pub I: GroupElement,
@@ -35,6 +35,7 @@ impl MintPublicKey {
 }
 
 #[allow(non_snake_case)]
+#[derive(Clone, Serialize, Hash, Deserialize, Debug, Eq, PartialEq)]
 pub struct MintPrivateKey {
     pub w: Scalar,
     pub w_: Scalar,
@@ -99,14 +100,14 @@ impl MintPrivateKey {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
 pub struct ZKP {
     pub s: Vec<Scalar>,
     pub c: Scalar,
 }
 
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScriptAttribute {
     pub s: Scalar,
     pub r: Scalar,
@@ -132,7 +133,7 @@ impl ScriptAttribute {
 }
 
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AmountAttribute {
     #[serde(
         serialize_with = "serialize_amount",
@@ -177,7 +178,7 @@ impl AmountAttribute {
 }
 
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Hash, Debug, Clone, Eq, PartialEq)]
 pub struct MAC {
     pub t: Scalar,
     pub V: GroupElement,
@@ -217,9 +218,11 @@ impl MAC {
 /// Spendable coin.
 /// Contains `AmountAttribute`, `ScriptAttribute`
 /// and the `MAC` approval by the Mint.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Coin {
+    #[serde(rename = "amount")]
     pub amount_attribute: AmountAttribute,
+    #[serde(rename = "script")]
     pub script_attribute: Option<ScriptAttribute>,
     pub mac: MAC,
 }
@@ -241,7 +244,7 @@ impl Coin {
 /// Contains randomized commitments of a `Coin`.
 /// Used for unlinkable multi-show.
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RandomizedCoin {
     /// Randomized Attribute Commitment
     pub Ca: GroupElement,

@@ -39,7 +39,7 @@ fn scalar_bench_invert(bencher: &mut Bencher) {
 
 #[bench]
 fn scalar_bench_random(bencher: &mut Bencher) {
-    bencher.iter(|| Scalar::random());
+    bencher.iter(Scalar::random);
 }
 
 #[bench]
