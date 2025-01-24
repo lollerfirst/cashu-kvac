@@ -2,8 +2,7 @@ use crate::bulletproof::BulletProof;
 use crate::errors::Error;
 use crate::generators::{hash_to_curve, GENERATORS};
 use crate::models::{
-    AmountAttribute, Coin, Equation, MintPrivateKey, MintPublicKey, RandomizedCoin,
-    ScriptAttribute, Statement, MAC, ZKP,
+    AmountAttribute, Coin, Equation, MintPrivateKey, MintPublicKey, RandomizedCoin, RangeZKP, ScriptAttribute, Statement, MAC, ZKP
 };
 use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use crate::transcript::CashuTranscript;
@@ -516,16 +515,19 @@ impl RangeProof {
     pub fn create_bulletproof(
         transcript: &mut CashuTranscript,
         attributes: &Vec<(AmountAttribute, Option<ScriptAttribute>)>,
-    ) -> BulletProof {
-        BulletProof::new(transcript, attributes)
+    ) -> RangeZKP {
+        let bulletproof = BulletProof::new(transcript, attributes);
+        RangeZKP::BULLETPROOF(bulletproof)
     }
 
     pub fn verify_bulletproof(
         transcript: &mut CashuTranscript,
         attribute_commitments: &Vec<(GroupElement, Option<GroupElement>)>,
-        proof: BulletProof,
+        proof: RangeZKP,
     ) -> bool {
-        proof.verify(transcript, attribute_commitments)
+        match proof {
+            RangeZKP::BULLETPROOF(bulletproof) => bulletproof.verify(transcript, &attribute_commitments),
+        }
     }
 }
 

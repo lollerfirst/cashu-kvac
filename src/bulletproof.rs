@@ -83,7 +83,7 @@ fn inner_product(l: &[Scalar], r: &[Scalar]) -> Scalar {
     result
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
 pub struct InnerProductArgument {
     public_inputs: Vec<(GroupElement, GroupElement)>,
     tail_end_scalars: (Scalar, Scalar),
@@ -259,7 +259,7 @@ impl InnerProductArgument {
 }
 
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
 pub struct BulletProof {
     pub A: GroupElement,
     pub S: GroupElement,
