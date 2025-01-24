@@ -520,7 +520,7 @@ impl RangeProof {
         RangeZKP::BULLETPROOF(bulletproof)
     }
 
-    pub fn verify_bulletproof(
+    pub fn verify(
         transcript: &mut CashuTranscript,
         attribute_commitments: &Vec<(GroupElement, Option<GroupElement>)>,
         proof: RangeZKP,
