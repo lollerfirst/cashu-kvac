@@ -288,8 +288,8 @@ impl std::ops::Mul<&Scalar> for Scalar {
     }
 }
 
-impl From<Scalar> for Vec<u8> {
-    fn from(val: Scalar) -> Self {
+impl From<&Scalar> for Vec<u8> {
+    fn from(val: &Scalar) -> Self {
         if val.is_zero {
             SCALAR_ZERO.to_vec()
         } else {
@@ -685,7 +685,7 @@ mod tests {
     #[test]
     fn test_scalar_into_vec() {
         let scalar = Scalar::random();
-        let bytes: Vec<u8> = scalar.clone().into();
+        let bytes: Vec<u8> = scalar.as_ref().into();
         assert_eq!(bytes.len(), 32);
         assert!(bytes.iter().any(|&b| b != 0)); // Ensure it's not all zeros
     }
@@ -693,7 +693,7 @@ mod tests {
     #[test]
     fn test_zero_scalar_into_vec() {
         let scalar = Scalar::new(&SCALAR_ZERO);
-        let bytes: Vec<u8> = scalar.into();
+        let bytes: Vec<u8> = scalar.as_ref().into();
         assert_eq!(bytes, SCALAR_ZERO.to_vec());
     }
 
