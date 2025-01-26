@@ -514,7 +514,7 @@ pub struct RangeProof;
 impl RangeProof {
     pub fn create_bulletproof(
         transcript: &mut CashuTranscript,
-        attributes: &Vec<(AmountAttribute, Option<ScriptAttribute>)>,
+        attributes: &[AmountAttribute],
     ) -> RangeZKP {
         let bulletproof = BulletProof::new(transcript, attributes);
         RangeZKP::BULLETPROOF(bulletproof)
