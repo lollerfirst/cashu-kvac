@@ -18,7 +18,7 @@ pub struct SchnorrProver<'a> {
 impl<'a> SchnorrProver<'a> {
     pub fn new(transcript: &'a mut CashuTranscript, secrets: Vec<Scalar>) -> Self {
         SchnorrProver {
-            random_terms: vec![Scalar::random(); secrets.len()],
+            random_terms: (0..secrets.len()).map(|_| Scalar::random()).collect(),
             secrets,
             transcript,
         }
@@ -551,7 +551,7 @@ mod tests {
     }
 
     fn privkey() -> MintPrivateKey {
-        let scalars = vec![Scalar::random(); 6];
+        let scalars: Vec<Scalar> = (0..6).map(|_| Scalar::random()).collect();
         MintPrivateKey::from_scalars(&scalars).expect("Could not generate private key")
     }
 

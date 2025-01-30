@@ -18,7 +18,7 @@ fn transcripts() -> (CashuTranscript, CashuTranscript) {
 }
 
 fn privkey() -> MintPrivateKey {
-    let scalars = vec![Scalar::random(); 6];
+    let scalars: Vec<Scalar> = (0..6).map(|_| Scalar::random()).collect();
     MintPrivateKey::from_scalars(&scalars).expect("Could not generate private key")
 }
 

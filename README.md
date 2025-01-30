@@ -47,7 +47,7 @@ Issuing a `MAC` on a `AmountAttribute`:
 use cashu_kvac::models::{AmountAttribute, ScriptAttribute, MAC};
 use cashu_kvac::secp::Scalar;
 
-let scalars = vec![Scalar::random(); 6];
+let scalars = (0..6).map(|_| Scalar::random()).collect();
 let mint_privkey = MintPrivateKey::from_scalars(&scalars).unwrap();
 
 // Client generates these
@@ -85,7 +85,7 @@ use cashu_kvac::models::{AmountAttribute, MAC};
 
 let transcript = CashuTranscript::new();
 
-let scalars = vec![Scalar::random(); 6];
+let scalars = (0..6).map(|_| Scalar::random()).collect();
 let mint_privkey = MintPrivateKey::from_scalars(&scalars).unwrap();
 
 let inputs = vec![
