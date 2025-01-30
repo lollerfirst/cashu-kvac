@@ -1,7 +1,5 @@
 use crate::{
-    errors::Error,
-    generators::{hash_to_curve, GENERATORS},
-    secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO},
+    bulletproof::BulletProof, errors::Error, generators::{hash_to_curve, GENERATORS}, secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO}
 };
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
@@ -104,6 +102,11 @@ impl MintPrivateKey {
 pub struct ZKP {
     pub s: Vec<Scalar>,
     pub c: Scalar,
+}
+
+#[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
+pub enum RangeZKP {
+    BULLETPROOF(BulletProof),
 }
 
 #[allow(non_snake_case)]

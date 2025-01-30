@@ -18,7 +18,7 @@ fn transcripts() -> (CashuTranscript, CashuTranscript) {
 }
 
 fn privkey() -> MintPrivateKey {
-    let scalars = vec![Scalar::random(); 6];
+    let scalars: Vec<Scalar> = (0..6).map(|_| Scalar::random()).collect();
     MintPrivateKey::from_scalars(&scalars).expect("Could not generate private key")
 }
 
@@ -138,14 +138,14 @@ fn bench_script_proofs(bencher: &mut Bencher) {
 fn bench_range_proof(bencher: &mut Bencher) {
     let mut cli_tscr = CashuTranscript::new();
 
-    let attributes: Vec<(AmountAttribute, Option<ScriptAttribute>)> = vec![
-        (AmountAttribute::new(14, None), None),
-        (AmountAttribute::new(1, None), None),
-        (AmountAttribute::new(11, None), None),
+    let attributes: Vec<AmountAttribute> = vec![
+        AmountAttribute::new(14, None),
+        AmountAttribute::new(1, None),
+        AmountAttribute::new(11, None),
     ];
     let mut attribute_commitments = Vec::new();
     for attr in attributes.iter() {
-        attribute_commitments.push((attr.0.commitment().clone(), GENERATORS.O.clone()));
+        attribute_commitments.push((attr.commitment().clone(), GENERATORS.O.clone()));
     }
     bencher.iter(|| BulletProof::new(&mut cli_tscr, &attributes));
 }
@@ -332,19 +332,19 @@ fn bench_script_proof_verification(bencher: &mut Bencher) {
 fn bench_range_proof_verification(bencher: &mut Bencher) {
     let (mut mint_tscr, mut cli_tscr) = transcripts();
 
-    let attributes: Vec<(AmountAttribute, Option<ScriptAttribute>)> = vec![
-        (AmountAttribute::new(14, None), None),
-        (AmountAttribute::new(1, None), None),
-        (AmountAttribute::new(11, None), None),
+    let attributes: Vec<AmountAttribute> = vec![
+        AmountAttribute::new(14, None),
+        AmountAttribute::new(1, None),
+        AmountAttribute::new(11, None),
     ];
     let mut attribute_commitments = Vec::new();
     for attr in attributes.iter() {
-        attribute_commitments.push((attr.0.commitment().clone(), GENERATORS.O.clone()));
+        attribute_commitments.push((attr.commitment().clone(), GENERATORS.O.clone()));
     }
     let proof = BulletProof::new(&mut cli_tscr, &attributes);
     let mut attribute_commitments = Vec::new();
     for attr in attributes.iter() {
-        attribute_commitments.push((attr.0.commitment().clone(), None));
+        attribute_commitments.push((attr.commitment().clone(), None));
     }
     bencher.iter(|| proof.clone().verify(&mut mint_tscr, &attribute_commitments));
 }

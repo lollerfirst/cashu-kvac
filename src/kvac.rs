@@ -2,8 +2,7 @@ use crate::bulletproof::BulletProof;
 use crate::errors::Error;
 use crate::generators::{hash_to_curve, GENERATORS};
 use crate::models::{
-    AmountAttribute, Coin, Equation, MintPrivateKey, MintPublicKey, RandomizedCoin,
-    ScriptAttribute, Statement, MAC, ZKP,
+    AmountAttribute, Coin, Equation, MintPrivateKey, MintPublicKey, RandomizedCoin, RangeZKP, ScriptAttribute, Statement, MAC, ZKP
 };
 use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use crate::transcript::CashuTranscript;
@@ -19,7 +18,7 @@ pub struct SchnorrProver<'a> {
 impl<'a> SchnorrProver<'a> {
     pub fn new(transcript: &'a mut CashuTranscript, secrets: Vec<Scalar>) -> Self {
         SchnorrProver {
-            random_terms: vec![Scalar::random(); secrets.len()],
+            random_terms: (0..secrets.len()).map(|_| Scalar::random()).collect(),
             secrets,
             transcript,
         }
@@ -515,17 +514,20 @@ pub struct RangeProof;
 impl RangeProof {
     pub fn create_bulletproof(
         transcript: &mut CashuTranscript,
-        attributes: &Vec<(AmountAttribute, Option<ScriptAttribute>)>,
-    ) -> BulletProof {
-        BulletProof::new(transcript, attributes)
+        attributes: &[AmountAttribute],
+    ) -> RangeZKP {
+        let bulletproof = BulletProof::new(transcript, attributes);
+        RangeZKP::BULLETPROOF(bulletproof)
     }
 
-    pub fn verify_bulletproof(
+    pub fn verify(
         transcript: &mut CashuTranscript,
         attribute_commitments: &Vec<(GroupElement, Option<GroupElement>)>,
-        proof: BulletProof,
+        proof: RangeZKP,
     ) -> bool {
-        proof.verify(transcript, attribute_commitments)
+        match proof {
+            RangeZKP::BULLETPROOF(bulletproof) => bulletproof.verify(transcript, &attribute_commitments),
+        }
     }
 }
 
@@ -549,7 +551,7 @@ mod tests {
     }
 
     fn privkey() -> MintPrivateKey {
-        let scalars = vec![Scalar::random(); 6];
+        let scalars: Vec<Scalar> = (0..6).map(|_| Scalar::random()).collect();
         MintPrivateKey::from_scalars(&scalars).expect("Could not generate private key")
     }
 

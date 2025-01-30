@@ -1,6 +1,6 @@
 use crate::{
     generators::{hash_to_curve, GENERATORS},
-    models::{AmountAttribute, ScriptAttribute},
+    models::AmountAttribute,
     secp::{GroupElement, Scalar, SCALAR_ONE, SCALAR_ZERO},
     transcript::CashuTranscript,
 };
@@ -22,7 +22,7 @@ pub static POWERS_OF_TWO: Lazy<Vec<Scalar>> = Lazy::new(|| {
 });
 pub static G: Lazy<Vec<GroupElement>> = Lazy::new(|| {
     let mut result = Vec::new();
-    for i in 0..128 {
+    for i in 0..32 {
         result.push(
             hash_to_curve(format!("IPA_G_{}_", i).as_bytes())
                 .expect("Couldn't map hash to point on the curve"),
@@ -32,7 +32,7 @@ pub static G: Lazy<Vec<GroupElement>> = Lazy::new(|| {
 });
 pub static H: Lazy<Vec<GroupElement>> = Lazy::new(|| {
     let mut result = Vec::new();
-    for i in 0..128 {
+    for i in 0..32 {
         result.push(
             hash_to_curve(format!("IPA_H_{}_", i).as_bytes())
                 .expect("Couldn't map hash to point on the curve"),
@@ -46,7 +46,7 @@ pub static U: Lazy<GroupElement> =
 #[allow(non_snake_case)]
 fn get_generators(n: usize) -> (Vec<GroupElement>, Vec<GroupElement>, GroupElement) {
     let (mut G_, mut H_, U_) = (G.clone(), H.clone(), U.clone());
-    if n > G.len() {
+    if n > G_.len() {
         for i in G.len()..n {
             G_.push(
                 hash_to_curve(format!("IPA_G_{}_", i).as_bytes())
@@ -83,7 +83,7 @@ fn inner_product(l: &[Scalar], r: &[Scalar]) -> Scalar {
     result
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
 pub struct InnerProductArgument {
     public_inputs: Vec<(GroupElement, GroupElement)>,
     tail_end_scalars: (Scalar, Scalar),
@@ -259,7 +259,7 @@ impl InnerProductArgument {
 }
 
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
 pub struct BulletProof {
     pub A: GroupElement,
     pub S: GroupElement,
@@ -275,7 +275,7 @@ pub struct BulletProof {
 impl BulletProof {
     pub fn new(
         transcript: &mut CashuTranscript,
-        attributes: &Vec<(AmountAttribute, Option<ScriptAttribute>)>,
+        attributes: &[AmountAttribute],
     ) -> Self {
         // Domain separation
         transcript.domain_sep(b"Bulletproof_Statement_");
@@ -286,8 +286,8 @@ impl BulletProof {
         // Decompose attribute's amounts into bits.
         let mut a_left = Vec::new();
         let mut a_right = Vec::new();
-        for attribute_pair in attributes {
-            let amount: u64 = attribute_pair.0.a.as_ref().into();
+        for attribute in attributes {
+            let amount: u64 = attribute.a.as_ref().into();
             for i in 0..n {
                 let bit = (amount >> i) & 1;
                 a_left.push(Scalar::from(bit));
@@ -305,7 +305,7 @@ impl BulletProof {
 
         // Append Ma and bit-length to the transcript
         for attribute_pair in attributes.iter() {
-            let amount_commitment = attribute_pair.0.commitment();
+            let amount_commitment = attribute_pair.commitment();
             transcript.append_element(b"Com(V)_", &amount_commitment);
         }
         transcript.append_element(
@@ -329,9 +329,9 @@ impl BulletProof {
         }
 
         // s_l and s_r are the bits commitment blinding vectors
-        let (s_l, s_r) = (
-            vec![Scalar::random(); a_left.len()],
-            vec![Scalar::random(); a_right.len()],
+        let (s_l, s_r): (Vec<Scalar>, Vec<Scalar>) = (
+            (0..a_left.len()).map(|_| Scalar::random()).collect(),
+            (0..a_right.len()).map(|_| Scalar::random()).collect(),
         );
 
         // Compute Com(S)
@@ -447,7 +447,7 @@ impl BulletProof {
         let mut tau_0 = Scalar::new(&SCALAR_ZERO);
         let z_2 = z_list[2].clone();
         for (attribute_pair, z_j) in izip!(attributes.iter(), z_list.into_iter()) {
-            tau_0 = tau_0 + &(z_j * &attribute_pair.0.r);
+            tau_0 = tau_0 + &(z_j * &attribute_pair.r);
         }
         tau_0 = tau_0 * &z_2;
         let tau_x = tau_0 + &(tau_1 * &x) + &(tau_2 * &x_2);
@@ -639,8 +639,8 @@ mod tests {
         let mut cli_tscr = CashuTranscript::new();
         let mut mint_tscr = CashuTranscript::new();
 
-        let a = vec![Scalar::random(); 96];
-        let b = vec![Scalar::random(); 96];
+        let a = (0..96).map(|_| Scalar::random()).collect();
+        let b = (0..96).map(|_| Scalar::random()).collect();
         let a = pad_zeros(a, 128);
         let b = pad_zeros(b, 128);
         let (G_, H_, _) = get_generators(128);
@@ -666,16 +666,33 @@ mod tests {
         let mut cli_tscr = CashuTranscript::new();
         let mut mint_tscr = CashuTranscript::new();
 
-        let attributes: Vec<(AmountAttribute, Option<ScriptAttribute>)> = vec![
-            (AmountAttribute::new(14, None), None),
-            (AmountAttribute::new(1, None), None),
-            (AmountAttribute::new(11, None), None),
+        let attributes: Vec<AmountAttribute> = vec![
+            AmountAttribute::new(2, None),
+            AmountAttribute::new(1, None),
+            AmountAttribute::new(14, None),
         ];
         let mut attribute_commitments = Vec::new();
         for attr in attributes.iter() {
-            attribute_commitments.push((attr.0.commitment().clone(), None));
+            attribute_commitments.push((attr.commitment().clone(), None));
         }
         let range_proof = BulletProof::new(&mut cli_tscr, &attributes);
+        assert!(range_proof.verify(&mut mint_tscr, &attribute_commitments))
+    }
+    #[test]
+    fn test_range_proof_zero() {
+        let mut cli_tscr = CashuTranscript::new();
+        let mut mint_tscr = CashuTranscript::new();
+
+        let attributes: Vec<AmountAttribute> = vec![
+            AmountAttribute::new(0, None),
+            AmountAttribute::new(0, None),
+        ];
+        let mut attribute_commitments = Vec::new();
+        for attr in attributes.iter() {
+            attribute_commitments.push((attr.commitment().clone(), None));
+        }
+        let range_proof = BulletProof::new(&mut cli_tscr, &attributes);
+        //println!("{:?}", serde_json::to_string_pretty(&range_proof).unwrap());
         assert!(range_proof.verify(&mut mint_tscr, &attribute_commitments))
     }
     #[test]
@@ -683,14 +700,13 @@ mod tests {
         let mut cli_tscr = CashuTranscript::new();
         let mut mint_tscr = CashuTranscript::new();
 
-        let attributes: Vec<(AmountAttribute, Option<ScriptAttribute>)> = vec![
-            (AmountAttribute::new(1 << 32, None), None),
-            (AmountAttribute::new(1, None), None),
-            (AmountAttribute::new(11, None), None),
+        let attributes: Vec<AmountAttribute> = vec![
+            AmountAttribute::new(1 << 32, None),
+            AmountAttribute::new(11, None),
         ];
         let mut attribute_commitments = Vec::new();
         for attr in attributes.iter() {
-            attribute_commitments.push((attr.0.commitment().clone(), None));
+            attribute_commitments.push((attr.commitment().clone(), None));
         }
         let range_proof = BulletProof::new(&mut cli_tscr, &attributes);
         assert!(!range_proof.verify(&mut mint_tscr, &attribute_commitments))
