@@ -401,7 +401,7 @@ Derived Private Key (Mint) for epoch number $i$:
 ```math
 \displaylines{
 \begin{aligned}
-e &\leftarrow \text{Hash}(Cw || I || \text{epoch})\\
+e &\leftarrow \text{Hash}(Cw \mathbin\Vert I \mathbin\Vert \text{epoch})\\
 w^i &= w + e\\
 w'^i &= w' + e\\
 x_0^i &= x_0 + e\\
@@ -417,9 +417,9 @@ Derived Public Key (Client) for epoch number $i$:
 ```math
 \displaylines{
 \begin{aligned}
-e &\leftarrow \text{Hash}(Cw || I || \text{epoch})\\
+e &\leftarrow \text{Hash}(C_w || I || \text{epoch})\\
 I^i &= I - (e\cdot G_{x_0} + e\cdot G_{x_1} + e\cdot G_\text{zamount} + e\cdot G_\text{zscript})\\
-Cw^i &= Cw + (e\cdot W + e\cdot W')
+C_w^i &= C_w + (e\cdot W + e\cdot W')
 \end{aligned}
 }
 ```
