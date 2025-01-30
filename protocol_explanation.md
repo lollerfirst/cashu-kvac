@@ -332,7 +332,7 @@ This section explains how a _client/wallet_ (used interchangeably) interacts wit
 To perform any interaction (e.g., mint, swap, or melt) with the Mint, a client needs `Coin`s worth $0$ ([46](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L46)). This is because the Mint always requires a valid set of input `RandomizedCoin`s for any other operation (mint/melt/swap).
 
 To handle this, the client makes a special `BootstrapRequest`:
-1. The client requests a `MAC` for an `AmountAttribute` $M_a$ that encodes $0$, optionally including a `ScriptAttribute` $M_s$ with a script hash $s$.
+1. The client requests a `MAC` for an `AmountAttribute` $M_a$ that encodes $0$, optionally including a `ScriptAttribute` $M_s$ encoding a script hash $s$. This would be used for things like spending conditions.
 2. The client generates a proof, $\pi_\text{bootstrap}$, to show that $M_a$ encodes $0$ [(48)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L48).
 3. The client sends $(M_a, M_s, \pi_\text{bootstrap})$ to the Mint.
 
@@ -345,8 +345,8 @@ From the wallet's perspective, this bootstrapping process is only needed once pe
 
 ### SwapRequest
 When a client wants to swap `Coin`s, they:
-1. Create **new** `AmountAttribute` and `ScriptAttribute` pairs that encode the final wallet balance (minus any fees) and, if applicable, the same script hash as in the current `ScriptAttribute` [(65-66)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L65).
-2. Generate `RandomizedCoin` from the **old** `Coin` which contains the attribute encoding the current balance and the MAC (the Mint's attestation). If the client doesn't have any such `Coin`, they have to `Bootstrap` first. [(72)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L72).
+1. Create request outputs: **new** `AmountAttribute` and `ScriptAttribute` pairs that encode respectively the final wallet balance (minus any fees) and, optionally, the hash of the script describing the spending conditions [(65-66)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L65).
+2. Create request inputs: generate `RandomizedCoin` from the **old** `Coin` which contains the attribute encoding the current balance and the MAC (the Mint's "attestation"/"signature"). If the client doesn't have any such `Coin`, they have to `Bootstrap` first. [(72)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L72).
 
 The client also generates the following ZK-proofs:
 - $\pi_\text{balance}$: Proves that the balance difference $\Delta_a$ (should equal $0$ or the fees) between old and new wallet balances is valid. Inputs: **old** and **new** `AmountAttribute`s [(78)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L78).
@@ -357,6 +357,7 @@ The client also generates the following ZK-proofs:
 Then the client sends:
 - **old** `RandomizedCoin`s defined in (2) as inputs
 - **new** (`AmountAttribute`/`ScriptAttribute`) pairs' **COMMITMENTS** (not the secret values) as described in (1) 
+- The script the coins were locked to, if any, together with its script-signature
 - All proofs as described above.
 
 The Mint then [(89-105)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L89):
