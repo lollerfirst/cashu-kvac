@@ -386,6 +386,44 @@ With KVAC, this process is simplified:
    M_{a'} \gets M_a + o \cdot G_\text{amount}
 ```
 
+### Epoch Tweaking of Base Keys
+
+Epoch changes help Mint runners maintain reasonably sized databases. When a epoch change occurs,
+the Mint creates new keys for each supported unit and advertises them on its `info` endpoints.
+From that moment on, the Mint will only issue `MAC`s with those newer keys, while still accepting `MAC`s issued with keys from a previous iteration.
+This comes at a slight cost for the user, which has to re-enstablish trust whenever polling for the newest keysets.
+
+
+Epoch tweaking makes it possible for clients to autonomously calculate the Mint's public keys for the next iteration by simply tweaking a **base** key.
+
+Derived Private Key (Mint) for epoch number $i$:
+[code](https://github.com/lollerfirst/cashu-kvac/blob/0f175081bcc52a6da198c6ab54ede65691858d78/src/models.rs#L83)
+```math
+\displaylines{
+\begin{aligned}
+e &\leftarrow \text{Hash}(Cw || I || \text{epoch})\\
+w^i &= w + e\\
+w'^i &= w' + e\\
+x_0^i &= x_0 + e\\
+x_1^i &= x_1 + e\\
+y_a^i &= y_a + e\\
+y_s^i &= y_s + e
+\end{aligned}
+}
+```
+
+Derived Public Key (Client) for epoch number $i$:
+[code](https://github.com/lollerfirst/cashu-kvac/blob/0f175081bcc52a6da198c6ab54ede65691858d78/src/models.rs#L19):
+```math
+\displaylines{
+\begin{aligned}
+e &\leftarrow \text{Hash}(Cw || I || \text{epoch})\\
+I^i &= I - (e\cdot G_{x_0} + e\cdot G_{x_1} + e\cdot G_\text{zamount} + e\cdot G_\text{zscript})\\
+Cw^i &= Cw + (e\cdot W + e\cdot W')
+\end{aligned}
+}
+```
+
 ---
 
 ### `CashuTranscript`
