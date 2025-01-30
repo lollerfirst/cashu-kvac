@@ -302,6 +302,7 @@ This statement works because the Mint uses $\Delta_a$ to re-compute the verifica
 B = \Delta_a\cdot G_\text{amount} + \sum_{i=0}^{n}\left(C_{a_i}-M_{a_i}\right)
 ```
 
+<!--
 ### Proof Of Same Script ($\pi_\text{script}$)
 
 > [ScriptEqualityStatement](https://github.com/lollerfirst/cashu-kvac/blob/c6497c8e69da1e3df7dcc2705114fe7d68986f30/src/kvac.py#L242)
@@ -320,6 +321,7 @@ C_{s_i} &= s \cdot G_\text{script} + r_{s_i} \cdot G_\text{blind} + r_{a_i}\cdot
 \end{aligned}
 }
 ```
+-->
 
 ---
 
