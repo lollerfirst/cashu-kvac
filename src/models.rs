@@ -15,24 +15,6 @@ pub struct MintPublicKey {
 }
 
 #[allow(non_snake_case)]
-impl MintPublicKey {
-    pub fn tweak_epoch(self, epoch: u64) -> MintPublicKey {
-        let mut preimage_e = self.Cw.to_bytes();
-        preimage_e.extend(self.I.to_bytes());
-        preimage_e.extend(epoch.to_be_bytes());
-        let hash_e = Sha256Hash::hash(&preimage_e).to_byte_array();
-        let e = Scalar::new(&hash_e);
-        let Cw = self.Cw + &(GENERATORS.W.clone() * &e) + &(GENERATORS.W_.clone() * &e);
-        let I = self.I
-            - &(GENERATORS.X0.clone() * &e
-                + &(GENERATORS.X1.clone() * &e)
-                + &(GENERATORS.Gz_attribute.clone() * &e)
-                + &(GENERATORS.Gz_script.clone() * &e));
-        MintPublicKey { Cw, I }
-    }
-}
-
-#[allow(non_snake_case)]
 #[derive(Clone, Serialize, Hash, Deserialize, Debug, Eq, PartialEq)]
 pub struct MintPrivateKey {
     pub w: Scalar,
@@ -78,23 +60,6 @@ impl MintPrivateKey {
             self.ya.clone(),
             self.ys.clone(),
         ]
-    }
-
-    pub fn tweak_epoch(self, epoch: u64) -> MintPrivateKey {
-        let mut preimage_e = self.public_key.Cw.to_bytes();
-        preimage_e.extend(self.public_key.I.to_bytes());
-        preimage_e.extend(epoch.to_be_bytes());
-        let hash_e = Sha256Hash::hash(&preimage_e).to_byte_array();
-        let e = Scalar::new(&hash_e);
-        MintPrivateKey {
-            w: self.w + &e,
-            w_: self.w_ + &e,
-            x0: self.x0 + &e,
-            x1: self.x1 + &e,
-            ya: self.ya + &e,
-            ys: self.ys + &e,
-            public_key: self.public_key.tweak_epoch(epoch),
-        }
     }
 }
 
