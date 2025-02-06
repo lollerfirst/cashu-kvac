@@ -247,9 +247,9 @@ impl GroupElement {
     pub fn tweak(&mut self, tweak_kind: TweakKind, tweak: u64) -> &Self {
         match tweak_kind {
             TweakKind::AMOUNT => {
-                let ge = GENERATORS.G_amount.clone();
+                let mut ge = GENERATORS.G_amount.clone();
                 let scalar = Scalar::from(tweak);
-                self.combine_add(&(ge * &scalar));
+                self.combine_add(ge.multiply(&scalar));
                 self
             }
         }
@@ -858,5 +858,16 @@ mod tests {
 
         assert_eq!(ge.is_zero, deserialized.is_zero);
         assert_eq!(ge.inner.is_some(), deserialized.inner.is_some());
+    }
+
+    #[test]
+    fn test_ge_amount_tweak() {
+        let mut ge = GENERATORS.G_amount.clone();
+        ge = ge * &Scalar::from(2);
+        
+        let tweak = 4 as u64;
+
+        ge.tweak(TweakKind::AMOUNT, tweak);
+        assert_eq!(ge, GENERATORS.G_amount.clone() * &Scalar::from(6));
     }
 }
