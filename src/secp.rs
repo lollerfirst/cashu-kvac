@@ -27,13 +27,11 @@ pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(|| {
 #[derive(Clone, Debug, Eq)]
 pub struct Scalar {
     inner: Option<SecretKey>,
-    is_zero: bool,
 }
 
 #[derive(Hash, Clone, Debug, Eq)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
-    is_zero: bool,
 }
 
 fn div2(m: &Integer, mut x: Integer) -> Integer {
@@ -80,13 +78,11 @@ impl Scalar {
         if *data == SCALAR_ZERO {
             Scalar {
                 inner: None,
-                is_zero: true,
             }
         } else {
             let inner = SecretKey::from_slice(data).expect("Could not instantiate Scalar");
             Scalar {
                 inner: Some(inner),
-                is_zero: false,
             }
         }
     }
@@ -95,13 +91,11 @@ impl Scalar {
         let inner = SecretKey::new(&mut rand::thread_rng());
         Scalar {
             inner: Some(inner),
-            is_zero: false,
         }
     }
 
     pub fn tweak_mul(&mut self, other: &Scalar) -> &Self {
-        if other.is_zero || self.is_zero {
-            self.is_zero = true;
+        if other.inner.is_none() || self.inner.is_none() {
             self.inner = None;
             return self;
         }
@@ -116,11 +110,10 @@ impl Scalar {
     }
 
     pub fn tweak_add(&mut self, other: &Scalar) -> &Self {
-        if other.is_zero {
+        if other.inner.is_none() {
             self
-        } else if self.is_zero {
+        } else if self.inner.is_none() {
             self.inner = Some(other.inner.unwrap());
-            self.is_zero = false;
             self
         } else {
             let b = SecpScalar::from_be_bytes(other.inner.unwrap().secret_bytes()).unwrap();
@@ -135,7 +128,7 @@ impl Scalar {
     }
 
     pub fn tweak_neg(&mut self) -> &Self {
-        if self.is_zero {
+        if self.inner.is_none() {
             self
         } else {
             let result = self.inner.unwrap().negate();
@@ -145,7 +138,7 @@ impl Scalar {
     }
 
     pub fn invert(self) -> Self {
-        if self.is_zero {
+        if self.inner.is_none() {
             panic!("Scalar 0 doesn't have an inverse")
         } else {
             let x = Integer::from_digits(
@@ -163,9 +156,20 @@ impl Scalar {
             let inner = SecretKey::from_slice(&vec).expect("Could not instantiate Scalar");
             Scalar {
                 inner: Some(inner),
-                is_zero: false,
             }
         }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        if self.inner.is_none() {
+            Vec::from(SCALAR_ZERO)
+        } else {
+            Vec::from(self.inner.unwrap().secret_bytes())
+        }
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.inner.is_none()
     }
 }
 
@@ -174,23 +178,20 @@ impl GroupElement {
         if *data == GROUP_ELEMENT_ZERO {
             GroupElement {
                 inner: None,
-                is_zero: true,
             }
         } else {
             let inner = PublicKey::from_slice(data).expect("Cannot create GroupElement");
             GroupElement {
                 inner: Some(inner),
-                is_zero: false,
             }
         }
     }
 
     pub fn combine_add(&mut self, other: &GroupElement) -> &Self {
-        if other.is_zero {
+        if other.inner.is_none() {
             self
-        } else if self.is_zero {
+        } else if self.inner.is_none() {
             self.inner = other.inner;
-            self.is_zero = other.is_zero;
             self
         } else {
             let result = self
@@ -204,8 +205,7 @@ impl GroupElement {
     }
 
     pub fn multiply(&mut self, scalar: &Scalar) -> &Self {
-        if scalar.is_zero || self.is_zero {
-            self.is_zero = true;
+        if scalar.inner.is_none() || self.inner.is_none() {
             self.inner = None;
             self
         } else {
@@ -222,7 +222,7 @@ impl GroupElement {
     }
 
     pub fn negate(&mut self) -> &Self {
-        if self.is_zero {
+        if self.inner.is_none() {
             self
         } else {
             let result = self.inner.unwrap().negate(&SECP256K1);
@@ -232,11 +232,15 @@ impl GroupElement {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        if self.is_zero {
+        if self.inner.is_none() {
             Vec::from(GROUP_ELEMENT_ZERO)
         } else {
             Vec::from(self.inner.unwrap().serialize())
         }
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.inner.is_none()
     }
 }
 
@@ -262,9 +266,9 @@ impl std::ops::Sub<&Scalar> for Scalar {
     type Output = Scalar;
 
     fn sub(self, other: &Scalar) -> Scalar {
-        if other.is_zero {
+        if other.inner.is_none() {
             self
-        } else if self.is_zero {
+        } else if self.inner.is_none() {
             -(other.clone())
         } else {
             let other_neg = -(other.clone());
@@ -277,9 +281,8 @@ impl std::ops::Mul<&Scalar> for Scalar {
     type Output = Scalar;
 
     fn mul(mut self, other: &Scalar) -> Scalar {
-        if other.is_zero || self.is_zero {
+        if other.inner.is_none() || self.inner.is_none() {
             self.inner = None;
-            self.is_zero = true;
             self
         } else {
             self.tweak_mul(other);
@@ -290,7 +293,7 @@ impl std::ops::Mul<&Scalar> for Scalar {
 
 impl From<&Scalar> for Vec<u8> {
     fn from(val: &Scalar) -> Self {
-        if val.is_zero {
+        if val.inner.is_none() {
             SCALAR_ZERO.to_vec()
         } else {
             val.inner.unwrap().secret_bytes().to_vec()
@@ -300,7 +303,7 @@ impl From<&Scalar> for Vec<u8> {
 
 impl From<&Scalar> for [u8; 32] {
     fn from(val: &Scalar) -> Self {
-        if val.is_zero {
+        if val.inner.is_none() {
             SCALAR_ZERO
         } else {
             val.inner
@@ -313,7 +316,7 @@ impl From<&Scalar> for [u8; 32] {
 
 impl From<&Scalar> for u64 {
     fn from(val: &Scalar) -> Self {
-        if val.is_zero {
+        if val.inner.is_none() {
             0
         } else {
             let bytes: [u8; 32] = val.into();
@@ -329,7 +332,7 @@ impl From<&Scalar> for u64 {
 
 impl From<&Scalar> for String {
     fn from(val: &Scalar) -> Self {
-        if val.is_zero {
+        if val.inner.is_none() {
             hex::encode(SCALAR_ZERO)
         } else {
             hex::encode(val.inner.unwrap().secret_bytes())
@@ -373,10 +376,10 @@ impl AsRef<Scalar> for Scalar {
 
 impl PartialEq for Scalar {
     fn eq(&self, other: &Self) -> bool {
-        if self.is_zero && other.is_zero {
+        if self.inner.is_none() && other.inner.is_none() {
             return true;
         }
-        if self.is_zero || other.is_zero {
+        if self.inner.is_none() || other.inner.is_none() {
             return false;
         }
         let mut b = 0u8;
@@ -420,16 +423,15 @@ impl Default for Scalar {
     fn default() -> Self {
         Scalar {
             inner: None,
-            is_zero: true,
         }
     }
 }
 
 impl Hash for Scalar {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.is_zero.hash(state);
-        if !self.is_zero {
-            self.inner.unwrap().secret_bytes().hash(state);
+        self.inner.is_none().hash(state);
+        if let Some(inner) = self.inner {
+            inner.secret_bytes().hash(state);
         }
     }
 }
@@ -456,9 +458,9 @@ impl std::ops::Sub<&GroupElement> for GroupElement {
     type Output = GroupElement;
 
     fn sub(self, other: &GroupElement) -> GroupElement {
-        if other.is_zero {
+        if other.inner.is_none() {
             self
-        } else if self.is_zero {
+        } else if self.inner.is_none() {
             -(other.clone())
         } else {
             let other_neg = -(other.clone());
@@ -471,8 +473,7 @@ impl std::ops::Mul<&Scalar> for GroupElement {
     type Output = GroupElement;
 
     fn mul(mut self, other: &Scalar) -> GroupElement {
-        if self.is_zero || other.is_zero {
-            self.is_zero = true;
+        if self.inner.is_none() || other.inner.is_none() {
             self.inner = None;
             self
         } else {
@@ -489,10 +490,10 @@ impl std::ops::Mul<&Scalar> for GroupElement {
 
 impl PartialEq for GroupElement {
     fn eq(&self, other: &Self) -> bool {
-        if self.is_zero && other.is_zero {
+        if self.inner.is_none() && other.inner.is_none() {
             return true;
         }
-        if self.is_zero || other.is_zero {
+        if self.inner.is_none() || other.inner.is_none() {
             false
         } else {
             self.inner.unwrap().eq(&other.inner.unwrap())
@@ -515,7 +516,7 @@ impl TryFrom<&str> for GroupElement {
 
 impl From<&GroupElement> for [u8; 33] {
     fn from(val: &GroupElement) -> Self {
-        if val.is_zero {
+        if val.inner.is_none() {
             GROUP_ELEMENT_ZERO
         } else {
             val.inner
@@ -528,7 +529,7 @@ impl From<&GroupElement> for [u8; 33] {
 
 impl From<&GroupElement> for String {
     fn from(val: &GroupElement) -> Self {
-        if val.is_zero {
+        if val.inner.is_none() {
             hex::encode(GROUP_ELEMENT_ZERO)
         } else {
             hex::encode(
@@ -573,7 +574,6 @@ impl Default for GroupElement {
     fn default() -> Self {
         GroupElement {
             inner: None,
-            is_zero: true,
         }
     }
 }
@@ -588,19 +588,19 @@ mod tests {
     fn test_new_scalar() {
         let data = [1u8; 32];
         let scalar = Scalar::new(&data);
-        assert!(!scalar.is_zero);
+        assert!(!scalar.is_zero());
     }
 
     #[test]
     fn test_new_zero_scalar() {
         let scalar = Scalar::new(&SCALAR_ZERO);
-        assert!(scalar.is_zero);
+        assert!(scalar.is_zero());
     }
 
     #[test]
     fn test_random_scalar() {
         let scalar = Scalar::random();
-        assert!(!scalar.is_zero);
+        assert!(!scalar.is_zero());
     }
 
     #[test]
@@ -608,7 +608,7 @@ mod tests {
         let scalar = Scalar::random();
         let cloned_scalar = scalar.clone();
         assert_eq!(scalar.inner, cloned_scalar.inner);
-        assert_eq!(scalar.is_zero, cloned_scalar.is_zero);
+        assert_eq!(scalar.is_zero(), cloned_scalar.is_zero());
     }
 
     #[test]
@@ -661,7 +661,7 @@ mod tests {
         let scalar1 = Scalar::random();
         let scalar2 = Scalar::new(&SCALAR_ZERO);
         let result = scalar1 * &scalar2;
-        assert!(result.is_zero);
+        assert!(result.is_zero());
     }
 
     #[test]
@@ -669,7 +669,7 @@ mod tests {
         let scalar1 = Scalar::new(&SCALAR_ZERO);
         let scalar2 = Scalar::random();
         let result = scalar1 * &scalar2;
-        assert!(result.is_zero);
+        assert!(result.is_zero());
     }
 
     #[test]
@@ -764,7 +764,7 @@ mod tests {
             serde_json::from_str(&serialized).expect("Failed to deserialize");
 
         // Check that the deserialized Scalar matches the original
-        assert_eq!(scalar.is_zero, deserialized.is_zero);
+        assert_eq!(scalar.is_zero(), deserialized.is_zero());
         assert_eq!(scalar.inner.is_some(), deserialized.inner.is_some());
     }
 
@@ -774,7 +774,7 @@ mod tests {
             "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
         )
         .unwrap();
-        assert!(!g.is_zero)
+        assert!(!g.is_zero())
     }
 
     #[test]
@@ -840,7 +840,7 @@ mod tests {
         let deserialized: GroupElement =
             serde_json::from_str(&serialized).expect("Failed to deserialize");
 
-        assert_eq!(ge.is_zero, deserialized.is_zero);
+        assert_eq!(ge.is_zero(), deserialized.is_zero());
         assert_eq!(ge.inner.is_some(), deserialized.inner.is_some());
     }
 }

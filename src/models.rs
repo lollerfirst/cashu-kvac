@@ -176,9 +176,9 @@ impl MAC {
             Ms = GroupElement::new(&GROUP_ELEMENT_ZERO);
         }
         let V = GENERATORS.W.clone() * &privkey.w
-            + &(U.clone() * &privkey.x0
-                + &(U.clone() * &(t.clone() * &privkey.x1)
-                    + &(Ma * &(privkey.ya) + &(Ms * &(privkey.ys)))));
+            + &(U.clone() * &privkey.x0)
+            + &(U.clone() * &(t.clone() * &privkey.x1))
+            + &(Ma * &(privkey.ya) + &(Ms * &(privkey.ys)));
         Ok(MAC { t, V })
     }
 }
