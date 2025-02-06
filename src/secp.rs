@@ -9,6 +9,7 @@ use std::cmp::PartialEq;
 use std::hash::{Hash, Hasher};
 
 use crate::errors::Error;
+use crate::generators::GENERATORS;
 
 pub const SCALAR_ZERO: [u8; 32] = [0; 32];
 pub const SCALAR_ONE: [u8; 32] = [
@@ -23,6 +24,10 @@ pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(|| {
     ctx.randomize(&mut rng);
     ctx
 });
+
+pub enum TweakKind {
+    AMOUNT,
+}
 
 #[derive(Clone, Debug, Eq)]
 pub struct Scalar {
@@ -236,6 +241,17 @@ impl GroupElement {
             Vec::from(GROUP_ELEMENT_ZERO)
         } else {
             Vec::from(self.inner.unwrap().serialize())
+        }
+    }
+
+    pub fn tweak(&mut self, tweak_kind: TweakKind, tweak: u64) -> &Self {
+        match tweak_kind {
+            TweakKind::AMOUNT => {
+                let mut ge = GENERATORS.G_amount.clone();
+                let scalar = Scalar::from(tweak);
+                self.combine_add(ge.multiply(&scalar));
+                self
+            }
         }
     }
 
@@ -842,5 +858,16 @@ mod tests {
 
         assert_eq!(ge.is_zero(), deserialized.is_zero());
         assert_eq!(ge.inner.is_some(), deserialized.inner.is_some());
+    }
+
+    #[test]
+    fn test_ge_amount_tweak() {
+        let mut ge = GENERATORS.G_amount.clone();
+        ge = ge * &Scalar::from(2);
+        
+        let tweak = 4 as u64;
+
+        ge.tweak(TweakKind::AMOUNT, tweak);
+        assert_eq!(ge, GENERATORS.G_amount.clone() * &Scalar::from(6));
     }
 }
