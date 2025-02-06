@@ -143,6 +143,11 @@ impl AmountAttribute {
     pub fn commitment(&self) -> GroupElement {
         GENERATORS.G_amount.clone() * &self.a + &(GENERATORS.G_blind.clone() * &self.r)
     }
+
+    pub fn tweak_amount(&mut self, amount: u64) -> &Self {
+        self.a.tweak_add(&Scalar::from(amount));
+        self
+    }
 }
 
 #[allow(non_snake_case)]
