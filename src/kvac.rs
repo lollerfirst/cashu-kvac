@@ -2,7 +2,8 @@ use crate::bulletproof::BulletProof;
 use crate::errors::Error;
 use crate::generators::{hash_to_curve, GENERATORS};
 use crate::models::{
-    AmountAttribute, Coin, Equation, MintPrivateKey, MintPublicKey, RandomizedCoin, RangeZKP, ScriptAttribute, Statement, MAC, ZKP
+    AmountAttribute, Coin, Equation, MintPrivateKey, MintPublicKey, RandomizedCoin, RangeZKP,
+    ScriptAttribute, Statement, MAC, ZKP,
 };
 use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use crate::transcript::CashuTranscript;
@@ -526,7 +527,9 @@ impl RangeProof {
         proof: RangeZKP,
     ) -> bool {
         match proof {
-            RangeZKP::BULLETPROOF(bulletproof) => bulletproof.verify(transcript, &attribute_commitments),
+            RangeZKP::BULLETPROOF(bulletproof) => {
+                bulletproof.verify(transcript, attribute_commitments)
+            }
         }
     }
 }

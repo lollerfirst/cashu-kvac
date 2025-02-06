@@ -1,5 +1,8 @@
 use crate::{
-    bulletproof::BulletProof, errors::Error, generators::{hash_to_curve, GENERATORS}, secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO}
+    bulletproof::BulletProof,
+    errors::Error,
+    generators::{hash_to_curve, GENERATORS},
+    secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO},
 };
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
@@ -181,9 +184,9 @@ impl MAC {
             Ms = GroupElement::new(&GROUP_ELEMENT_ZERO);
         }
         let V = GENERATORS.W.clone() * &privkey.w
-            + &(U.clone() * &privkey.x0
-                + &(U.clone() * &(t.clone() * &privkey.x1)
-                    + &(Ma * &(privkey.ya) + &(Ms * &(privkey.ys)))));
+            + &(U.clone() * &privkey.x0)
+            + &(U.clone() * &(t.clone() * &privkey.x1))
+            + &(Ma * &(privkey.ya) + &(Ms * &(privkey.ys)));
         Ok(MAC { t, V })
     }
 }

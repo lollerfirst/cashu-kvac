@@ -273,10 +273,7 @@ pub struct BulletProof {
 
 #[allow(non_snake_case)]
 impl BulletProof {
-    pub fn new(
-        transcript: &mut CashuTranscript,
-        attributes: &[AmountAttribute],
-    ) -> Self {
+    pub fn new(transcript: &mut CashuTranscript, attributes: &[AmountAttribute]) -> Self {
         // Domain separation
         transcript.domain_sep(b"Bulletproof_Statement_");
 
@@ -683,10 +680,8 @@ mod tests {
         let mut cli_tscr = CashuTranscript::new();
         let mut mint_tscr = CashuTranscript::new();
 
-        let attributes: Vec<AmountAttribute> = vec![
-            AmountAttribute::new(0, None),
-            AmountAttribute::new(0, None),
-        ];
+        let attributes: Vec<AmountAttribute> =
+            vec![AmountAttribute::new(0, None), AmountAttribute::new(0, None)];
         let mut attribute_commitments = Vec::new();
         for attr in attributes.iter() {
             attribute_commitments.push((attr.commitment().clone(), None));
