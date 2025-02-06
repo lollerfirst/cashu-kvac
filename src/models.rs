@@ -1,5 +1,8 @@
 use crate::{
-    bulletproof::BulletProof, errors::Error, generators::{hash_to_curve, GENERATORS}, secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO}
+    bulletproof::BulletProof,
+    errors::Error,
+    generators::{hash_to_curve, GENERATORS},
+    secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO},
 };
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;

@@ -81,22 +81,16 @@ fn modinv(m: &Integer, x: &Integer) -> Integer {
 impl Scalar {
     pub fn new(data: &[u8]) -> Self {
         if *data == SCALAR_ZERO {
-            Scalar {
-                inner: None,
-            }
+            Scalar { inner: None }
         } else {
             let inner = SecretKey::from_slice(data).expect("Could not instantiate Scalar");
-            Scalar {
-                inner: Some(inner),
-            }
+            Scalar { inner: Some(inner) }
         }
     }
 
     pub fn random() -> Self {
         let inner = SecretKey::new(&mut rand::thread_rng());
-        Scalar {
-            inner: Some(inner),
-        }
+        Scalar { inner: Some(inner) }
     }
 
     pub fn tweak_mul(&mut self, other: &Scalar) -> &Self {
@@ -159,9 +153,7 @@ impl Scalar {
             }
             vec.reverse();
             let inner = SecretKey::from_slice(&vec).expect("Could not instantiate Scalar");
-            Scalar {
-                inner: Some(inner),
-            }
+            Scalar { inner: Some(inner) }
         }
     }
 
@@ -181,14 +173,10 @@ impl Scalar {
 impl GroupElement {
     pub fn new(data: &[u8]) -> Self {
         if *data == GROUP_ELEMENT_ZERO {
-            GroupElement {
-                inner: None,
-            }
+            GroupElement { inner: None }
         } else {
             let inner = PublicKey::from_slice(data).expect("Cannot create GroupElement");
-            GroupElement {
-                inner: Some(inner),
-            }
+            GroupElement { inner: Some(inner) }
         }
     }
 
@@ -437,9 +425,7 @@ impl<'de> Deserialize<'de> for Scalar {
 
 impl Default for Scalar {
     fn default() -> Self {
-        Scalar {
-            inner: None,
-        }
+        Scalar { inner: None }
     }
 }
 
@@ -588,9 +574,7 @@ impl<'de> Deserialize<'de> for GroupElement {
 
 impl Default for GroupElement {
     fn default() -> Self {
-        GroupElement {
-            inner: None,
-        }
+        GroupElement { inner: None }
     }
 }
 
@@ -864,7 +848,7 @@ mod tests {
     fn test_ge_amount_tweak() {
         let mut ge = GENERATORS.G_amount.clone();
         ge = ge * &Scalar::from(2);
-        
+
         let tweak = 4 as u64;
 
         ge.tweak(TweakKind::AMOUNT, tweak);
