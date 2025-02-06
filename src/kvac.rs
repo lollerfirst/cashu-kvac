@@ -528,7 +528,7 @@ impl RangeProof {
     ) -> bool {
         match proof {
             RangeZKP::BULLETPROOF(bulletproof) => {
-                bulletproof.verify(transcript, &attribute_commitments)
+                bulletproof.verify(transcript, attribute_commitments)
             }
         }
     }
