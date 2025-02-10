@@ -19,7 +19,7 @@ Recovery works as follows:
 
 $B$ is smaller or equal to the largest amount that the wallet ever contained. So for example $B < 100000 \ \text{sats}$.
 
-At this point all the client has to do to find the correct amount is attack the DL. This is extremely easy since $B$ is so small. In the case of $ B < 100000$, it's doable with less than $316$ iterations of the [Baby-Step-Giant-Step algorithm](https://en.wikipedia.org/wiki/Baby-step_giant-step).
+At this point all the client has to do to find the correct amount is attack the DL. This is extremely easy since $B$ is so small. In the case of $B < 100000$, it's doable with less than $316$ iterations of the [Baby-Step-Giant-Step algorithm](https://en.wikipedia.org/wiki/Baby-step_giant-step).
 
 Here follows an example implementation:
 ```python
