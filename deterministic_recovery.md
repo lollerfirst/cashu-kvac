@@ -3,7 +3,7 @@
 ### Normal execution:
 
 During a normal swap/mint/melt operation, the client generates a tag $t$ deterministically with its wallet master key and an appropriately chosen derivation path. Each output in the request is identified by its own $t^i$. After the request is successful, the Mint stores the attributes
-in the outputs of the request $(M_a^i, t^i) $ in its database.
+in the outputs of the request $(M_a^i, t^i)$ in its database.
 
 ### Recovery:
 
@@ -15,7 +15,7 @@ Recovery works as follows:
 
 * Once obtained the attributes, the client unblinds them: $A^i = M_a^i - r_a^i\cdot G_\text{blind}$.
 
-* Now $M_a = a\cdot G_\text{amount}$ with $a \in [0, B]$.
+* Now $A = a\cdot G_\text{amount}$ with $a \in [0, B]$.
 
 $B$ is smaller or equal to the largest amount that the wallet ever contained. So for example $B < 100000 \ \text{sats}$.
 
