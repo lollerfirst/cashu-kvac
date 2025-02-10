@@ -66,3 +66,7 @@ for i in range(m):
 print(f"{x = }")
 print(f"{iterations = }")
 ```
+
+### Recovery Spent Checks:
+
+As with normal ecash, the client will later have to requestsep arate "nullifier state check" to the Mint in order to determine the spendability of each output they just recovered. This has privacy compromising implications
