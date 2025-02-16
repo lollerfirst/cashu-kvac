@@ -118,7 +118,6 @@ pub struct ScriptAttribute {
 
 #[allow(non_snake_case)]
 impl ScriptAttribute {
-
     /// Creates a new script attribute from a given script and optional blinding factor.
     pub fn new(script: &[u8], blinding_factor: Option<&[u8; 32]>) -> Self {
         let s = Scalar::new(&Sha256Hash::hash(script).to_byte_array());
