@@ -423,7 +423,6 @@ impl<'de> Deserialize<'de> for Scalar {
     }
 }
 
-
 impl Hash for Scalar {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.inner.is_none().hash(state);
@@ -566,7 +565,6 @@ impl<'de> Deserialize<'de> for GroupElement {
         Ok(ge)
     }
 }
-
 
 #[cfg(test)]
 mod tests {

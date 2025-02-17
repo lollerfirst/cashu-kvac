@@ -516,11 +516,6 @@ impl BalanceProof {
     ///
     /// # Returns
     /// A `ZKP` representing the zero-knowledge proof of the balance.
-    ///
-    /// # Example
-    /// ```
-    /// let proof = BalanceProof::create(&inputs, &outputs, &mut transcript);
-    /// ```
     pub fn create(
         inputs: &[AmountAttribute],
         outputs: &[AmountAttribute],
@@ -554,11 +549,6 @@ impl BalanceProof {
     ///
     /// # Returns
     /// A boolean indicating whether the proof is valid (`true`) or invalid (`false`).
-    ///
-    /// # Example
-    /// ```
-    /// let is_valid = BalanceProof::verify(&inputs, &outputs, delta_amount, proof, &mut transcript);
-    /// ```
     pub fn verify(
         inputs: &[RandomizedCoin],
         outputs: &[GroupElement],
@@ -596,11 +586,6 @@ impl ScriptEqualityProof {
     ///
     /// # Returns
     /// A `Statement` containing the domain separator and the equations that represent the script equality proof.
-    ///
-    /// # Example
-    /// ```
-    /// let statement = ScriptEqualityProof::statement(&randomized_inputs, &outputs);
-    /// ```
     pub fn statement(
         inputs: &[RandomizedCoin],
         outputs: &[(GroupElement, GroupElement)],
@@ -657,11 +642,6 @@ impl ScriptEqualityProof {
     ///
     /// # Returns
     /// A `Result` containing a `ZKP` representing the zero-knowledge proof of script equality, or an `Error` if the input lists are empty.
-    ///
-    /// # Example
-    /// ```
-    /// let proof = ScriptEqualityProof::create(&inputs, &randomized_inputs, &outputs, &mut transcript)?;
-    /// ```
     pub fn create(
         inputs: &[Coin],
         randomized_inputs: &[RandomizedCoin],
@@ -721,11 +701,6 @@ impl ScriptEqualityProof {
     ///
     /// # Returns
     /// A boolean indicating whether the proof is valid (`true`) or invalid (`false`).
-    ///
-    /// # Example
-    /// ```
-    /// let is_valid = ScriptEqualityProof::verify(&randomized_inputs, &outputs, proof, &mut transcript);
-    /// ```
     pub fn verify(
         randomized_inputs: &[RandomizedCoin],
         outputs: &[(GroupElement, GroupElement)],
@@ -754,11 +729,6 @@ impl RangeProof {
     ///
     /// # Returns
     /// A `RangeZKP` representing the bulletproof for the specified attributes.
-    ///
-    /// # Example
-    /// ```
-    /// let range_proof = RangeProof::create_bulletproof(&mut transcript, &attributes);
-    /// ```
     pub fn create_bulletproof(
         transcript: &mut CashuTranscript,
         attributes: &[AmountAttribute],
@@ -776,11 +746,6 @@ impl RangeProof {
     ///
     /// # Returns
     /// A boolean indicating whether the proof is valid (`true`) or invalid (`false`).
-    ///
-    /// # Example
-    /// ```
-    /// let is_valid = RangeProof::verify(&mut transcript, &attribute_commitments, proof);
-    /// ```
     pub fn verify(
         transcript: &mut CashuTranscript,
         attribute_commitments: &[GroupElement],
