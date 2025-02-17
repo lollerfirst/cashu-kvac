@@ -29,12 +29,12 @@ pub enum TweakKind {
     AMOUNT,
 }
 
-#[derive(Clone, Debug, Eq, Default)]
+#[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct Scalar {
     inner: Option<SecretKey>,
 }
 
-#[derive(Hash, Clone, Debug, Eq, Default)]
+#[derive(Hash, Clone, Debug, Eq, PartialEq, Default)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
 }
@@ -378,29 +378,6 @@ impl AsRef<Scalar> for Scalar {
     }
 }
 
-impl PartialEq for Scalar {
-    fn eq(&self, other: &Self) -> bool {
-        if self.inner.is_none() && other.inner.is_none() {
-            return true;
-        }
-        if self.inner.is_none() || other.inner.is_none() {
-            return false;
-        }
-        let mut b = 0u8;
-        for (x, y) in self
-            .inner
-            .as_ref()
-            .unwrap()
-            .secret_bytes()
-            .iter()
-            .zip(other.inner.as_ref().unwrap().secret_bytes().iter())
-        {
-            b |= x ^ y;
-        }
-        b == 0
-    }
-}
-
 impl Serialize for Scalar {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -480,19 +457,6 @@ impl std::ops::Mul<&Scalar> for GroupElement {
             self.multiply(&(r + other));
             self_copy.multiply(&r_copy);
             self - &self_copy
-        }
-    }
-}
-
-impl PartialEq for GroupElement {
-    fn eq(&self, other: &Self) -> bool {
-        if self.inner.is_none() && other.inner.is_none() {
-            return true;
-        }
-        if self.inner.is_none() || other.inner.is_none() {
-            false
-        } else {
-            self.inner.unwrap().eq(&other.inner.unwrap())
         }
     }
 }
