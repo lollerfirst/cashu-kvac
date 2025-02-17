@@ -124,8 +124,8 @@ impl ScriptAttribute {
     ///
     /// * `script` - A slice of bytes representing the script. This is used to generate the scalar `s`.
     /// * `blinding_factor` - An optional reference to a 32-byte array that serves as the blinding factor.
-    ///                       If provided, it is used to create the scalar `r`. If not provided, a random
-    ///                       scalar `r` is generated.
+    ///   If provided, it is used to create the scalar `r`. If not provided, a random
+    ///   scalar `r` is generated.
     ///
     /// # Returns
     ///
@@ -189,8 +189,8 @@ impl AmountAttribute {
     ///
     /// * `amount` - A `u64` representing the amount to be associated with the attribute. This is used to create the scalar `a`.
     /// * `blinding_factor` - An optional reference to a 32-byte array that serves as the blinding factor.
-    ///                       If provided, it is used to create the scalar `r`. If not provided, a random
-    ///                       scalar `r` is generated.
+    ///   If provided, it is used to create the scalar `r`. If not provided, a random
+    ///   scalar `r` is generated.
     ///
     /// # Returns
     ///
@@ -249,9 +249,9 @@ impl MAC {
     /// * `privkey` - A reference to the `MintPrivateKey` used to generate the MAC.
     /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment.
     /// * `script_commitment` - An optional reference to a `GroupElement` representing the script commitment.
-    ///                         If not provided, a zero `GroupElement` is used.
+    ///   If not provided, a zero `GroupElement` is used.
     /// * `t_tag` - An optional reference to a `Scalar` that can be used as a tag. If not provided, a random
-    ///              `Scalar` is generated.
+    ///   `Scalar` is generated.
     ///
     /// # Returns
     ///
@@ -350,9 +350,9 @@ impl RandomizedCoin {
     ///
     /// * `coin` - A reference to a `Coin` instance from which the randomized coin will be created.
     /// * `reveal_script` - A boolean indicating whether the script inside the `ScriptAttribute`
-    ///                     will be revealed. If true, the randomized script commitment will be void,
-    ///                     leaving space for the Mint to "fill in" the blank with the hash of the
-    ///                     script (spending conditions) provided by the user
+    ///   will be revealed. If true, the randomized script commitment will be void,
+    ///   leaving space for the Mint to "fill in" the blank with the hash of the
+    ///   script (spending conditions) provided by the user
     ///
     /// # Returns
     ///
