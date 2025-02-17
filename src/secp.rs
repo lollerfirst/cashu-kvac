@@ -30,11 +30,13 @@ pub enum TweakKind {
 }
 
 #[derive(Clone, Debug, Eq)]
+#[derive(Default)]
 pub struct Scalar {
     inner: Option<SecretKey>,
 }
 
 #[derive(Hash, Clone, Debug, Eq)]
+#[derive(Default)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
 }
@@ -423,11 +425,6 @@ impl<'de> Deserialize<'de> for Scalar {
     }
 }
 
-impl Default for Scalar {
-    fn default() -> Self {
-        Scalar { inner: None }
-    }
-}
 
 impl Hash for Scalar {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -572,11 +569,6 @@ impl<'de> Deserialize<'de> for GroupElement {
     }
 }
 
-impl Default for GroupElement {
-    fn default() -> Self {
-        GroupElement { inner: None }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -849,7 +841,7 @@ mod tests {
         let mut ge = GENERATORS.G_amount.clone();
         ge = ge * &Scalar::from(2);
 
-        let tweak = 4 as u64;
+        let tweak = 4_u64;
 
         ge.tweak(TweakKind::AMOUNT, tweak);
         assert_eq!(ge, GENERATORS.G_amount.clone() * &Scalar::from(6));

@@ -518,7 +518,7 @@ impl BulletProof {
 
         // Append amount commitments to the transcript
         for V in attribute_commitments.iter() {
-            transcript.append_element(b"Com(V)_", &V);
+            transcript.append_element(b"Com(V)_", V);
         }
         // Commit to the padded-to-pow2 number of attributes
         transcript.append_element(
