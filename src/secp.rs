@@ -29,14 +29,12 @@ pub enum TweakKind {
     AMOUNT,
 }
 
-#[derive(Clone, Debug, Eq)]
-#[derive(Default)]
+#[derive(Clone, Debug, Eq, Default)]
 pub struct Scalar {
     inner: Option<SecretKey>,
 }
 
-#[derive(Hash, Clone, Debug, Eq)]
-#[derive(Default)]
+#[derive(Hash, Clone, Debug, Eq, Default)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
 }
