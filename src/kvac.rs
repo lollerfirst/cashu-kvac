@@ -17,6 +17,17 @@ pub struct SchnorrProver<'a> {
 }
 
 impl<'a> SchnorrProver<'a> {
+    /// Creates a new `SchnorrProver` instance with a given transcript and secrets.
+    ///
+    /// # Arguments
+    ///
+    /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used for the proof process.
+    /// * `secrets` - A vector of `Scalar` values representing the secrets that will be used in the proof.
+    ///
+    /// # Returns
+    ///
+    /// Returns a new instance of `SchnorrProver` initialized with the provided transcript and secrets,
+    /// along with randomly generated terms corresponding to the number of secrets.
     pub fn new(transcript: &'a mut CashuTranscript, secrets: Vec<Scalar>) -> Self {
         SchnorrProver {
             random_terms: (0..secrets.len()).map(|_| Scalar::random()).collect(),
@@ -25,6 +36,15 @@ impl<'a> SchnorrProver<'a> {
         }
     }
 
+    /// Adds a statement to the prover, updating the transcript with proof-specific information.
+    ///
+    /// # Arguments
+    ///
+    /// * `statement` - A `Statement` containing equations that will be added to the proof.
+    ///
+    /// # Returns
+    ///
+    /// Returns the updated `SchnorrProver` instance, allowing for method chaining.
     #[allow(non_snake_case)]
     pub fn add_statement(self, statement: Statement) -> Self {
         // Append proof-specific domain separator to the transcript
@@ -46,6 +66,12 @@ impl<'a> SchnorrProver<'a> {
         self
     }
 
+    /// Generates a zero-knowledge proof (ZKP) based on the added statements and the transcript.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `ZKP` instance containing the responses to the challenge and the challenge itself.
+    /// The challenge is drawn from the running transcript.
     #[allow(non_snake_case)]
     pub fn prove(self) -> ZKP {
         // Draw a challenge from the running transcript
@@ -68,6 +94,16 @@ pub struct SchnorrVerifier<'a> {
 }
 
 impl<'a> SchnorrVerifier<'a> {
+    /// Creates a new `SchnorrVerifier` instance with a given transcript and proof.
+    ///
+    /// # Arguments
+    ///
+    /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used for the verification process.
+    /// * `proof` - A `ZKP` instance containing the responses and challenge from the prover.
+    ///
+    /// # Returns
+    ///
+    /// Returns a new instance of `SchnorrVerifier` initialized with the provided transcript and proof.
     pub fn new(transcript: &'a mut CashuTranscript, proof: ZKP) -> Self {
         SchnorrVerifier {
             responses: proof.s,
@@ -76,6 +112,15 @@ impl<'a> SchnorrVerifier<'a> {
         }
     }
 
+    /// Adds a statement to the verifier, updating the transcript with proof-specific information.
+    ///
+    /// # Arguments
+    ///
+    /// * `statement` - A `Statement` containing equations that will be verified.
+    ///
+    /// # Returns
+    ///
+    /// Returns the updated `SchnorrVerifier` instance, allowing for method chaining.
     #[allow(non_snake_case)]
     pub fn add_statement(self, statement: Statement) -> Self {
         // Append proof-specific domain separator to the transcript
@@ -98,6 +143,11 @@ impl<'a> SchnorrVerifier<'a> {
         self
     }
 
+    /// Verifies the proof against the statements added to the verifier.
+    ///
+    /// # Returns
+    ///
+    /// Returns a boolean indicating whether the proof is valid (`true`) or invalid (`false`).
     pub fn verify(&mut self) -> bool {
         let challenge_ = self.transcript.get_challenge(b"chall_");
         challenge_ == self.challenge
@@ -107,6 +157,15 @@ impl<'a> SchnorrVerifier<'a> {
 pub struct BootstrapProof;
 
 impl BootstrapProof {
+    /// Creates a statement for the bootstrap proof, which includes the amount commitment.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Statement` containing the domain separator and the equations related to the bootstrap proof.
     pub fn statement(amount_commitment: &GroupElement) -> Statement {
         Statement {
             domain_separator: b"Bootstrap_Statement_",
@@ -118,6 +177,16 @@ impl BootstrapProof {
         }
     }
 
+    /// Creates a zero-knowledge proof (ZKP) for the given amount attribute using the provided transcript.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount_attribute` - A reference to an `AmountAttribute` that contains the amount and its blinding factor.
+    /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used during the proof creation.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `ZKP` instance containing the proof generated for the bootstrap statement.
     pub fn create(amount_attribute: &AmountAttribute, transcript: &mut CashuTranscript) -> ZKP {
         let statement = BootstrapProof::statement(&amount_attribute.commitment());
         SchnorrProver::new(transcript, vec![amount_attribute.r.clone()])
@@ -125,6 +194,17 @@ impl BootstrapProof {
             .prove()
     }
 
+    /// Verifies the bootstrap proof against the provided amount commitment and transcript.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment to verify against.
+    /// * `proof` - A `ZKP` instance containing the proof to be verified.
+    /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used during the verification.
+    ///
+    /// # Returns
+    ///
+    /// Returns a boolean indicating whether the proof is valid (`true`) or invalid (`false`).
     pub fn verify(
         amount_commitment: &GroupElement,
         proof: ZKP,
@@ -141,6 +221,17 @@ pub struct MacProof;
 
 #[allow(non_snake_case)]
 impl MacProof {
+    /// Creates a statement for the MAC proof, which includes the necessary equations.
+    ///
+    /// # Arguments
+    ///
+    /// * `Z` - A `GroupElement` representing the left-hand side of the first equation.
+    /// * `I` - A `GroupElement` representing the public key component used in the proof.
+    /// * `randomized_coin` - A reference to a `RandomizedCoin` that contains the commitments needed for the proof.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Statement` containing the domain separator and the equations related to the MAC proof.
     pub fn statement(
         Z: GroupElement,
         I: GroupElement,
@@ -181,6 +272,18 @@ impl MacProof {
         }
     }
 
+    /// Creates a zero-knowledge proof (ZKP) for the MAC proof using the provided parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `mint_publickey` - A reference to the `MintPublicKey` used for generating the proof.
+    /// * `coin` - A reference to a `Coin` that contains the amount attribute and MAC.
+    /// * `randomized_coin` - A reference to a `RandomizedCoin` that contains the commitments needed for the proof.
+    /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used during the proof creation.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `ZKP` instance containing the proof generated for the MAC statement.
     pub fn create(
         mint_publickey: &MintPublicKey,
         coin: &Coin,
@@ -199,6 +302,19 @@ impl MacProof {
             .prove()
     }
 
+    /// Verifies the MAC proof against the provided parameters and transcript.
+    ///
+    /// # Arguments
+    ///
+    /// * `mint_privkey` - A reference to the `MintPrivateKey` used for verification.
+    /// * `randomized_coin` - A reference to a `RandomizedCoin` that contains the commitments needed for verification.
+    /// * `script` - An optional reference to a byte slice representing the script, if applicable.
+    /// * `proof` - A `ZKP` instance containing the proof to be verified.
+    /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used during the verification.
+    ///
+    /// # Returns
+    ///
+    /// Returns a boolean indicating whether the proof is valid (`true`) or invalid (`false`).
     pub fn verify(
         mint_privkey: &MintPrivateKey,
         randomized_coin: &RandomizedCoin,
@@ -243,6 +359,18 @@ pub struct IParamsProof;
 
 #[allow(non_snake_case)]
 impl IParamsProof {
+    /// Creates a statement for the IParams proof, which includes the necessary equations.
+    ///
+    /// # Arguments
+    ///
+    /// * `mint_publickey` - A reference to the `MintPublicKey` used in the proof.
+    /// * `mac` - A reference to the `MAC` instance associated with the proof.
+    /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment.
+    /// * `script_commitment` - A reference to a `GroupElement` representing the script commitment.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Statement` containing the domain separator and the equations related to the IParams proof.
     pub fn statement(
         mint_publickey: &MintPublicKey,
         mac: &MAC,
@@ -261,12 +389,12 @@ impl IParamsProof {
             domain_separator: b"Iparams_Statement_",
             equations: vec![
                 Equation {
-                    // Cw = w*W  + w_*W_
+                    // Cw = w * W + w_ * W_
                     lhs: Cw.clone(),
                     rhs: vec![vec![GENERATORS.W.clone(), GENERATORS.W_.clone()]],
                 },
                 Equation {
-                    // I = Gz_mac - x0*X0 - x1*X1 - ya*Gz_attribute - ys*Gz_script
+                    // I = Gz_mac - x0 * X0 - x1 * X1 - ya * Gz_attribute - ys * Gz_script
                     lhs: I.clone() - &GENERATORS.Gz_mac,
                     rhs: vec![vec![
                         O.clone(),
@@ -278,7 +406,7 @@ impl IParamsProof {
                     ]],
                 },
                 Equation {
-                    // V = w*W + x0*U + x1*t*U + ya*Ma + ys*Ms
+                    // V = w * W + x0 * U + x1 * t * U + ya * Ma + ys * Ms
                     lhs: V,
                     rhs: vec![vec![GENERATORS.W.clone(), O, U.clone(), U * t, Ma, Ms]],
                 },
@@ -286,6 +414,19 @@ impl IParamsProof {
         }
     }
 
+    /// Creates a zero-knowledge proof (ZKP) for the IParams proof using the provided parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `mint_privkey` - A reference to the `MintPrivateKey` used for generating the proof.
+    /// * `mac` - A reference to the `MAC` instance associated with the proof.
+    /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment.
+    /// * `script_commitment` - An optional reference to a `GroupElement` representing the script commitment.
+    /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used during the proof creation.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `ZKP` instance containing the proof generated for the IParams statement.
     pub fn create(
         mint_privkey: &MintPrivateKey,
         mac: &MAC,
@@ -308,6 +449,18 @@ impl IParamsProof {
             .prove()
     }
 
+    /// Verifies the IParams proof against the provided parameters and transcript.
+    ///
+    /// # Arguments
+    ///
+    /// * `mint_publickey` - A reference to the `MintPublicKey` used for verification.
+    /// * `coin` - A reference to a `Coin` that contains the MAC and amount attribute.
+    /// * `proof` - A `ZKP` instance containing the proof to be verified.
+    /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used during the verification.
+    ///
+    /// # Returns
+    /// 
+    /// Returns a boolean indicating whether the proof is valid (`true`) or invalid (`false`).
     pub fn verify(
         mint_publickey: &MintPublicKey,
         coin: &Coin,
@@ -334,6 +487,13 @@ pub struct BalanceProof;
 
 #[allow(non_snake_case)]
 impl BalanceProof {
+    /// Creates a balance statement based on a given group element.
+    ///
+    /// # Parameters
+    /// - `B`: The `GroupElement` representing the balance.
+    ///
+    /// # Returns
+    /// A `Statement` containing the domain separator and the equations that represent the balance proof.
     pub fn statement(B: GroupElement) -> Statement {
         Statement {
             domain_separator: b"Balance_Statement_",
@@ -347,6 +507,20 @@ impl BalanceProof {
         }
     }
 
+    /// Creates a zero-knowledge proof (ZKP) for the balance of inputs and outputs.
+    ///
+    /// # Parameters
+    /// - `inputs`: A slice of `AmountAttribute` with the inputs to a transaction.
+    /// - `outputs`: A slice of `AmountAttribute` with the outputs to a transaction.
+    /// - `transcript`: A mutable reference to a `CashuTranscript` used for the proof generation.
+    ///
+    /// # Returns
+    /// A `ZKP` representing the zero-knowledge proof of the balance.
+    ///
+    /// # Example
+    /// ```
+    /// let proof = BalanceProof::create(&inputs, &outputs, &mut transcript);
+    /// ```
     pub fn create(
         inputs: &[AmountAttribute],
         outputs: &[AmountAttribute],
@@ -369,6 +543,22 @@ impl BalanceProof {
             .prove()
     }
 
+    /// Verifies a zero-knowledge proof for the balance of inputs and outputs.
+    ///
+    /// # Parameters
+    /// - `inputs`: A slice of `RandomizedCoin` with the randomized inputs to a transaction.
+    /// - `outputs`: A slice of `GroupElement` with the outputs to a transaction.
+    /// - `delta_amount`: An integer representing the net change in amount (positive or negative).
+    /// - `proof`: A `ZKP` representing the zero-knowledge balance proof to be verified.
+    /// - `transcript`: A mutable reference to a `CashuTranscript` used for the verification process.
+    ///
+    /// # Returns
+    /// A boolean indicating whether the proof is valid (`true`) or invalid (`false`).
+    ///
+    /// # Example
+    /// ```
+    /// let is_valid = BalanceProof::verify(&inputs, &outputs, delta_amount, proof, &mut transcript);
+    /// ```
     pub fn verify(
         inputs: &[RandomizedCoin],
         outputs: &[GroupElement],
@@ -398,6 +588,19 @@ pub struct ScriptEqualityProof;
 
 #[allow(non_snake_case)]
 impl ScriptEqualityProof {
+    /// Creates a statement for the script equality proof based on the given inputs and outputs.
+    ///
+    /// # Parameters
+    /// - `inputs`: A slice of `RandomizedCoin` representing the randomized input coins.
+    /// - `outputs`: A slice of tuples containing `GroupElement` commitments for amounts and scripts.
+    ///
+    /// # Returns
+    /// A `Statement` containing the domain separator and the equations that represent the script equality proof.
+    ///
+    /// # Example
+    /// ```
+    /// let statement = ScriptEqualityProof::statement(&randomized_inputs, &outputs);
+    /// ```
     pub fn statement(
         inputs: &[RandomizedCoin],
         outputs: &[(GroupElement, GroupElement)],
@@ -444,6 +647,21 @@ impl ScriptEqualityProof {
         }
     }
 
+    /// Creates a zero-knowledge proof (ZKP) for the equality of scripts in the given inputs and outputs.
+    ///
+    /// # Parameters
+    /// - `inputs`: A slice of `Coin` representing the original input coins.
+    /// - `randomized_inputs`: A slice of `RandomizedCoin` representing the randomized input coins.
+    /// - `outputs`: A slice of tuples containing `AmountAttribute` and `ScriptAttribute` for the outputs.
+    /// - `transcript`: A mutable reference to a `CashuTranscript` used for the proof generation.
+    ///
+    /// # Returns
+    /// A `Result` containing a `ZKP` representing the zero-knowledge proof of script equality, or an `Error` if the input lists are empty.
+    ///
+    /// # Example
+    /// ```
+    /// let proof = ScriptEqualityProof::create(&inputs, &randomized_inputs, &outputs, &mut transcript)?;
+    /// ```
     pub fn create(
         inputs: &[Coin],
         randomized_inputs: &[RandomizedCoin],
@@ -493,6 +711,21 @@ impl ScriptEqualityProof {
         .prove())
     }
 
+    /// Verifies a zero-knowledge proof for the equality of scripts in the given randomized inputs and outputs.
+    ///
+    /// # Parameters
+    /// - `randomized_inputs`: A slice of `RandomizedCoin` representing the randomized input coins.
+    /// - `outputs`: A slice of tuples containing `GroupElement` commitments for amounts and scripts.
+    /// - `proof`: A `ZKP` representing the zero-knowledge proof to be verified.
+    /// - `transcript`: A mutable reference to a `CashuTranscript` used for the verification process.
+    ///
+    /// # Returns
+    /// A boolean indicating whether the proof is valid (`true`) or invalid (`false`).
+    ///
+    /// # Example
+    /// ```
+    /// let is_valid = ScriptEqualityProof::verify(&randomized_inputs, &outputs, proof, &mut transcript);
+    /// ```
     pub fn verify(
         randomized_inputs: &[RandomizedCoin],
         outputs: &[(GroupElement, GroupElement)],
@@ -513,6 +746,19 @@ pub struct RangeProof;
 
 #[allow(non_snake_case)]
 impl RangeProof {
+    /// Creates a bulletproof for the given attributes.
+    ///
+    /// # Parameters
+    /// - `transcript`: A mutable reference to a `CashuTranscript` used for the proof generation.
+    /// - `attributes`: A slice of `AmountAttribute` representing the attributes for which the range proof is created.
+    ///
+    /// # Returns
+    /// A `RangeZKP` representing the bulletproof for the specified attributes.
+    ///
+    /// # Example
+    /// ```
+    /// let range_proof = RangeProof::create_bulletproof(&mut transcript, &attributes);
+    /// ```
     pub fn create_bulletproof(
         transcript: &mut CashuTranscript,
         attributes: &[AmountAttribute],
@@ -521,9 +767,23 @@ impl RangeProof {
         RangeZKP::BULLETPROOF(bulletproof)
     }
 
+    /// Verifies a range proof against the provided attribute commitments.
+    ///
+    /// # Parameters
+    /// - `transcript`: A mutable reference to a `CashuTranscript` used for the verification process.
+    /// - `attribute_commitments`: A vector of tuples containing `GroupElement` amount commitments to be verified.
+    /// - `proof`: A `RangeZKP` representing the range proof to be verified.
+    ///
+    /// # Returns
+    /// A boolean indicating whether the proof is valid (`true`) or invalid (`false`).
+    ///
+    /// # Example
+    /// ```
+    /// let is_valid = RangeProof::verify(&mut transcript, &attribute_commitments, proof);
+    /// ```
     pub fn verify(
         transcript: &mut CashuTranscript,
-        attribute_commitments: &Vec<(GroupElement, Option<GroupElement>)>,
+        attribute_commitments: &[GroupElement],
         proof: RangeZKP,
     ) -> bool {
         match proof {

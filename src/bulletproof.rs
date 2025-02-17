@@ -493,7 +493,7 @@ impl BulletProof {
     pub fn verify(
         self,
         transcript: &mut CashuTranscript,
-        attribute_commitments: &[(GroupElement, Option<GroupElement>)],
+        attribute_commitments: &[GroupElement],
     ) -> bool {
         transcript.domain_sep(b"Bulletproof_Statement_");
 
@@ -518,7 +518,7 @@ impl BulletProof {
 
         // Append amount commitments to the transcript
         for V in attribute_commitments.iter() {
-            transcript.append_element(b"Com(V)_", &V.0);
+            transcript.append_element(b"Com(V)_", &V);
         }
         // Commit to the padded-to-pow2 number of attributes
         transcript.append_element(
@@ -579,7 +579,7 @@ impl BulletProof {
         // Check that t_x = t(x) = t_0 + t_1*x + t_2*x^2     (72)
         let mut V_z_m = GENERATORS.O.clone();
         for (commitment_pair, z_j) in izip!(attribute_commitments.iter(), z_list.iter()) {
-            V_z_m = V_z_m + &(commitment_pair.0.clone() * z_j);
+            V_z_m = V_z_m + &(commitment_pair.clone() * z_j);
         }
         if GENERATORS.G_amount.clone() * &t_x + &(GENERATORS.G_blind.clone() * &tau_x)
             != V_z_m * &z_list[2]
@@ -670,7 +670,7 @@ mod tests {
         ];
         let mut attribute_commitments = Vec::new();
         for attr in attributes.iter() {
-            attribute_commitments.push((attr.commitment().clone(), None));
+            attribute_commitments.push(attr.commitment().clone());
         }
         let range_proof = BulletProof::new(&mut cli_tscr, &attributes);
         assert!(range_proof.verify(&mut mint_tscr, &attribute_commitments))
@@ -684,7 +684,7 @@ mod tests {
             vec![AmountAttribute::new(0, None), AmountAttribute::new(0, None)];
         let mut attribute_commitments = Vec::new();
         for attr in attributes.iter() {
-            attribute_commitments.push((attr.commitment().clone(), None));
+            attribute_commitments.push(attr.commitment().clone());
         }
         let range_proof = BulletProof::new(&mut cli_tscr, &attributes);
         //println!("{:?}", serde_json::to_string_pretty(&range_proof).unwrap());
@@ -701,7 +701,7 @@ mod tests {
         ];
         let mut attribute_commitments = Vec::new();
         for attr in attributes.iter() {
-            attribute_commitments.push((attr.commitment().clone(), None));
+            attribute_commitments.push(attr.commitment().clone());
         }
         let range_proof = BulletProof::new(&mut cli_tscr, &attributes);
         assert!(!range_proof.verify(&mut mint_tscr, &attribute_commitments))
