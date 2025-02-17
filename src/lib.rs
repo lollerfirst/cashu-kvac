@@ -5,3 +5,4 @@ pub mod kvac;
 pub mod models;
 pub mod secp;
 pub mod transcript;
+pub mod recovery;

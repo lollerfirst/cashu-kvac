@@ -86,7 +86,7 @@ pub struct ScriptAttribute {
 
 #[allow(non_snake_case)]
 impl ScriptAttribute {
-    pub fn new(script: &[u8], blinding_factor: Option<&[u8; 32]>) -> Self {
+    pub fn new(script: &[u8], blinding_factor: Option<&[u8]>) -> Self {
         let s = Scalar::new(&Sha256Hash::hash(script).to_byte_array());
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
@@ -132,7 +132,7 @@ where
 
 #[allow(non_snake_case)]
 impl AmountAttribute {
-    pub fn new(amount: u64, blinding_factor: Option<&[u8; 32]>) -> Self {
+    pub fn new(amount: u64, blinding_factor: Option<&[u8]>) -> Self {
         let a = Scalar::from(amount);
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
