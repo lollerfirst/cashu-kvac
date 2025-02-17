@@ -459,7 +459,7 @@ impl IParamsProof {
     /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used during the verification.
     ///
     /// # Returns
-    /// 
+    ///
     /// Returns a boolean indicating whether the proof is valid (`true`) or invalid (`false`).
     pub fn verify(
         mint_publickey: &MintPublicKey,

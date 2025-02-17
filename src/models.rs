@@ -310,7 +310,7 @@ impl Coin {
     ///
     /// # Returns
     ///
-    /// Returns a new instance of `Coin` containing the provided 
+    /// Returns a new instance of `Coin` containing the provided
     pub fn new(
         amount_attribute: AmountAttribute,
         script_attribute: Option<ScriptAttribute>,
@@ -342,7 +342,7 @@ pub struct RandomizedCoin {
 
 impl RandomizedCoin {
     /// Create a randomized coin, with randomized commitments from a normal `Coin`.
-    /// 
+    ///
     /// `reveal_script` must be set to true if the script inside the `ScriptAttribute`
     /// will be revealed to the Mint/server.
     ///
