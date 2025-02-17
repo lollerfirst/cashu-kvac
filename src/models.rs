@@ -119,6 +119,17 @@ pub struct ScriptAttribute {
 #[allow(non_snake_case)]
 impl ScriptAttribute {
     /// Creates a new script attribute from a given script and optional blinding factor.
+    ///
+    /// # Arguments
+    ///
+    /// * `script` - A slice of bytes representing the script. This is used to generate the scalar `s`.
+    /// * `blinding_factor` - An optional reference to a 32-byte array that serves as the blinding factor.
+    ///                       If provided, it is used to create the scalar `r`. If not provided, a random
+    ///                       scalar `r` is generated.
+    ///
+    /// # Returns
+    ///
+    /// Returns a new instance of `ScriptAttribute` containing the computed scalars `r` and `s`.
     pub fn new(script: &[u8], blinding_factor: Option<&[u8; 32]>) -> Self {
         let s = Scalar::new(&Sha256Hash::hash(script).to_byte_array());
         if let Some(b_factor) = blinding_factor {
@@ -132,6 +143,11 @@ impl ScriptAttribute {
     }
 
     /// Computes the commitment of the script attribute.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `GroupElement` representing the commitment of the script attribute, calculated
+    /// as the linear combination of the generators `G_script` and `G_blind` with the scalars `s` and `r`.
     pub fn commitment(&self) -> GroupElement {
         GENERATORS.G_script.clone() * &self.s + &(GENERATORS.G_blind.clone() * &self.r)
     }
@@ -168,6 +184,17 @@ where
 #[allow(non_snake_case)]
 impl AmountAttribute {
     /// Creates a new amount attribute from a given amount and optional blinding factor.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - A `u64` representing the amount to be associated with the attribute. This is used to create the scalar `a`.
+    /// * `blinding_factor` - An optional reference to a 32-byte array that serves as the blinding factor.
+    ///                       If provided, it is used to create the scalar `r`. If not provided, a random
+    ///                       scalar `r` is generated.
+    ///
+    /// # Returns
+    ///
+    /// Returns a new instance of `AmountAttribute` containing the computed scalars `r` and `a`.
     pub fn new(amount: u64, blinding_factor: Option<&[u8; 32]>) -> Self {
         let a = Scalar::from(amount);
         if let Some(b_factor) = blinding_factor {
@@ -179,12 +206,25 @@ impl AmountAttribute {
         }
     }
 
-    /// Computes the commitment of the script attribute.
+    /// Computes the commitment of the amount attribute.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `GroupElement` representing the commitment of the amount attribute, calculated
+    /// as the linear combination of the generators `G_amount` and `G_blind` with the scalars `a` and `r`.
     pub fn commitment(&self) -> GroupElement {
         GENERATORS.G_amount.clone() * &self.a + &(GENERATORS.G_blind.clone() * &self.r)
     }
 
-    /// Change the amount in this attribute by adding values to the secret `a` scalar
+    /// Changes the amount in this attribute by adding values to the secret `a` scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - A `u64` value to be added to the current amount represented by the scalar `a`.
+    ///
+    /// # Returns
+    ///
+    /// Returns a mutable reference to `Self`, allowing for method chaining.
     pub fn tweak_amount(&mut self, amount: u64) -> &Self {
         self.a.tweak_add(&Scalar::from(amount));
         self
@@ -202,7 +242,21 @@ pub struct MAC {
 
 impl MAC {
     /// Generate a new MAC from the Mint's private key,
-    /// for a particular amount commitment and script commitment pair
+    /// for a particular amount commitment and script commitment pair.
+    ///
+    /// # Arguments
+    ///
+    /// * `privkey` - A reference to the `MintPrivateKey` used to generate the MAC.
+    /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment.
+    /// * `script_commitment` - An optional reference to a `GroupElement` representing the script commitment.
+    ///                         If not provided, a zero `GroupElement` is used.
+    /// * `t_tag` - An optional reference to a `Scalar` that can be used as a tag. If not provided, a random
+    ///              `Scalar` is generated.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result<Self, Error>`, where `Self` is the newly generated `MAC` instance on success,
+    /// or an `Error` if the MAC generation fails (e.g., if hashing to curve fails).
     #[allow(non_snake_case)]
     pub fn generate(
         privkey: &MintPrivateKey,
@@ -246,7 +300,17 @@ pub struct Coin {
 }
 
 impl Coin {
-    /// Create a new `Coin` from an amount attribute, a script_attribute and a MAC
+    /// Create a new `Coin` from an amount attribute, a script attribute, and a MAC.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount_attribute` - An `AmountAttribute` representing the amount associated with the coin.
+    /// * `script_attribute` - An optional `ScriptAttribute` that may contain additional script-related information.
+    /// * `mac` - A `MAC` issued by the mint for authentication and integrity of the coin.
+    ///
+    /// # Returns
+    ///
+    /// Returns a new instance of `Coin` containing the provided 
     pub fn new(
         amount_attribute: AmountAttribute,
         script_attribute: Option<ScriptAttribute>,
@@ -277,9 +341,24 @@ pub struct RandomizedCoin {
 }
 
 impl RandomizedCoin {
-    /// Create a randomized coin, with randomized commitments from a normal `coin`.
+    /// Create a randomized coin, with randomized commitments from a normal `Coin`.
+    /// 
     /// `reveal_script` must be set to true if the script inside the `ScriptAttribute`
     /// will be revealed to the Mint/server.
+    ///
+    /// # Arguments
+    ///
+    /// * `coin` - A reference to a `Coin` instance from which the randomized coin will be created.
+    /// * `reveal_script` - A boolean indicating whether the script inside the `ScriptAttribute`
+    ///                     will be revealed. If true, the randomized script commitment will be void,
+    ///                     leaving space for the Mint to "fill in" the blank with the hash of the
+    ///                     script (spending conditions) provided by the user
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result<Self, Error>`, where `Self` is the newly created `RandomizedCoin` instance
+    /// on success, or an `Error` if the creation of the randomized coin fails (e.g., if hashing to
+    /// curve fails).
     #[allow(non_snake_case)]
     pub fn from_coin(coin: &Coin, reveal_script: bool) -> Result<Self, Error> {
         let t = coin.mac.t.clone();
