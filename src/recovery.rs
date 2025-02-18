@@ -63,7 +63,7 @@ pub fn recover_amounts(
     // Process commitments
     for (Ma, r_a) in commitments.iter().zip(blinding_factors.iter()) {
         // Unblind the amount commitment
-        let mut A = -GENERATORS.G_blind.clone() * &r_a + Ma;
+        let mut A = -GENERATORS.G_blind.clone() * r_a + Ma;
 
         let mut a = None;
         // Look for a match on the table
