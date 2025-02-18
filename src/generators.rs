@@ -1,3 +1,5 @@
+//! Defines the generators and contains implementation for "HashToG" functions
+
 use crate::errors::Error;
 use crate::secp::{GroupElement, GROUP_ELEMENT_ZERO};
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
