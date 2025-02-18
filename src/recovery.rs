@@ -2,7 +2,10 @@
 
 use std::collections::HashMap;
 
-use crate::{generators::GENERATORS, secp::{GroupElement, Scalar}};
+use crate::{
+    generators::GENERATORS,
+    secp::{GroupElement, Scalar},
+};
 
 /// Recover the amounts encoded in a list of Pedersen commitments using the Baby-step giant-step algorithm.
 ///
@@ -67,28 +70,30 @@ pub fn recover_amounts(
         for i in 0..m {
             match table.get(&A) {
                 Some(j) => {
-                    a = Some(i*m + j);
+                    a = Some(i * m + j);
                     break;
-                },
-                None => A = A + &G_m_inv
+                }
+                None => A = A + &G_m_inv,
             }
         }
 
         recovered_amounts.push(a);
     }
-    
+
     recovered_amounts
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{models::AmountAttribute, secp::{GroupElement, Scalar}};
+    use crate::{
+        models::AmountAttribute,
+        secp::{GroupElement, Scalar},
+    };
 
     use super::recover_amounts;
 
     #[test]
     fn test_recovery_amounts() {
-
         // Say we have the blinding factors from a derivation path and index
         let blinding_factors: Vec<Scalar> = (0..3).map(|_| Scalar::random()).collect();
 
@@ -107,11 +112,8 @@ mod tests {
         let upper_bound = 100_000 as u64;
 
         // Recover the amounts encoded in those commitments, given the blinding factors
-        let recovered_amounts = recover_amounts(
-            &amount_commitments,
-            &blinding_factors,
-            upper_bound,
-        );
+        let recovered_amounts =
+            recover_amounts(&amount_commitments, &blinding_factors, upper_bound);
 
         let recovered_amounts: Vec<u64> = recovered_amounts
             .iter()
