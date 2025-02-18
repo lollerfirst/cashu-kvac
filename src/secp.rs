@@ -116,7 +116,7 @@ impl Scalar {
         let inner = SecretKey::new(&mut rand::thread_rng());
         Scalar { inner: Some(inner) }
     }
-    
+
     /// Multiplies the current `Scalar` by another `Scalar` using a tweak.
     ///
     /// If either `self` or `other` is zero (i.e., `inner` is `None`), the result will
@@ -368,7 +368,7 @@ impl GroupElement {
     /// Applies a tweak to the current `GroupElement`.
     ///
     /// This method modifies `self` based on the specified `tweak_kind` and `tweak` value.
-    /// Currently, it only supports the `TweakKind::AMOUNT` variant, which combines `self` 
+    /// Currently, it only supports the `TweakKind::AMOUNT` variant, which combines `self`
     /// with a generator multiplied by the given tweak.
     ///
     /// # Arguments
