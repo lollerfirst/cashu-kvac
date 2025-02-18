@@ -344,7 +344,7 @@ fn bench_range_proof_verification(bencher: &mut Bencher) {
     let proof = BulletProof::new(&mut cli_tscr, &attributes);
     let mut attribute_commitments = Vec::new();
     for attr in attributes.iter() {
-        attribute_commitments.push((attr.commitment().clone(), None));
+        attribute_commitments.push(attr.commitment().clone());
     }
     bencher.iter(|| proof.clone().verify(&mut mint_tscr, &attribute_commitments));
 }
