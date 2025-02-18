@@ -98,7 +98,10 @@ mod tests {
             AmountAttribute::new(763, Some(&blinding_factors[1].to_bytes())),
             AmountAttribute::new(22001, Some(&blinding_factors[2].to_bytes())),
         ];
-        let amount_commitments: Vec<GroupElement> = amount_attributes.iter().map(|attr| attr.commitment()).collect();
+        let amount_commitments: Vec<GroupElement> = amount_attributes
+            .iter()
+            .map(|attr| attr.commitment())
+            .collect();
 
         // We know or hypothesize that the amount must have been within a certain upper bound
         let upper_bound = 100_000 as u64;
