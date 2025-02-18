@@ -130,7 +130,7 @@ impl ScriptAttribute {
     /// # Returns
     ///
     /// Returns a new instance of `ScriptAttribute` containing the computed scalars `r` and `s`.
-    pub fn new(script: &[u8], blinding_factor: Option<&[u8; 32]>) -> Self {
+    pub fn new(script: &[u8], blinding_factor: Option<&[u8]>) -> Self {
         let s = Scalar::new(&Sha256Hash::hash(script).to_byte_array());
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
@@ -195,7 +195,7 @@ impl AmountAttribute {
     /// # Returns
     ///
     /// Returns a new instance of `AmountAttribute` containing the computed scalars `r` and `a`.
-    pub fn new(amount: u64, blinding_factor: Option<&[u8; 32]>) -> Self {
+    pub fn new(amount: u64, blinding_factor: Option<&[u8]>) -> Self {
         let a = Scalar::from(amount);
         if let Some(b_factor) = blinding_factor {
             let r = Scalar::new(b_factor);
