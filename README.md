@@ -124,10 +124,12 @@ Definitions and Protocol explaination (WIP): [HERE](protocol_explanation.md)
   - $C_a$ (Randomized Amount Commitment) is chosen to be the nullifier.
 
 ### Range proofs
+
 Variations:
+
 * [x] [BULLETPROOFS](https://eprint.iacr.org/2017/1066.pdf)
-* [] [BULLETPROOFS++](https://eprint.iacr.org/2022/510.pdf) aritmetic circuits
-* [] [SHARP](https://eprint.iacr.org/2022/1153.pdf) which would improve creation/verification time tenfold. There are some different flavours of sharp, some of which make use of hidden order groups.
+* [ ] [BULLETPROOFS++](https://eprint.iacr.org/2022/510.pdf) aritmetic circuits
+* [ ] [SHARP](https://eprint.iacr.org/2022/1153.pdf) which would improve creation/verification time tenfold. There are some different flavours of sharp, some of which make use of hidden order groups.
 
 ### Transcript
 Every Zero-Knowledge proof uses a dedicated transcript defined in `transcript.rs` and tweaked by a domain separation byte-string for the various statements that need to be proven.
