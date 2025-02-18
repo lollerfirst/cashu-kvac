@@ -25,16 +25,19 @@ pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(|| {
     ctx
 });
 
+/// Defines different kinds of tweaks to be applied to `GroupElement` or `Scalar`
 pub enum TweakKind {
     AMOUNT,
 }
 
-#[derive(Clone, Debug, Eq)]
+/// Wraps a `secp256k1::key::SecretKey` or `None`
+#[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct Scalar {
     inner: Option<SecretKey>,
 }
 
-#[derive(Hash, Clone, Debug, Eq)]
+/// Wraps a `secp256k1::key::PublicKey` or `None`
+#[derive(Hash, Clone, Debug, Eq, PartialEq, Default)]
 pub struct GroupElement {
     inner: Option<PublicKey>,
 }
@@ -79,6 +82,19 @@ fn modinv(m: &Integer, x: &Integer) -> Integer {
 }
 
 impl Scalar {
+    /// Creates a new `Scalar` instance from the provided byte slice.
+    ///
+    /// If the provided data is equal to `SCALAR_ZERO`, the `Scalar` will be initialized
+    /// with `inner` set to `None`. Otherwise, it attempts to create a `SecretKey` from
+    /// the byte slice and wraps it in `Some`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - A byte slice representing the scalar value.
+    ///
+    /// # Returns
+    ///
+    /// A new `Scalar` instance.
     pub fn new(data: &[u8]) -> Self {
         if *data == SCALAR_ZERO {
             Scalar { inner: None }
@@ -88,11 +104,31 @@ impl Scalar {
         }
     }
 
+    /// Generates a new random `Scalar` instance.
+    ///
+    /// This method uses `rand::thread_rng` to create a new `SecretKey` and wraps
+    /// it in `Some`.
+    ///
+    /// # Returns
+    ///
+    /// A new `Scalar` instance with a random value.
     pub fn random() -> Self {
         let inner = SecretKey::new(&mut rand::thread_rng());
         Scalar { inner: Some(inner) }
     }
 
+    /// Multiplies the current `Scalar` by another `Scalar` using a tweak.
+    ///
+    /// If either `self` or `other` is zero (i.e., `inner` is `None`), the result will
+    /// be set to zero. Otherwise, it performs the multiplication and updates `self`.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - A reference to another `Scalar` to multiply with.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to `self`.
     pub fn tweak_mul(&mut self, other: &Scalar) -> &Self {
         if other.inner.is_none() || self.inner.is_none() {
             self.inner = None;
@@ -108,6 +144,18 @@ impl Scalar {
         self
     }
 
+    /// Adds another `Scalar` to the current `Scalar` using a tweak.
+    ///
+    /// If `other` is zero, it returns `self`. If `self` is zero, it sets `self` to
+    /// `other`. Otherwise, it performs the addition and updates `self`.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - A reference to another `Scalar` to add.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to `self`.
     pub fn tweak_add(&mut self, other: &Scalar) -> &Self {
         if other.inner.is_none() {
             self
@@ -126,6 +174,14 @@ impl Scalar {
         }
     }
 
+    /// Negates the current `Scalar`.
+    ///
+    /// If `self` is zero, it returns `self` unchanged. Otherwise, it negates the value
+    /// and updates `self`.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to `self`.
     pub fn tweak_neg(&mut self) -> &Self {
         if self.inner.is_none() {
             self
@@ -136,6 +192,14 @@ impl Scalar {
         }
     }
 
+    /// Computes the multiplicative inverse of the current `Scalar`.
+    ///
+    /// If `self` is zero, it panics with an error message. Otherwise, it calculates
+    /// the inverse and returns a new `Scalar` instance containing the result.
+    ///
+    /// # Returns
+    ///
+    /// A new `Scalar` instance representing the inverse of `self`.
     pub fn invert(self) -> Self {
         if self.inner.is_none() {
             panic!("Scalar 0 doesn't have an inverse")
@@ -157,6 +221,14 @@ impl Scalar {
         }
     }
 
+    /// Converts the current `Scalar` to a byte vector.
+    ///
+    /// If `self` is zero, it returns a vector containing `SCALAR_ZERO`. Otherwise, it
+    /// returns the byte representation of the `SecretKey` wrapped in `self`.
+    ///
+    /// # Returns
+    ///
+    /// A vector of bytes representing the scalar value.
     pub fn to_bytes(&self) -> Vec<u8> {
         if self.inner.is_none() {
             Vec::from(SCALAR_ZERO)
@@ -165,12 +237,33 @@ impl Scalar {
         }
     }
 
+    /// Checks if the current `Scalar` is zero.
+    ///
+    /// This method returns `true` if `self` is zero (i.e., `inner` is `None`), and
+    /// `false` otherwise.
+    ///
+    /// # Returns
+    ///
+    /// A boolean indicating whether the scalar is zero.
     pub fn is_zero(&self) -> bool {
         self.inner.is_none()
     }
 }
 
 impl GroupElement {
+    /// Creates a new `GroupElement` instance from the provided byte slice.
+    ///
+    /// If the provided data is equal to `GROUP_ELEMENT_ZERO`, the `GroupElement` will be
+    /// initialized with `inner` set to `None`. Otherwise, it attempts to create a `PublicKey`
+    /// from the byte slice and wraps it in `Some`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - A byte slice representing the group element value.
+    ///
+    /// # Returns
+    ///
+    /// A new `GroupElement` instance.
     pub fn new(data: &[u8]) -> Self {
         if *data == GROUP_ELEMENT_ZERO {
             GroupElement { inner: None }
@@ -180,6 +273,18 @@ impl GroupElement {
         }
     }
 
+    /// Combines the current `GroupElement` with another `GroupElement` using addition.
+    ///
+    /// If `other` is zero (i.e., `inner` is `None`), it returns `self`. If `self` is zero,
+    /// it sets `self` to `other`. Otherwise, it performs the combination and updates `self`.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - A reference to another `GroupElement` to combine with.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to `self`.
     pub fn combine_add(&mut self, other: &GroupElement) -> &Self {
         if other.inner.is_none() {
             self
@@ -197,6 +302,18 @@ impl GroupElement {
         }
     }
 
+    /// Multiplies the current `GroupElement` by a scalar.
+    ///
+    /// If either `scalar` or `self` is zero (i.e., `inner` is `None`), the result will be
+    /// set to zero. Otherwise, it performs the multiplication and updates `self`.
+    ///
+    /// # Arguments
+    ///
+    /// * `scalar` - A reference to a `Scalar` to multiply with.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to `self`.
     pub fn multiply(&mut self, scalar: &Scalar) -> &Self {
         if scalar.inner.is_none() || self.inner.is_none() {
             self.inner = None;
@@ -214,6 +331,14 @@ impl GroupElement {
         }
     }
 
+    /// Negates the current `GroupElement`.
+    ///
+    /// If `self` is zero, it returns `self` unchanged. Otherwise, it negates the value
+    /// and updates `self`.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to `self`.
     pub fn negate(&mut self) -> &Self {
         if self.inner.is_none() {
             self
@@ -224,6 +349,14 @@ impl GroupElement {
         }
     }
 
+    /// Converts the current `GroupElement` to a byte vector.
+    ///
+    /// If `self` is zero, it returns a vector containing `GROUP_ELEMENT_ZERO`. Otherwise,
+    /// it returns the byte representation of the `PublicKey` wrapped in `self`.
+    ///
+    /// # Returns
+    ///
+    /// A vector of bytes representing the group element value.
     pub fn to_bytes(&self) -> Vec<u8> {
         if self.inner.is_none() {
             Vec::from(GROUP_ELEMENT_ZERO)
@@ -232,6 +365,20 @@ impl GroupElement {
         }
     }
 
+    /// Applies a tweak to the current `GroupElement`.
+    ///
+    /// This method modifies `self` based on the specified `tweak_kind` and `tweak` value.
+    /// Currently, it only supports the `TweakKind::AMOUNT` variant, which combines `self`
+    /// with a generator multiplied by the given tweak.
+    ///
+    /// # Arguments
+    ///
+    /// * `tweak_kind` - The kind of tweak to apply.
+    /// * `tweak` - A `u64` value representing the tweak.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to `self`.
     pub fn tweak(&mut self, tweak_kind: TweakKind, tweak: u64) -> &Self {
         match tweak_kind {
             TweakKind::AMOUNT => {
@@ -243,6 +390,14 @@ impl GroupElement {
         }
     }
 
+    /// Checks if the current `GroupElement` is zero.
+    ///
+    /// This method returns `true` if `self` is zero (i.e., `inner` is `None`), and
+    /// `false` otherwise.
+    ///
+    /// # Returns
+    ///
+    /// A boolean indicating whether the group element is zero.
     pub fn is_zero(&self) -> bool {
         self.inner.is_none()
     }
@@ -378,29 +533,6 @@ impl AsRef<Scalar> for Scalar {
     }
 }
 
-impl PartialEq for Scalar {
-    fn eq(&self, other: &Self) -> bool {
-        if self.inner.is_none() && other.inner.is_none() {
-            return true;
-        }
-        if self.inner.is_none() || other.inner.is_none() {
-            return false;
-        }
-        let mut b = 0u8;
-        for (x, y) in self
-            .inner
-            .as_ref()
-            .unwrap()
-            .secret_bytes()
-            .iter()
-            .zip(other.inner.as_ref().unwrap().secret_bytes().iter())
-        {
-            b |= x ^ y;
-        }
-        b == 0
-    }
-}
-
 impl Serialize for Scalar {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -420,12 +552,6 @@ impl<'de> Deserialize<'de> for Scalar {
         let scalar = Scalar::try_from(hex.as_str())
             .map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
         Ok(scalar)
-    }
-}
-
-impl Default for Scalar {
-    fn default() -> Self {
-        Scalar { inner: None }
     }
 }
 
@@ -486,19 +612,6 @@ impl std::ops::Mul<&Scalar> for GroupElement {
             self.multiply(&(r + other));
             self_copy.multiply(&r_copy);
             self - &self_copy
-        }
-    }
-}
-
-impl PartialEq for GroupElement {
-    fn eq(&self, other: &Self) -> bool {
-        if self.inner.is_none() && other.inner.is_none() {
-            return true;
-        }
-        if self.inner.is_none() || other.inner.is_none() {
-            false
-        } else {
-            self.inner.unwrap().eq(&other.inner.unwrap())
         }
     }
 }
@@ -569,12 +682,6 @@ impl<'de> Deserialize<'de> for GroupElement {
         let ge = GroupElement::try_from(hex.as_str())
             .map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
         Ok(ge)
-    }
-}
-
-impl Default for GroupElement {
-    fn default() -> Self {
-        GroupElement { inner: None }
     }
 }
 
@@ -849,7 +956,7 @@ mod tests {
         let mut ge = GENERATORS.G_amount.clone();
         ge = ge * &Scalar::from(2);
 
-        let tweak = 4 as u64;
+        let tweak = 4_u64;
 
         ge.tweak(TweakKind::AMOUNT, tweak);
         assert_eq!(ge, GENERATORS.G_amount.clone() * &Scalar::from(6));
