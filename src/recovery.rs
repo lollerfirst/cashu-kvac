@@ -124,4 +124,33 @@ mod tests {
         assert!(recovered_amounts[1] == 763);
         assert!(recovered_amounts[2] == 22001);
     }
+
+    #[test]
+    fn test_recovery_amounts_with_one_failure() {
+        // Say we have the blinding factors from a derivation path and index
+        let blinding_factors: Vec<Scalar> = (0..3).map(|_| Scalar::random()).collect();
+
+        // Suppose we have the amount commitments (recovered from the Mint)
+        let amount_attributes = vec![
+            AmountAttribute::new(1997, Some(&blinding_factors[0].to_bytes())),
+            AmountAttribute::new(110224, Some(&blinding_factors[1].to_bytes())),
+            AmountAttribute::new(22001, Some(&blinding_factors[2].to_bytes())),
+        ];
+        let amount_commitments: Vec<GroupElement> = amount_attributes
+            .iter()
+            .map(|attr| attr.commitment())
+            .collect();
+
+        // We know or hypothesize that the amount must have been within a certain upper bound
+        let upper_bound = 100_000 as u64;
+
+        // Recover the amounts encoded in those commitments, given the blinding factors
+        let recovered_amounts =
+            recover_amounts(&amount_commitments, &blinding_factors, upper_bound);
+
+        println!("recovered amount 1: {:?}", recovered_amounts[1]);
+        assert!(recovered_amounts[0].expect("amount is recovered") == 1997);
+        assert!(recovered_amounts[1].is_none());
+        assert!(recovered_amounts[2].expect("amount is recovered") == 22001);
+    }
 }
