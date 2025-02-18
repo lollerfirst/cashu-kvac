@@ -148,7 +148,6 @@ mod tests {
         let recovered_amounts =
             recover_amounts(&amount_commitments, &blinding_factors, upper_bound);
 
-        println!("recovered amount 1: {:?}", recovered_amounts[1]);
         assert!(recovered_amounts[0].expect("amount is recovered") == 1997);
         assert!(recovered_amounts[1].is_none());
         assert!(recovered_amounts[2].expect("amount is recovered") == 22001);
