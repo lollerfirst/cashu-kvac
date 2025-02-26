@@ -49,7 +49,7 @@ pub fn recover_amounts(
 
     // Build table
     let mut table = HashMap::new();
-    let mut index = GENERATORS.O.clone();
+    let mut index = GENERATORS.G_blind.clone();
     table.insert(index.clone(), 0);
 
     let one = GENERATORS.G_amount.clone();
@@ -63,8 +63,8 @@ pub fn recover_amounts(
     // Process commitments
     for (Ma, r_a) in commitments.iter().zip(blinding_factors.iter()) {
         // Unblind the amount commitment
-        let mut A = -GENERATORS.G_blind.clone() * r_a + Ma;
-
+        let mut A = GENERATORS.G_blind.clone() * &(Scalar::from(1) - &r_a) + Ma;
+        
         let mut a = None;
         // Look for a match on the table
         for i in 0..m {
