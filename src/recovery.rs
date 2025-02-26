@@ -99,7 +99,7 @@ mod tests {
 
         // Suppose we have the amount commitments (recovered from the Mint)
         let amount_attributes = vec![
-            AmountAttribute::new(1997, Some(&blinding_factors[0].to_bytes())),
+            AmountAttribute::new(19, Some(&blinding_factors[0].to_bytes())),
             AmountAttribute::new(763, Some(&blinding_factors[1].to_bytes())),
             AmountAttribute::new(22001, Some(&blinding_factors[2].to_bytes())),
         ];
@@ -120,7 +120,7 @@ mod tests {
             .map(|recovered_amount| recovered_amount.expect("amount is within 100000"))
             .collect();
 
-        assert!(recovered_amounts[0] == 1997);
+        assert!(recovered_amounts[0] == 19);
         assert!(recovered_amounts[1] == 763);
         assert!(recovered_amounts[2] == 22001);
     }
