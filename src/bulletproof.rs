@@ -236,8 +236,8 @@ impl InnerProductArgument {
         }
 
         // Recursion unrolling - We reduce O(n*log_2(n)) GroupElement multiplications
-        // to O(n) by unrolling the prover's loop (we have the challenges) and
-        // performing the O(log_2(n)) arithmetic operations on scalars instead.
+        // to O(n) by unrolling the prover's loop (we can do that since have the challenges)
+        // and performing the O(log_2(n)) arithmetic operations on scalars instead.
         let mut G_aH_b = GENERATORS.O.clone();
         for (i, (G_i, H_i)) in G_.into_iter().zip(H_.into_iter()).enumerate() {
             let mut s = Scalar::new(&SCALAR_ONE);
