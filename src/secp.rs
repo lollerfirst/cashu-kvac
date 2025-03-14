@@ -523,6 +523,9 @@ impl TryFrom<&str> for Scalar {
         }
         let mut padded_bytes = [0u8; 32];
         padded_bytes[32 - bytes.len()..32].copy_from_slice(&bytes);
+        if padded_bytes == SCALAR_ZERO {
+            return Err(Error::ScalarZero)
+        }
         Ok(Scalar::new(&padded_bytes))
     }
 }
@@ -625,6 +628,9 @@ impl TryFrom<&str> for GroupElement {
         }
         let mut padded_bytes = [0u8; 33];
         padded_bytes[33 - bytes.len()..33].copy_from_slice(&bytes);
+        if padded_bytes == GROUP_ELEMENT_ZERO {
+            return Err(Error::GroupElementZero)
+        }
         Ok(GroupElement::new(&padded_bytes))
     }
 }
