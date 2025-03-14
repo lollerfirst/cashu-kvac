@@ -10,6 +10,17 @@ use crate::transcript::CashuTranscript;
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
 
+/// Checks if all the elements in the provided slice of `Scalar` values are non-zero.
+///
+/// # Arguments
+/// * `scalars` - A slice of `Scalar` values to be checked.
+///
+/// # Returns
+/// * `true` if all the `Scalar` values in the slice are non-zero, `false` otherwise.
+fn check_scalars_non_zero(scalars: &[Scalar]) -> bool {
+    scalars.iter().all(|scalar| !scalar.is_zero())
+}
+
 pub struct SchnorrProver<'a> {
     random_terms: Vec<Scalar>,
     secrets: Vec<Scalar>,
@@ -149,6 +160,9 @@ impl<'a> SchnorrVerifier<'a> {
     ///
     /// Returns a boolean indicating whether the proof is valid (`true`) or invalid (`false`).
     pub fn verify(&mut self) -> bool {
+        if !check_scalars_non_zero(&self.responses) {
+            return false;
+        }
         let challenge_ = self.transcript.get_challenge(b"chall_");
         challenge_ == self.challenge
     }

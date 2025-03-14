@@ -1,4 +1,5 @@
 .vscode
+.angry-duck
 __pycache__
 python/src/__pycache__
 python/src/merlin/extension

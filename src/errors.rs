@@ -18,6 +18,10 @@ pub enum Error {
     HexStringTooLong,
     #[error("Cannot deserialize from this object")]
     InvalidSerialization,
+    #[error("Cannot instantiate Scalar from hex string zero")]
+    ScalarZero,
+    #[error("Cannot instantiate GroupElement from hex string zero")]
+    GroupElementZero,
     /// Secp256k1 error
     #[error(transparent)]
     Secp256k1(#[from] secp256k1::Error),
