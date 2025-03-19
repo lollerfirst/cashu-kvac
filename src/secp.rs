@@ -397,7 +397,7 @@ impl GroupElement {
     pub fn tweak(&mut self, tweak_kind: TweakKind, tweak: u64) -> &Self {
         match tweak_kind {
             TweakKind::AMOUNT => {
-                let mut ge = GENERATORS.G_amount.clone();
+                let mut ge = GENERATORS.G_amount;
                 let scalar = Scalar::from(tweak);
                 self.combine_add(ge.multiply(&scalar));
                 self
@@ -443,9 +443,9 @@ impl std::ops::Sub<&Scalar> for Scalar {
         if other.inner.is_none() {
             self
         } else if self.inner.is_none() {
-            -(other.clone())
+            -*other
         } else {
-            let other_neg = -(other.clone());
+            let other_neg = -*other;
             self + &other_neg
         }
     }
@@ -607,9 +607,9 @@ impl std::ops::Sub<&GroupElement> for GroupElement {
         if other.inner.is_none() {
             self
         } else if self.inner.is_none() {
-            -(other.clone())
+            -*other
         } else {
-            let other_neg = -(other.clone());
+            let other_neg = -*other;
             self + &other_neg
         }
     }
@@ -625,8 +625,8 @@ impl std::ops::Mul<&Scalar> for GroupElement {
         } else {
             // Multiplication is masked with random `r`
             let r = Scalar::random();
-            let r_copy = r.clone();
-            let mut self_copy = self.clone();
+            let r_copy = r;
+            let mut self_copy = self;
             self.multiply(&(r + other));
             self_copy.multiply(&r_copy);
             self - &self_copy
@@ -734,7 +734,7 @@ mod tests {
     #[test]
     fn test_clone_scalar() {
         let scalar = Scalar::random();
-        let cloned_scalar = scalar.clone();
+        let cloned_scalar = scalar;
         assert_eq!(scalar.inner, cloned_scalar.inner);
         assert_eq!(scalar.is_zero(), cloned_scalar.is_zero());
     }
@@ -804,7 +804,7 @@ mod tests {
     fn test_mul_cmp() {
         let a = Scalar::random();
         let b = Scalar::random();
-        let mut a_clone = a.clone();
+        let mut a_clone = a;
         let c = a_clone.tweak_mul(&b);
         let c_ = a * &b;
         assert!(*c == c_);
@@ -858,7 +858,7 @@ mod tests {
     fn test_scalar_modular_inversion() {
         let one = Scalar::new(&SCALAR_ONE);
         let scalar = Scalar::try_from("deadbeef").unwrap();
-        let scalar_inv = scalar.clone().invert();
+        let scalar_inv = scalar.invert();
         let prod = scalar * &scalar_inv;
         assert!(one == prod);
     }
@@ -866,7 +866,7 @@ mod tests {
     #[test]
     fn test_invert_scalar_one() {
         let one = Scalar::new(&SCALAR_ONE);
-        let one_inv = one.clone().invert();
+        let one_inv = one.invert();
         assert!(one == one_inv)
     }
 
@@ -933,7 +933,7 @@ mod tests {
         )
         .unwrap();
         let scalar_2 = Scalar::try_from("02").unwrap();
-        let result = g.clone() + &g;
+        let result = g + &g;
         let result_ = g * &scalar_2;
         assert!(result == result_)
     }
@@ -945,7 +945,7 @@ mod tests {
         )
         .unwrap();
         let scalar_2 = Scalar::try_from("02").unwrap();
-        let result = g.clone() * &scalar_2 - &g;
+        let result = g * &scalar_2 - &g;
         assert!(result == g)
     }
 
@@ -974,12 +974,12 @@ mod tests {
 
     #[test]
     fn test_ge_amount_tweak() {
-        let mut ge = GENERATORS.G_amount.clone();
+        let mut ge = GENERATORS.G_amount;
         ge = ge * &Scalar::from(2);
 
         let tweak = 4_u64;
 
         ge.tweak(TweakKind::AMOUNT, tweak);
-        assert_eq!(ge, GENERATORS.G_amount.clone() * &Scalar::from(6));
+        assert_eq!(ge, GENERATORS.G_amount * &Scalar::from(6));
     }
 }

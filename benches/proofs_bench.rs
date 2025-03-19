@@ -145,7 +145,7 @@ fn bench_range_proof(bencher: &mut Bencher) {
     ];
     let mut attribute_commitments = Vec::new();
     for attr in attributes.iter() {
-        attribute_commitments.push((attr.commitment().clone(), GENERATORS.O.clone()));
+        attribute_commitments.push((attr.commitment(), GENERATORS.O));
     }
     bencher.iter(|| BulletProof::new(&mut cli_tscr, &attributes));
 }
@@ -217,7 +217,7 @@ fn bench_balance_proof_verification(bencher: &mut Bencher) {
         .collect();
     let outputs: Vec<GroupElement> = outputs
         .into_iter()
-        .map(|output| output.commitment().clone())
+        .map(|output| output.commitment())
         .collect();
     bencher.iter(|| {
         BalanceProof::verify(
@@ -316,7 +316,7 @@ fn bench_script_proof_verification(bencher: &mut Bencher) {
     .expect("");
     let outputs: Vec<(GroupElement, GroupElement)> = outputs
         .into_iter()
-        .map(|(aa, sa)| (aa.commitment().clone(), sa.commitment().clone()))
+        .map(|(aa, sa)| (aa.commitment(), sa.commitment()))
         .collect();
     bencher.iter(|| {
         ScriptEqualityProof::verify(
@@ -339,12 +339,12 @@ fn bench_range_proof_verification(bencher: &mut Bencher) {
     ];
     let mut attribute_commitments = Vec::new();
     for attr in attributes.iter() {
-        attribute_commitments.push((attr.commitment().clone(), GENERATORS.O.clone()));
+        attribute_commitments.push((attr.commitment(), GENERATORS.O));
     }
     let proof = BulletProof::new(&mut cli_tscr, &attributes);
     let mut attribute_commitments = Vec::new();
     for attr in attributes.iter() {
-        attribute_commitments.push(attr.commitment().clone());
+        attribute_commitments.push(attr.commitment());
     }
     bencher.iter(|| proof.clone().verify(&mut mint_tscr, &attribute_commitments));
 }

@@ -147,7 +147,7 @@ impl<'a> SchnorrVerifier<'a> {
                     R = R + (P * s).as_ref();
                 }
             }
-            R = R - (V.clone() * self.challenge.as_ref()).as_ref();
+            R = R - (V * self.challenge.as_ref()).as_ref();
 
             self.transcript.append_element(b"R_", &R);
             self.transcript.append_element(b"V_", &V);
@@ -185,8 +185,8 @@ impl BootstrapProof {
     pub fn statement(amount_commitment: &GroupElement) -> Statement {
         let equation = Equation::new(
             // (lhs) Ma = r*G_blind (rhs)
-            amount_commitment.clone(),
-            vec![vec![GENERATORS.G_blind.clone()]],
+            *amount_commitment,
+            vec![vec![GENERATORS.G_blind]],
         );
         Statement::new(b"Bootstrap_Statement_", vec![equation])
     }
@@ -203,7 +203,7 @@ impl BootstrapProof {
     /// Returns a `ZKP` instance containing the proof generated for the bootstrap statement.
     pub fn create(amount_attribute: &AmountAttribute, transcript: &mut CashuTranscript) -> ZKP {
         let statement = BootstrapProof::statement(&amount_attribute.commitment());
-        SchnorrProver::new(transcript, vec![amount_attribute.r.clone()])
+        SchnorrProver::new(transcript, vec![amount_attribute.r])
             .add_statement(statement)
             .prove()
     }
@@ -252,9 +252,9 @@ impl MacProof {
         I: GroupElement,
         randomized_coin: &RandomizedCoin,
     ) -> Statement {
-        let Cx0 = randomized_coin.Cx0.clone();
-        let Cx1 = randomized_coin.Cx1.clone();
-        let Ca = randomized_coin.Ca.clone();
+        let Cx0 = randomized_coin.Cx0;
+        let Cx1 = randomized_coin.Cx1;
+        let Ca = randomized_coin.Ca;
         let O = GroupElement::new(&GROUP_ELEMENT_ZERO);
         // Can you change the initialization of Equation in the last two entries to use `new` like the first?
         Statement::new(
@@ -265,7 +265,7 @@ impl MacProof {
                 Equation::new(
                     // Cx1 = t*Cx0 + (-tr)*X0 + r*X1
                     Cx1,
-                    vec![vec![GENERATORS.X1.clone(), GENERATORS.X0.clone(), Cx0]],
+                    vec![vec![GENERATORS.X1, GENERATORS.X0, Cx0]],
                 ),
                 Equation::new(
                     // Ca = r_a*Gz_attribute + r_a*G_blind + a*G_amount
@@ -273,12 +273,12 @@ impl MacProof {
                     Ca,
                     vec![
                         vec![
-                            GENERATORS.Gz_attribute.clone(),
-                            O.clone(),
-                            O.clone(),
-                            GENERATORS.G_amount.clone(),
+                            GENERATORS.Gz_attribute,
+                            O,
+                            O,
+                            GENERATORS.G_amount,
                         ],
-                        vec![GENERATORS.G_blind.clone()],
+                        vec![GENERATORS.G_blind],
                     ],
                 ),
             ],
@@ -303,13 +303,13 @@ impl MacProof {
         randomized_coin: &RandomizedCoin,
         transcript: &mut CashuTranscript,
     ) -> ZKP {
-        let r_a = coin.amount_attribute.r.clone();
-        let a = coin.amount_attribute.a.clone();
-        let t = coin.mac.t.clone();
-        let r0 = -r_a.clone() * t.as_ref();
+        let r_a = coin.amount_attribute.r;
+        let a = coin.amount_attribute.a;
+        let t = coin.mac.t;
+        let r0 = -r_a * t.as_ref();
         let (_Cw, I) = (mint_publickey.Cw.as_ref(), mint_publickey.I.as_ref());
-        let Z = I.clone() * &coin.amount_attribute.r;
-        let statement = MacProof::statement(Z, I.clone(), randomized_coin);
+        let Z = *I * &coin.amount_attribute.r;
+        let statement = MacProof::statement(Z, *I, randomized_coin);
         SchnorrProver::new(transcript, vec![r_a, r0, t, a])
             .add_statement(statement)
             .prove()
@@ -343,25 +343,25 @@ impl MacProof {
             &mint_privkey.ys,
         );
         let (Cx0, Cx1, Ca, Cs, Cv) = (
-            randomized_coin.Cx0.clone(),
-            randomized_coin.Cx1.clone(),
-            randomized_coin.Ca.clone(),
-            randomized_coin.Cs.clone(),
-            randomized_coin.Cv.clone(),
+            randomized_coin.Cx0,
+            randomized_coin.Cx1,
+            randomized_coin.Ca,
+            randomized_coin.Cs,
+            randomized_coin.Cv,
         );
         let mut S = GroupElement::new(&GROUP_ELEMENT_ZERO);
         if let Some(scr) = script {
             let s = Scalar::new(&Sha256Hash::hash(scr).to_byte_array());
-            S = GENERATORS.G_script.clone() * s.as_ref();
+            S = GENERATORS.G_script * s.as_ref();
         }
         let Z = Cv
-            - &(GENERATORS.W.clone() * w
+            - &(GENERATORS.W * w
                 + &(Cx0 * x0 + &(Cx1 * x1 + &(Ca * ya + &((Cs + &S) * ys)))));
         let (_Cw, I) = (
             mint_privkey.public_key.Cw.as_ref(),
             mint_privkey.public_key.I.as_ref(),
         );
-        let statement = MacProof::statement(Z, I.clone(), randomized_coin);
+        let statement = MacProof::statement(Z, *I, randomized_coin);
         SchnorrVerifier::new(transcript, proof)
             .add_statement(statement)
             .verify()
@@ -394,31 +394,31 @@ impl IParamsProof {
         let t_tag_bytes: [u8; 32] = mac.t.as_ref().into();
         let t = mac.t.as_ref();
         let U = hash_to_curve(&t_tag_bytes).expect("Couldn't get map MAC tag to GroupElement");
-        let V = mac.V.clone();
+        let V = mac.V;
         let (Cw, I) = (mint_publickey.Cw.as_ref(), mint_publickey.I.as_ref());
-        let Ma = amount_commitment.clone();
-        let Ms = script_commitment.clone();
+        let Ma = *amount_commitment;
+        let Ms = *script_commitment;
         Statement::new(
             b"Iparams_Statement_",
             vec![
                 Equation::new(
-                    Cw.clone(),
-                    vec![vec![GENERATORS.W.clone(), GENERATORS.W_.clone()]],
+                    *Cw,
+                    vec![vec![GENERATORS.W, GENERATORS.W_]],
                 ),
                 Equation::new(
-                    I.clone() - &GENERATORS.Gz_mac,
+                    *I - &GENERATORS.Gz_mac,
                     vec![vec![
-                        O.clone(),
-                        O.clone(),
-                        -GENERATORS.X0.clone(),
-                        -GENERATORS.X1.clone(),
-                        -GENERATORS.Gz_attribute.clone(),
-                        -GENERATORS.Gz_script.clone(),
+                        O,
+                        O,
+                        -GENERATORS.X0,
+                        -GENERATORS.X1,
+                        -GENERATORS.Gz_attribute,
+                        -GENERATORS.Gz_script,
                     ]],
                 ),
                 Equation::new(
                     V,
-                    vec![vec![GENERATORS.W.clone(), O, U.clone(), U * t, Ma, Ms]],
+                    vec![vec![GENERATORS.W, O, U, U * t, Ma, Ms]],
                 ),
             ],
         )
@@ -479,7 +479,7 @@ impl IParamsProof {
     ) -> bool {
         let script_commitment: GroupElement = match &coin.script_attribute {
             Some(scr) => scr.commitment(),
-            None => GENERATORS.O.clone(),
+            None => GENERATORS.O,
         };
         let statement = IParamsProof::statement(
             mint_publickey,
@@ -511,8 +511,8 @@ impl BalanceProof {
             vec![Equation::new(
                 B,
                 vec![vec![
-                    GENERATORS.Gz_attribute.clone(),
-                    GENERATORS.G_blind.clone(),
+                    GENERATORS.Gz_attribute,
+                    GENERATORS.G_blind,
                 ]],
             )],
         )
@@ -541,8 +541,8 @@ impl BalanceProof {
             r_sum_ = r_sum_ + &output.r;
         }
         let delta_r = (-r_sum_) + r_sum.as_ref();
-        let B = GENERATORS.Gz_attribute.clone() * r_sum.as_ref()
-            + (GENERATORS.G_blind.clone() * delta_r.as_ref()).as_ref();
+        let B = GENERATORS.Gz_attribute * r_sum.as_ref()
+            + (GENERATORS.G_blind * delta_r.as_ref()).as_ref();
         let statement = BalanceProof::statement(B);
         SchnorrProver::new(transcript, vec![r_sum, delta_r])
             .add_statement(statement)
@@ -568,7 +568,7 @@ impl BalanceProof {
         transcript: &mut CashuTranscript,
     ) -> bool {
         let delta_a = Scalar::from(delta_amount.unsigned_abs());
-        let mut B = GENERATORS.G_amount.clone() * &delta_a;
+        let mut B = GENERATORS.G_amount * &delta_a;
         if delta_amount >= 0 {
             B.negate();
         }
@@ -601,35 +601,35 @@ impl ScriptEqualityProof {
         inputs: &[RandomizedCoin],
         outputs: &[(GroupElement, GroupElement)],
     ) -> Statement {
-        let O: GroupElement = GENERATORS.O.clone();
+        let O: GroupElement = GENERATORS.O;
         let mut equations: Vec<Equation> = Vec::new();
 
         for (i, zcoin) in inputs.iter().enumerate() {
             let construction = vec![
-                vec![GENERATORS.G_script.clone()],
-                vec![O.clone(); i],
-                vec![GENERATORS.Gz_script.clone()],
-                vec![O.clone(); inputs.len() - 1],
-                vec![GENERATORS.G_blind.clone()],
+                vec![GENERATORS.G_script],
+                vec![O; i],
+                vec![GENERATORS.Gz_script],
+                vec![O; inputs.len() - 1],
+                vec![GENERATORS.G_blind],
             ]
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
 
-            equations.push(Equation::new(zcoin.Cs.clone(), vec![construction]));
+            equations.push(Equation::new(zcoin.Cs, vec![construction]));
         }
         for (i, commitments) in outputs.iter().enumerate() {
             let construction = vec![
-                vec![GENERATORS.G_script.clone()],
-                vec![O.clone(); 2 * inputs.len() + i],
-                vec![GENERATORS.G_blind.clone()],
+                vec![GENERATORS.G_script],
+                vec![O; 2 * inputs.len() + i],
+                vec![GENERATORS.G_blind],
             ]
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
 
             let (_Ma, Ms) = commitments;
-            equations.push(Equation::new(Ms.clone(), vec![construction]));
+            equations.push(Equation::new(*Ms, vec![construction]));
         }
         Statement::new(b"Script_Equality_Statement_", equations)
     }
@@ -655,18 +655,17 @@ impl ScriptEqualityProof {
         }
         let commitments: Vec<(GroupElement, GroupElement)> = outputs
             .iter()
-            .map(|(aa, sa)| (aa.commitment().clone(), sa.commitment().clone()))
+            .map(|(aa, sa)| (aa.commitment(), sa.commitment()))
             .collect();
         let statement = ScriptEqualityProof::statement(randomized_inputs, &commitments);
         let s = inputs[0]
             .script_attribute
             .as_ref()
             .ok_or(Error::NoScriptProvided)?
-            .s
-            .clone();
+            .s;
         let r_a_list = inputs
             .iter()
-            .map(|coin| coin.amount_attribute.r.clone())
+            .map(|coin| coin.amount_attribute.r)
             .collect();
         let r_s_list = inputs
             .iter()
@@ -675,12 +674,11 @@ impl ScriptEqualityProof {
                     .as_ref()
                     .expect("Expected Script Attribute")
                     .r
-                    .clone()
             })
             .collect();
         let new_r_s_list = outputs
             .iter()
-            .map(|(_, script_attr)| script_attr.r.clone())
+            .map(|(_, script_attr)| script_attr.r)
             .collect();
         Ok(SchnorrProver::new(
             transcript,
@@ -885,7 +883,7 @@ mod tests {
     fn test_wrong_mac() {
         #[allow(non_snake_case)]
         fn generate_custom_rand(coin: &Coin) -> Result<RandomizedCoin, Error> {
-            let t = coin.mac.t.clone();
+            let t = coin.mac.t;
             let V = coin.mac.V.as_ref();
             let t_bytes: [u8; 32] = (&coin.mac.t).into();
             let U = hash_to_curve(&t_bytes)?;
@@ -894,11 +892,11 @@ mod tests {
             let z = Scalar::random();
             let Ms: GroupElement = GroupElement::new(&GROUP_ELEMENT_ZERO);
 
-            let Ca = GENERATORS.Gz_attribute.clone() * z.as_ref() + &Ma;
-            let Cs = GENERATORS.Gz_script.clone() * z.as_ref() + &Ms;
-            let Cx0 = GENERATORS.X0.clone() * z.as_ref() + &U;
-            let Cx1 = GENERATORS.X1.clone() * z.as_ref() + &(U * &t);
-            let Cv = GENERATORS.Gz_mac.clone() * z.as_ref() + V;
+            let Ca = GENERATORS.Gz_attribute * z.as_ref() + &Ma;
+            let Cs = GENERATORS.Gz_script * z.as_ref() + &Ms;
+            let Cx0 = GENERATORS.X0 * z.as_ref() + &U;
+            let Cx1 = GENERATORS.X1 * z.as_ref() + &(U * &t);
+            let Cv = GENERATORS.Gz_mac * z.as_ref() + V;
 
             Ok(RandomizedCoin {
                 Ca,
@@ -959,7 +957,7 @@ mod tests {
             .collect();
         let outputs: Vec<GroupElement> = outputs
             .into_iter()
-            .map(|output| output.commitment().clone())
+            .map(|output| output.commitment())
             .collect();
         assert!(BalanceProof::verify(
             &randomized_coins,
@@ -998,7 +996,7 @@ mod tests {
             .collect();
         let outputs: Vec<GroupElement> = outputs
             .into_iter()
-            .map(|output| output.commitment().clone())
+            .map(|output| output.commitment())
             .collect();
         assert!(!BalanceProof::verify(
             &randomized_coins,
@@ -1068,7 +1066,7 @@ mod tests {
         .expect("");
         let outputs: Vec<(GroupElement, GroupElement)> = outputs
             .into_iter()
-            .map(|(aa, sa)| (aa.commitment().clone(), sa.commitment().clone()))
+            .map(|(aa, sa)| (aa.commitment(), sa.commitment()))
             .collect();
         assert!(ScriptEqualityProof::verify(
             &randomized_coins,
@@ -1137,7 +1135,7 @@ mod tests {
         .expect("");
         let outputs: Vec<(GroupElement, GroupElement)> = outputs
             .into_iter()
-            .map(|(aa, sa)| (aa.commitment().clone(), sa.commitment().clone()))
+            .map(|(aa, sa)| (aa.commitment(), sa.commitment()))
             .collect();
         assert!(!ScriptEqualityProof::verify(
             &randomized_coins,

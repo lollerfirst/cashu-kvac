@@ -45,25 +45,25 @@ pub fn recover_amounts(
     let m = (B as f64).sqrt().ceil() as u64;
 
     let scalar_m = Scalar::from(m);
-    let G_m_inv = -GENERATORS.G_amount.clone() * &scalar_m;
+    let G_m_inv = -GENERATORS.G_amount * &scalar_m;
 
     // Build table
     let mut table = HashMap::new();
-    let mut index = GENERATORS.G_blind.clone();
-    table.insert(index.clone(), 0);
+    let mut index = GENERATORS.G_blind;
+    table.insert(index, 0);
 
-    let one = GENERATORS.G_amount.clone();
+    let one = GENERATORS.G_amount;
 
     for j in 1..m {
         index = index + &one;
-        table.insert(index.clone(), j);
+        table.insert(index, j);
     }
 
     let mut recovered_amounts = Vec::<Option<u64>>::new();
     // Process commitments
     for (Ma, r_a) in commitments.iter().zip(blinding_factors.iter()) {
         // Unblind the amount commitment
-        let mut A = GENERATORS.G_blind.clone() * &(Scalar::from(1) - r_a) + Ma;
+        let mut A = GENERATORS.G_blind * &(Scalar::from(1) - r_a) + Ma;
 
         let mut a = None;
         // Look for a match on the table
@@ -98,18 +98,16 @@ mod tests {
         let blinding_factors: Vec<Scalar> = (0..3).map(|_| Scalar::random()).collect();
 
         // Suppose we have the amount commitments (recovered from the Mint)
-        let amount_attributes = vec![
-            AmountAttribute::new(19, Some(&blinding_factors[0].to_bytes())),
+        let amount_attributes = [AmountAttribute::new(19, Some(&blinding_factors[0].to_bytes())),
             AmountAttribute::new(763, Some(&blinding_factors[1].to_bytes())),
-            AmountAttribute::new(22001, Some(&blinding_factors[2].to_bytes())),
-        ];
+            AmountAttribute::new(22001, Some(&blinding_factors[2].to_bytes()))];
         let amount_commitments: Vec<GroupElement> = amount_attributes
             .iter()
             .map(|attr| attr.commitment())
             .collect();
 
         // We know or hypothesize that the amount must have been within a certain upper bound
-        let upper_bound = 100_000 as u64;
+        let upper_bound = 100_000_u64;
 
         // Recover the amounts encoded in those commitments, given the blinding factors
         let recovered_amounts =
@@ -131,18 +129,16 @@ mod tests {
         let blinding_factors: Vec<Scalar> = (0..3).map(|_| Scalar::random()).collect();
 
         // Suppose we have the amount commitments (recovered from the Mint)
-        let amount_attributes = vec![
-            AmountAttribute::new(1997, Some(&blinding_factors[0].to_bytes())),
+        let amount_attributes = [AmountAttribute::new(1997, Some(&blinding_factors[0].to_bytes())),
             AmountAttribute::new(110224, Some(&blinding_factors[1].to_bytes())),
-            AmountAttribute::new(22001, Some(&blinding_factors[2].to_bytes())),
-        ];
+            AmountAttribute::new(22001, Some(&blinding_factors[2].to_bytes()))];
         let amount_commitments: Vec<GroupElement> = amount_attributes
             .iter()
             .map(|attr| attr.commitment())
             .collect();
 
         // We know or hypothesize that the amount must have been within a certain upper bound
-        let upper_bound = 100_000 as u64;
+        let upper_bound = 100_000_u64;
 
         // Recover the amounts encoded in those commitments, given the blinding factors
         let recovered_amounts =

@@ -38,7 +38,7 @@ impl AmountAttribute {
         self.commitment()
     }
 
-    pub fn wasm_tweak_amount(&mut self, amount: u64) -> () {
+    pub fn wasm_tweak_amount(&mut self, amount: u64) {
         let _ = self.tweak_amount(amount);
     }
 }
