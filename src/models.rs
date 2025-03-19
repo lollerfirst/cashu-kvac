@@ -418,7 +418,6 @@ impl RandomizedCoin {
 
 /// Structure that holds information about an equation to be proven
 /// or for which a proof has to be verified.
-#[wasm_bindgen]
 pub struct Equation {
     /// Left-hand side of the equation (public input)
     pub lhs: GroupElement,
@@ -437,7 +436,6 @@ impl Equation {
 }
 
 /// A statement is a collection of relations (equations)
-#[wasm_bindgen]
 pub struct Statement {
     /// Domain Separator of the proof
     pub domain_separator: &'static [u8],

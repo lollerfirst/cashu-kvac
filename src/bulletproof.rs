@@ -9,7 +9,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 // Maximum allowed for a single attribute
-pub const RANGE_LIMIT: usize = 1 << 32;
+pub const RANGE_LIMIT: u64 = 1 << 32;
 pub const LOG_RANGE_LIMIT: usize = 32;
 
 pub static POWERS_OF_TWO: Lazy<Vec<Scalar>> = Lazy::new(|| {

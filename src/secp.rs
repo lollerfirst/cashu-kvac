@@ -2,12 +2,14 @@ use bitcoin::hashes::serde::{Serialize, Serializer};
 use bitcoin::secp256k1::constants::CURVE_ORDER;
 use bitcoin::secp256k1::{rand, All, PublicKey, Scalar as SecpScalar, Secp256k1, SecretKey};
 use once_cell::sync::Lazy;
-use rug::ops::RemRounding;
-use rug::Integer;
 use serde::{Deserialize, Deserializer};
 use std::cmp::PartialEq;
 use std::hash::{Hash, Hasher};
 use wasm_bindgen::prelude::wasm_bindgen;
+use num_bigint::{BigInt, BigUint, ToBigInt};
+use num_traits::{One, Zero};
+use std::ops::{AddAssign, ShrAssign, SubAssign, BitAnd, Shr};
+use num_traits::Signed;
 
 use crate::errors::Error;
 use crate::generators::GENERATORS;
@@ -45,43 +47,54 @@ pub struct GroupElement {
     inner: Option<PublicKey>,
 }
 
-fn div2(m: &Integer, mut x: Integer) -> Integer {
-    if x.is_odd() {
+fn div2(m: &BigInt, mut x: BigInt) -> BigInt {
+    if (&x).bitand(&BigInt::one()) == BigInt::one() {
         x += m;
     }
-    x >> 1
+    x.shr(1)
 }
 
-fn modinv(m: &Integer, x: &Integer) -> Integer {
-    assert!(m.is_odd(), "M must be odd");
+fn euclidean_mod(a: &BigInt, m: &BigInt) -> BigInt {
+    let r = a % m;
+    if r.is_negative() {
+        r + m
+    } else {
+        r
+    }
+}
+
+fn modinv(m: &BigInt, x: &BigInt) -> BigInt {
+    assert!(m.bitand(&BigInt::one()) == BigInt::one(), "M must be odd");
     let mut delta = 1;
     let mut f = m.clone();
     let mut g = x.clone();
-    let mut d = Integer::from(0);
-    let mut e = Integer::from(1);
+    let mut d = BigInt::zero();
+    let mut e = BigInt::one();
 
     while !g.is_zero() {
-        if delta > 0 && g.is_odd() {
+        if delta > 0 && (&g).bitand(&BigInt::one()) == BigInt::one() {
             let tmp_g = g.clone();
-            g = (g - &f) >> 1;
+            g.sub_assign(&f);
+            g.shr_assign(1);
             f = tmp_g;
             let tmp_e = e.clone();
             e = div2(m, e - &d);
             d = tmp_e;
             delta = 1 - delta;
-        } else if g.is_odd() {
-            g = (g + &f) >> 1;
+        } else if (&g).bitand(&BigInt::one()) == BigInt::one() {
+            g.add_assign(&f);
+            g.shr_assign(1);
             e = div2(m, e + &d);
             delta += 1;
         } else {
-            g >>= 1;
+            g.shr_assign(1);
             e = div2(m, e);
             delta += 1;
         }
     }
 
-    // Result: (d * f) % m
-    (d * f).rem_euc(m)
+    // Result: (d * f) % m using Euclidean modulus
+    euclidean_mod(&(d * f), m)
 }
 
 impl Scalar {
@@ -207,14 +220,10 @@ impl Scalar {
         if self.inner.is_none() {
             panic!("Scalar 0 doesn't have an inverse")
         } else {
-            let x = Integer::from_digits(
-                &self.inner.unwrap().secret_bytes(),
-                rug::integer::Order::Msf,
-            );
-            let q = Integer::from_digits(&CURVE_ORDER, rug::integer::Order::Msf);
-            let x_inv = modinv(&q, &x);
-            //let x_inv = x.clone().invert(&q).unwrap();
-            let mut vec: Vec<u8> = x_inv.to_digits(rug::integer::Order::Lsf);
+            let x = BigUint::from_bytes_be(&self.inner.unwrap().secret_bytes());
+            let q = BigUint::from_bytes_be(&CURVE_ORDER);
+            let x_inv = modinv(&q.to_bigint().expect("Can convert BigUint to BigInt"), &x.to_bigint().expect("Can convert BigUint to BigInt"));
+            let (_sign, mut vec) = x_inv.to_bytes_le();
             if vec.len() < 32 {
                 vec.extend(vec![0; 32 - vec.len()]);
             }
@@ -830,16 +839,16 @@ mod tests {
 
     #[test]
     fn test_div2_even() {
-        let m = Integer::from(29);
-        let x = Integer::from(20);
-        assert_eq!(div2(&m, x), Integer::from(10));
+        let m = BigInt::from(29);
+        let x = BigInt::from(20);
+        assert_eq!(div2(&m, x), BigInt::from(10));
     }
 
     #[test]
     fn test_div2_odd() {
-        let m = Integer::from(29);
-        let x = Integer::from(21);
-        assert_eq!(div2(&m, x), Integer::from(25));
+        let m = BigInt::from(29);
+        let x = BigInt::from(21);
+        assert_eq!(div2(&m, x), BigInt::from(25));
     }
 
     #[test]

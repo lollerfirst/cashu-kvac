@@ -172,7 +172,6 @@ impl<'a> SchnorrVerifier<'a> {
 #[wasm_bindgen]
 pub struct BootstrapProof;
 
-#[wasm_bindgen]
 impl BootstrapProof {
     /// Creates a statement for the bootstrap proof, which includes the amount commitment.
     ///
