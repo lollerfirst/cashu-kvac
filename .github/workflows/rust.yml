@@ -35,3 +35,6 @@ jobs:
 
       - name: Run tests
         run: cargo test --verbose
+      
+      - name: Build WASM
+        run: cargo --target wasm32-unknown-unknown --release
