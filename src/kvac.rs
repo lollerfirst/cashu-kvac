@@ -189,10 +189,7 @@ impl BootstrapProof {
             amount_commitment.clone(),
             vec![vec![GENERATORS.G_blind.clone()]],
         );
-        Statement::new(
-            b"Bootstrap_Statement_",
-            vec![equation],
-        )
+        Statement::new(b"Bootstrap_Statement_", vec![equation])
     }
 
     /// Creates a zero-knowledge proof (ZKP) for the given amount attribute using the provided transcript.
@@ -265,10 +262,7 @@ impl MacProof {
             b"MAC_Statement_",
             vec![
                 // Z = r*I
-                Equation::new(
-                    Z,
-                    vec![vec![I]],
-                ),
+                Equation::new(Z, vec![vec![I]]),
                 Equation::new(
                     // Cx1 = t*Cx0 + (-tr)*X0 + r*X1
                     Cx1,
@@ -623,10 +617,7 @@ impl ScriptEqualityProof {
             .flatten()
             .collect::<Vec<_>>();
 
-            equations.push(Equation::new(
-                zcoin.Cs.clone(),
-                vec![construction],
-            ));
+            equations.push(Equation::new(zcoin.Cs.clone(), vec![construction]));
         }
         for (i, commitments) in outputs.iter().enumerate() {
             let construction = vec![
@@ -639,15 +630,9 @@ impl ScriptEqualityProof {
             .collect::<Vec<_>>();
 
             let (_Ma, Ms) = commitments;
-            equations.push(Equation::new(
-                Ms.clone(),
-                vec![construction],
-            ));
+            equations.push(Equation::new(Ms.clone(), vec![construction]));
         }
-        Statement::new(
-            b"Script_Equality_Statement_",
-            equations,
-        )
+        Statement::new(b"Script_Equality_Statement_", equations)
     }
 
     /// Creates a zero-knowledge proof (ZKP) for the equality of scripts in the given inputs and outputs.

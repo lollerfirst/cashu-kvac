@@ -428,10 +428,7 @@ pub struct Equation {
 
 impl Equation {
     pub fn new(lhs: GroupElement, rhs: Vec<Vec<GroupElement>>) -> Self {
-        Self {
-            lhs,
-            rhs,
-        }
+        Self { lhs, rhs }
     }
 
     pub fn take_rhs(self) -> Vec<Vec<GroupElement>> {

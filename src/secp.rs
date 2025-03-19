@@ -5,9 +5,9 @@ use once_cell::sync::Lazy;
 use rug::ops::RemRounding;
 use rug::Integer;
 use serde::{Deserialize, Deserializer};
-use wasm_bindgen::prelude::wasm_bindgen;
 use std::cmp::PartialEq;
 use std::hash::{Hash, Hasher};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::errors::Error;
 use crate::generators::GENERATORS;
