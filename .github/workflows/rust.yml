@@ -37,4 +37,4 @@ jobs:
         run: cargo test --verbose
       
       - name: Build WASM
-        run: cargo --target wasm32-unknown-unknown --release
+        run: cargo build --target wasm32-unknown-unknown --release
