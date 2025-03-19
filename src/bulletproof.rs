@@ -85,8 +85,8 @@ fn inner_product(l: &[Scalar], r: &[Scalar]) -> Scalar {
 
 #[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
 pub struct InnerProductArgument {
-    public_inputs: Vec<(GroupElement, GroupElement)>,
-    tail_end_scalars: (Scalar, Scalar),
+    pub public_inputs: Vec<(GroupElement, GroupElement)>,
+    pub tail_end_scalars: (Scalar, Scalar),
 }
 
 // https://eprint.iacr.org/2017/1066.pdf
@@ -191,7 +191,7 @@ impl InnerProductArgument {
 
         assert!(a.len() == 1 && b.len() == 1);
 
-        InnerProductArgument {
+        Self {
             public_inputs: inputs,
             tail_end_scalars: (a.pop().unwrap(), b.pop().unwrap()),
         }
