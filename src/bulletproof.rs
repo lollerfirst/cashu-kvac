@@ -375,9 +375,8 @@ impl BulletProof {
 
         let mut delta_y_z = Scalar::new(&SCALAR_ZERO);
         for (i, y_i) in y_list.iter().enumerate() {
-            delta_y_z = delta_y_z
-                + &(p * y_i
-                    + &(z_list[3] * &z_list[i / n] * &POWERS_OF_TWO[i % n]));
+            delta_y_z =
+                delta_y_z + &(p * y_i + &(z_list[3] * &z_list[i / n] * &POWERS_OF_TWO[i % n]));
         }
 
         // l(X) and r(X) linear vector polynomials   (70-71)
@@ -557,9 +556,8 @@ impl BulletProof {
 
         let mut delta_y_z = Scalar::new(&SCALAR_ZERO);
         for (i, y_i) in y_list.iter().enumerate() {
-            delta_y_z = delta_y_z
-                + &(p * y_i
-                    + &(z_list[3] * &z_list[i / n] * &POWERS_OF_TWO[i % n]));
+            delta_y_z =
+                delta_y_z + &(p * y_i + &(z_list[3] * &z_list[i / n] * &POWERS_OF_TWO[i % n]));
         }
 
         // Prover -> Verifier: T_1, T_2
@@ -582,10 +580,7 @@ impl BulletProof {
             V_z_m = V_z_m + &(*commitment_pair * z_j);
         }
         if GENERATORS.G_amount * &t_x + &(GENERATORS.G_blind * &tau_x)
-            != V_z_m * &z_list[2]
-                + &(GENERATORS.G_amount * &delta_y_z)
-                + &(T1 * &x)
-                + &(T2 * &x_2)
+            != V_z_m * &z_list[2] + &(GENERATORS.G_amount * &delta_y_z) + &(T1 * &x) + &(T2 * &x_2)
         {
             return false;
         }
@@ -608,8 +603,7 @@ impl BulletProof {
                 P = P
                     + &(G_[j * n + i] * &z)
                     + &(H_[j * n + i] * &(y_list[j * n + i] * &z))
-                    + &(H_[j * n + i]
-                        * &(z_list[2] * &z_list[j] * &POWERS_OF_TWO[i]))
+                    + &(H_[j * n + i] * &(z_list[2] * &z_list[j] * &POWERS_OF_TWO[i]))
             }
         }
 
@@ -646,13 +640,8 @@ mod tests {
             P = P + &(G_i * a_i) + &(H_i * b_i);
         }
 
-        let ipa = InnerProductArgument::new(
-            &mut cli_tscr,
-            get_generators(128),
-            P,
-            a.clone(),
-            b.clone(),
-        );
+        let ipa =
+            InnerProductArgument::new(&mut cli_tscr, get_generators(128), P, a.clone(), b.clone());
 
         let c = inner_product(&a, &b);
         assert!(ipa.verify(&mut mint_tscr, get_generators(128), P, c))

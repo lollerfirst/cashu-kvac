@@ -272,12 +272,7 @@ impl MacProof {
                     // MULTI-ROW: `r` witness is used twice for Gz_amount and G_blind
                     Ca,
                     vec![
-                        vec![
-                            GENERATORS.Gz_attribute,
-                            O,
-                            O,
-                            GENERATORS.G_amount,
-                        ],
+                        vec![GENERATORS.Gz_attribute, O, O, GENERATORS.G_amount],
                         vec![GENERATORS.G_blind],
                     ],
                 ),
@@ -354,9 +349,8 @@ impl MacProof {
             let s = Scalar::new(&Sha256Hash::hash(scr).to_byte_array());
             S = GENERATORS.G_script * s.as_ref();
         }
-        let Z = Cv
-            - &(GENERATORS.W * w
-                + &(Cx0 * x0 + &(Cx1 * x1 + &(Ca * ya + &((Cs + &S) * ys)))));
+        let Z =
+            Cv - &(GENERATORS.W * w + &(Cx0 * x0 + &(Cx1 * x1 + &(Ca * ya + &((Cs + &S) * ys)))));
         let (_Cw, I) = (
             mint_privkey.public_key.Cw.as_ref(),
             mint_privkey.public_key.I.as_ref(),
@@ -401,10 +395,7 @@ impl IParamsProof {
         Statement::new(
             b"Iparams_Statement_",
             vec![
-                Equation::new(
-                    *Cw,
-                    vec![vec![GENERATORS.W, GENERATORS.W_]],
-                ),
+                Equation::new(*Cw, vec![vec![GENERATORS.W, GENERATORS.W_]]),
                 Equation::new(
                     *I - &GENERATORS.Gz_mac,
                     vec![vec![
@@ -416,10 +407,7 @@ impl IParamsProof {
                         -GENERATORS.Gz_script,
                     ]],
                 ),
-                Equation::new(
-                    V,
-                    vec![vec![GENERATORS.W, O, U, U * t, Ma, Ms]],
-                ),
+                Equation::new(V, vec![vec![GENERATORS.W, O, U, U * t, Ma, Ms]]),
             ],
         )
     }
@@ -510,10 +498,7 @@ impl BalanceProof {
             b"Balance_Statement_",
             vec![Equation::new(
                 B,
-                vec![vec![
-                    GENERATORS.Gz_attribute,
-                    GENERATORS.G_blind,
-                ]],
+                vec![vec![GENERATORS.Gz_attribute, GENERATORS.G_blind]],
             )],
         )
     }
@@ -663,10 +648,7 @@ impl ScriptEqualityProof {
             .as_ref()
             .ok_or(Error::NoScriptProvided)?
             .s;
-        let r_a_list = inputs
-            .iter()
-            .map(|coin| coin.amount_attribute.r)
-            .collect();
+        let r_a_list = inputs.iter().map(|coin| coin.amount_attribute.r).collect();
         let r_s_list = inputs
             .iter()
             .map(|coin| {

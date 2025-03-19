@@ -87,14 +87,7 @@ impl MintPrivateKey {
     ///
     /// This function does **not** panic under normal conditions.
     pub fn to_scalars(&self) -> Vec<Scalar> {
-        vec![
-            self.w,
-            self.w_,
-            self.x0,
-            self.x1,
-            self.ya,
-            self.ys,
-        ]
+        vec![self.w, self.w_, self.x0, self.x1, self.ya, self.ys]
     }
 }
 

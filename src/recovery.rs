@@ -98,9 +98,11 @@ mod tests {
         let blinding_factors: Vec<Scalar> = (0..3).map(|_| Scalar::random()).collect();
 
         // Suppose we have the amount commitments (recovered from the Mint)
-        let amount_attributes = [AmountAttribute::new(19, Some(&blinding_factors[0].to_bytes())),
+        let amount_attributes = [
+            AmountAttribute::new(19, Some(&blinding_factors[0].to_bytes())),
             AmountAttribute::new(763, Some(&blinding_factors[1].to_bytes())),
-            AmountAttribute::new(22001, Some(&blinding_factors[2].to_bytes()))];
+            AmountAttribute::new(22001, Some(&blinding_factors[2].to_bytes())),
+        ];
         let amount_commitments: Vec<GroupElement> = amount_attributes
             .iter()
             .map(|attr| attr.commitment())
@@ -129,9 +131,11 @@ mod tests {
         let blinding_factors: Vec<Scalar> = (0..3).map(|_| Scalar::random()).collect();
 
         // Suppose we have the amount commitments (recovered from the Mint)
-        let amount_attributes = [AmountAttribute::new(1997, Some(&blinding_factors[0].to_bytes())),
+        let amount_attributes = [
+            AmountAttribute::new(1997, Some(&blinding_factors[0].to_bytes())),
             AmountAttribute::new(110224, Some(&blinding_factors[1].to_bytes())),
-            AmountAttribute::new(22001, Some(&blinding_factors[2].to_bytes()))];
+            AmountAttribute::new(22001, Some(&blinding_factors[2].to_bytes())),
+        ];
         let amount_commitments: Vec<GroupElement> = amount_attributes
             .iter()
             .map(|attr| attr.commitment())
