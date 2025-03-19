@@ -238,7 +238,6 @@ impl BootstrapProof {
 #[wasm_bindgen]
 pub struct MacProof;
 
-#[wasm_bindgen]
 #[allow(non_snake_case)]
 impl MacProof {
     /// Creates a statement for the MAC proof, which includes the necessary equations.
