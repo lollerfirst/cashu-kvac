@@ -6,6 +6,7 @@ rust-version = "1.80.1"
 
 [lib]
 path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 bitcoin = { version= "0.32.2", features = ["base64", "serde", "rand", "rand-std"] }
