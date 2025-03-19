@@ -1,15 +1,15 @@
 use bitcoin::hashes::serde::{Serialize, Serializer};
 use bitcoin::secp256k1::constants::CURVE_ORDER;
 use bitcoin::secp256k1::{rand, All, PublicKey, Scalar as SecpScalar, Secp256k1, SecretKey};
+use num_bigint::{BigInt, BigUint, ToBigInt};
+use num_traits::Signed;
+use num_traits::{One, Zero};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Deserializer};
 use std::cmp::PartialEq;
 use std::hash::{Hash, Hasher};
+use std::ops::{AddAssign, BitAnd, Shr, ShrAssign, SubAssign};
 use wasm_bindgen::prelude::wasm_bindgen;
-use num_bigint::{BigInt, BigUint, ToBigInt};
-use num_traits::{One, Zero};
-use std::ops::{AddAssign, ShrAssign, SubAssign, BitAnd, Shr};
-use num_traits::Signed;
 
 use crate::errors::Error;
 use crate::generators::GENERATORS;
@@ -222,7 +222,10 @@ impl Scalar {
         } else {
             let x = BigUint::from_bytes_be(&self.inner.unwrap().secret_bytes());
             let q = BigUint::from_bytes_be(&CURVE_ORDER);
-            let x_inv = modinv(&q.to_bigint().expect("Can convert BigUint to BigInt"), &x.to_bigint().expect("Can convert BigUint to BigInt"));
+            let x_inv = modinv(
+                &q.to_bigint().expect("Can convert BigUint to BigInt"),
+                &x.to_bigint().expect("Can convert BigUint to BigInt"),
+            );
             let (_sign, mut vec) = x_inv.to_bytes_le();
             if vec.len() < 32 {
                 vec.extend(vec![0; 32 - vec.len()]);

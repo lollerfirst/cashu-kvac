@@ -1,10 +1,17 @@
 //! Module used to bridge the interface of cashu_kvac methods to webassembly
+use serde_wasm_bindgen::{from_value, to_value, Error};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
-use serde_wasm_bindgen::{from_value, to_value, Error};
 
 use crate::{
-    bulletproof::{BulletProof, InnerProductArgument}, kvac::{BalanceProof, BootstrapProof, IParamsProof, MacProof, ScriptEqualityProof}, models::{AmountAttribute, Coin, MintPrivateKey, MintPublicKey, RandomizedCoin, ScriptAttribute, MAC, ZKP}, secp::{GroupElement, Scalar}, transcript::CashuTranscript
+    bulletproof::{BulletProof, InnerProductArgument},
+    kvac::{BalanceProof, BootstrapProof, IParamsProof, MacProof, ScriptEqualityProof},
+    models::{
+        AmountAttribute, Coin, MintPrivateKey, MintPublicKey, RandomizedCoin, ScriptAttribute, MAC,
+        ZKP,
+    },
+    secp::{GroupElement, Scalar},
+    transcript::CashuTranscript,
 };
 
 #[wasm_bindgen]
@@ -89,7 +96,8 @@ impl RandomizedCoin {
 #[wasm_bindgen]
 impl BootstrapProof {
     pub fn wasm_create(
-        amount_attribute: &AmountAttribute, transcript: &mut CashuTranscript
+        amount_attribute: &AmountAttribute,
+        transcript: &mut CashuTranscript,
     ) -> ZKP {
         BootstrapProof::create(amount_attribute, transcript)
     }
@@ -123,7 +131,13 @@ impl MacProof {
     ) -> bool {
         match script {
             None => MacProof::verify(mint_privkey, randomized_coin, None, proof, transcript),
-            Some(script) => MacProof::verify(mint_privkey, randomized_coin, Some(&script), proof, transcript)
+            Some(script) => MacProof::verify(
+                mint_privkey,
+                randomized_coin,
+                Some(&script),
+                proof,
+                transcript,
+            ),
         }
     }
 }
@@ -137,7 +151,13 @@ impl IParamsProof {
         script_commitment: Option<GroupElement>,
         transcript: &mut CashuTranscript,
     ) -> ZKP {
-        IParamsProof::create(mint_privkey, mac, &amount_commitment, script_commitment.as_ref(), transcript)
+        IParamsProof::create(
+            mint_privkey,
+            mac,
+            &amount_commitment,
+            script_commitment.as_ref(),
+            transcript,
+        )
     }
 
     pub fn wasm_verify(
@@ -152,7 +172,7 @@ impl IParamsProof {
 
 #[wasm_bindgen]
 impl BalanceProof {
-    pub fn wasm_create (
+    pub fn wasm_create(
         inputs: Vec<AmountAttribute>,
         outputs: Vec<AmountAttribute>,
         transcript: &mut CashuTranscript,
@@ -198,7 +218,7 @@ impl ScriptEqualityProof {
         ScriptEqualityProof::create(&inputs, &randomized_inputs, &outputs, transcript)
             .map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
-    
+
     pub fn wasm_verify(
         randomized_inputs: Vec<RandomizedCoin>,
         outputs: Vec<OutputCommitmentsPair>,
@@ -237,10 +257,11 @@ impl WasmBulletProof {
     pub fn wasm_create(attributes: Vec<AmountAttribute>, transcript: &mut CashuTranscript) -> Self {
         let bulletproof = BulletProof::new(transcript, &attributes);
         let wasm_ipa = WasmInnerProductArgument {
-            public_inputs: to_value(&bulletproof.ipa.public_inputs).expect("can always convert IPA public inputs to JsValue"),
+            public_inputs: to_value(&bulletproof.ipa.public_inputs)
+                .expect("can always convert IPA public inputs to JsValue"),
             tail_end_scalars: bulletproof.ipa.tail_end_scalars,
         };
-        WasmBulletProof { 
+        WasmBulletProof {
             A: bulletproof.A,
             S: bulletproof.S,
             T1: bulletproof.T1,
@@ -248,19 +269,20 @@ impl WasmBulletProof {
             t_x: bulletproof.t_x,
             tau_x: bulletproof.t_x,
             mu: bulletproof.mu,
-            ipa: wasm_ipa
+            ipa: wasm_ipa,
         }
     }
-    
+
     pub fn wasm_verify(
         self,
         attribute_commitments: Vec<GroupElement>,
-        transcript: &mut CashuTranscript
+        transcript: &mut CashuTranscript,
     ) -> bool {
-        let ipa_public_inputs: Result<Vec<(GroupElement, GroupElement)>, Error> = from_value(self.ipa.public_inputs);
+        let ipa_public_inputs: Result<Vec<(GroupElement, GroupElement)>, Error> =
+            from_value(self.ipa.public_inputs);
         let ipa_public_inputs = match ipa_public_inputs {
-            Ok(ipa_public_inputs) => ipa_public_inputs,  // If the conversion is successful, return the public inputs
-            Err(_) => return false, // If conversion fails, return false
+            Ok(ipa_public_inputs) => ipa_public_inputs, // If the conversion is successful, return the public inputs
+            Err(_) => return false,                     // If conversion fails, return false
         };
         let ipa = InnerProductArgument {
             public_inputs: ipa_public_inputs,
