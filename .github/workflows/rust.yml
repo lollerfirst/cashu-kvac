@@ -22,7 +22,7 @@ jobs:
           toolchain: nightly
           override: true
           override-with: cargo
-          components: rustfmt, clippy
+          components: rustfmt, clippy, 
 
       - name: Format code
         run: cargo fmt -- --check
@@ -36,5 +36,8 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
       
-      - name: Build WASM
+      - name: Add wasm32-unknown-unknown target
+        run: rustup target add wasm32-unknown-unknown
+      
+      - name: Build wasm32-unknown-unknown target
         run: cargo build --target wasm32-unknown-unknown --release
