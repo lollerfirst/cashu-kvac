@@ -9,6 +9,7 @@ use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use crate::transcript::CashuTranscript;
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 /// Checks if all the elements in the provided slice of `Scalar` values are non-zero.
 ///
@@ -61,11 +62,11 @@ impl<'a> SchnorrProver<'a> {
         // Append proof-specific domain separator to the transcript
         self.transcript.domain_sep(statement.domain_separator);
 
-        for equation in statement.equations.into_iter() {
+        for equation in statement.take_equations().into_iter() {
             let mut R = GroupElement::new(&GROUP_ELEMENT_ZERO);
             let V = equation.lhs;
 
-            for row in equation.rhs.into_iter() {
+            for row in equation.take_rhs().into_iter() {
                 for (k, P) in self.random_terms.iter().zip(row.into_iter()) {
                     R = R + (P * k).as_ref();
                 }
@@ -94,7 +95,7 @@ impl<'a> SchnorrProver<'a> {
             responses.push(k + (s * c.as_ref()).as_ref());
         }
 
-        ZKP { s: responses, c }
+        ZKP::new(responses, c)
     }
 }
 
@@ -117,8 +118,8 @@ impl<'a> SchnorrVerifier<'a> {
     /// Returns a new instance of `SchnorrVerifier` initialized with the provided transcript and proof.
     pub fn new(transcript: &'a mut CashuTranscript, proof: ZKP) -> Self {
         SchnorrVerifier {
-            responses: proof.s,
             challenge: proof.c,
+            responses: proof.take_responses(),
             transcript,
         }
     }
@@ -137,11 +138,11 @@ impl<'a> SchnorrVerifier<'a> {
         // Append proof-specific domain separator to the transcript
         self.transcript.domain_sep(statement.domain_separator);
 
-        for equation in statement.equations.into_iter() {
+        for equation in statement.take_equations().into_iter() {
             let mut R = GroupElement::new(&GROUP_ELEMENT_ZERO);
             let V = equation.lhs;
 
-            for row in equation.rhs.into_iter() {
+            for row in equation.take_rhs().into_iter() {
                 for (s, P) in self.responses.iter().zip(row.into_iter()) {
                     R = R + (P * s).as_ref();
                 }
@@ -168,8 +169,10 @@ impl<'a> SchnorrVerifier<'a> {
     }
 }
 
+#[wasm_bindgen]
 pub struct BootstrapProof;
 
+#[wasm_bindgen]
 impl BootstrapProof {
     /// Creates a statement for the bootstrap proof, which includes the amount commitment.
     ///
@@ -181,14 +184,15 @@ impl BootstrapProof {
     ///
     /// Returns a `Statement` containing the domain separator and the equations related to the bootstrap proof.
     pub fn statement(amount_commitment: &GroupElement) -> Statement {
-        Statement {
-            domain_separator: b"Bootstrap_Statement_",
-            equations: vec![Equation {
-                // Ma = r*G_blind
-                lhs: amount_commitment.clone(),
-                rhs: vec![vec![GENERATORS.G_blind.clone()]],
-            }],
-        }
+        let equation = Equation::new(
+            // (lhs) Ma = r*G_blind (rhs)
+            amount_commitment.clone(),
+            vec![vec![GENERATORS.G_blind.clone()]],
+        );
+        Statement::new(
+            b"Bootstrap_Statement_",
+            vec![equation],
+        )
     }
 
     /// Creates a zero-knowledge proof (ZKP) for the given amount attribute using the provided transcript.
@@ -231,8 +235,10 @@ impl BootstrapProof {
     }
 }
 
+#[wasm_bindgen]
 pub struct MacProof;
 
+#[wasm_bindgen]
 #[allow(non_snake_case)]
 impl MacProof {
     /// Creates a statement for the MAC proof, which includes the necessary equations.
@@ -255,24 +261,25 @@ impl MacProof {
         let Cx1 = randomized_coin.Cx1.clone();
         let Ca = randomized_coin.Ca.clone();
         let O = GroupElement::new(&GROUP_ELEMENT_ZERO);
-        Statement {
-            domain_separator: b"MAC_Statement_",
-            equations: vec![
+        // Can you change the initialization of Equation in the last two entries to use `new` like the first?
+        Statement::new(
+            b"MAC_Statement_",
+            vec![
                 // Z = r*I
-                Equation {
-                    lhs: Z,
-                    rhs: vec![vec![I]],
-                },
-                Equation {
+                Equation::new(
+                    Z,
+                    vec![vec![I]],
+                ),
+                Equation::new(
                     // Cx1 = t*Cx0 + (-tr)*X0 + r*X1
-                    lhs: Cx1,
-                    rhs: vec![vec![GENERATORS.X1.clone(), GENERATORS.X0.clone(), Cx0]],
-                },
-                Equation {
+                    Cx1,
+                    vec![vec![GENERATORS.X1.clone(), GENERATORS.X0.clone(), Cx0]],
+                ),
+                Equation::new(
                     // Ca = r_a*Gz_attribute + r_a*G_blind + a*G_amount
                     // MULTI-ROW: `r` witness is used twice for Gz_amount and G_blind
-                    lhs: Ca,
-                    rhs: vec![
+                    Ca,
+                    vec![
                         vec![
                             GENERATORS.Gz_attribute.clone(),
                             O.clone(),
@@ -281,9 +288,9 @@ impl MacProof {
                         ],
                         vec![GENERATORS.G_blind.clone()],
                     ],
-                },
+                ),
             ],
-        }
+        )
     }
 
     /// Creates a zero-knowledge proof (ZKP) for the MAC proof using the provided parameters.
@@ -399,18 +406,16 @@ impl IParamsProof {
         let (Cw, I) = (mint_publickey.Cw.as_ref(), mint_publickey.I.as_ref());
         let Ma = amount_commitment.clone();
         let Ms = script_commitment.clone();
-        Statement {
-            domain_separator: b"Iparams_Statement_",
-            equations: vec![
-                Equation {
-                    // Cw = w * W + w_ * W_
-                    lhs: Cw.clone(),
-                    rhs: vec![vec![GENERATORS.W.clone(), GENERATORS.W_.clone()]],
-                },
-                Equation {
-                    // I = Gz_mac - x0 * X0 - x1 * X1 - ya * Gz_attribute - ys * Gz_script
-                    lhs: I.clone() - &GENERATORS.Gz_mac,
-                    rhs: vec![vec![
+        Statement::new(
+            b"Iparams_Statement_",
+            vec![
+                Equation::new(
+                    Cw.clone(),
+                    vec![vec![GENERATORS.W.clone(), GENERATORS.W_.clone()]],
+                ),
+                Equation::new(
+                    I.clone() - &GENERATORS.Gz_mac,
+                    vec![vec![
                         O.clone(),
                         O.clone(),
                         -GENERATORS.X0.clone(),
@@ -418,14 +423,13 @@ impl IParamsProof {
                         -GENERATORS.Gz_attribute.clone(),
                         -GENERATORS.Gz_script.clone(),
                     ]],
-                },
-                Equation {
-                    // V = w * W + x0 * U + x1 * t * U + ya * Ma + ys * Ms
-                    lhs: V,
-                    rhs: vec![vec![GENERATORS.W.clone(), O, U.clone(), U * t, Ma, Ms]],
-                },
+                ),
+                Equation::new(
+                    V,
+                    vec![vec![GENERATORS.W.clone(), O, U.clone(), U * t, Ma, Ms]],
+                ),
             ],
-        }
+        )
     }
 
     /// Creates a zero-knowledge proof (ZKP) for the IParams proof using the provided parameters.
@@ -509,16 +513,17 @@ impl BalanceProof {
     /// # Returns
     /// A `Statement` containing the domain separator and the equations that represent the balance proof.
     pub fn statement(B: GroupElement) -> Statement {
-        Statement {
-            domain_separator: b"Balance_Statement_",
-            equations: vec![Equation {
-                lhs: B,
-                rhs: vec![vec![
+        // Can you change this to use Statement::new and Equation::new?
+        Statement::new(
+            b"Balance_Statement_",
+            vec![Equation::new(
+                B,
+                vec![vec![
                     GENERATORS.Gz_attribute.clone(),
                     GENERATORS.G_blind.clone(),
                 ]],
-            }],
-        }
+            )],
+        )
     }
 
     /// Creates a zero-knowledge proof (ZKP) for the balance of inputs and outputs.
@@ -619,10 +624,10 @@ impl ScriptEqualityProof {
             .flatten()
             .collect::<Vec<_>>();
 
-            equations.push(Equation {
-                lhs: zcoin.Cs.clone(),
-                rhs: vec![construction],
-            });
+            equations.push(Equation::new(
+                zcoin.Cs.clone(),
+                vec![construction],
+            ));
         }
         for (i, commitments) in outputs.iter().enumerate() {
             let construction = vec![
@@ -635,15 +640,15 @@ impl ScriptEqualityProof {
             .collect::<Vec<_>>();
 
             let (_Ma, Ms) = commitments;
-            equations.push(Equation {
-                lhs: Ms.clone(),
-                rhs: vec![construction],
-            });
+            equations.push(Equation::new(
+                Ms.clone(),
+                vec![construction],
+            ));
         }
-        Statement {
-            domain_separator: b"Script_Equality_Statement_",
+        Statement::new(
+            b"Script_Equality_Statement_",
             equations,
-        }
+        )
     }
 
     /// Creates a zero-knowledge proof (ZKP) for the equality of scripts in the given inputs and outputs.

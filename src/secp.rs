@@ -5,6 +5,7 @@ use once_cell::sync::Lazy;
 use rug::ops::RemRounding;
 use rug::Integer;
 use serde::{Deserialize, Deserializer};
+use wasm_bindgen::prelude::wasm_bindgen;
 use std::cmp::PartialEq;
 use std::hash::{Hash, Hasher};
 
@@ -31,13 +32,15 @@ pub enum TweakKind {
 }
 
 /// Wraps a `secp256k1::key::SecretKey` or `None`
-#[derive(Clone, Debug, Eq, PartialEq, Default)]
+#[derive(Clone, Debug, Eq, PartialEq, Default, Copy)]
+#[wasm_bindgen]
 pub struct Scalar {
     inner: Option<SecretKey>,
 }
 
 /// Wraps a `secp256k1::key::PublicKey` or `None`
-#[derive(Hash, Clone, Debug, Eq, PartialEq, Default)]
+#[derive(Hash, Clone, Debug, Eq, PartialEq, Default, Copy)]
+#[wasm_bindgen]
 pub struct GroupElement {
     inner: Option<PublicKey>,
 }

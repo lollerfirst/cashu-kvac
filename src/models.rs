@@ -10,13 +10,15 @@ use crate::{
 use bitcoin::hashes::sha256::Hash as Sha256Hash;
 use bitcoin::hashes::Hash;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 /// The maximum allowed range for values.
 pub const RANGE_LIMIT: u64 = u32::MAX as u64;
 
 /// Public minting key used for verifying coin issuance.
 #[allow(non_snake_case)]
-#[derive(Clone, Serialize, Hash, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Serialize, Hash, Deserialize, Debug, Eq, PartialEq, Copy)]
+#[wasm_bindgen]
 pub struct MintPublicKey {
     pub Cw: GroupElement,
     pub I: GroupElement,
@@ -25,6 +27,7 @@ pub struct MintPublicKey {
 /// Private minting key used for signing coins.
 #[allow(non_snake_case)]
 #[derive(Clone, Serialize, Hash, Deserialize, Debug, Eq, PartialEq)]
+#[wasm_bindgen]
 pub struct MintPrivateKey {
     pub w: Scalar,
     pub w_: Scalar,
@@ -97,9 +100,23 @@ impl MintPrivateKey {
 
 /// Represents a zero-knowledge proof (ZKP) with commitment scalars.
 #[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
+#[wasm_bindgen]
 pub struct ZKP {
-    pub s: Vec<Scalar>,
+    s: Vec<Scalar>,
     pub c: Scalar,
+}
+
+impl ZKP {
+    pub fn new(responses: Vec<Scalar>, challenge: Scalar) -> Self {
+        Self {
+            s: responses,
+            c: challenge,
+        }
+    }
+
+    pub fn take_responses(self) -> Vec<Scalar> {
+        self.s
+    }
 }
 
 /// Zero-knowledge proof (ZKP) with `s` responses and `c` challenge.
@@ -110,7 +127,8 @@ pub enum RangeZKP {
 
 /// Structure holding the secret values for pedersen commitment encoding a script (spending conditions)
 #[allow(non_snake_case)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, Copy)]
+#[wasm_bindgen]
 pub struct ScriptAttribute {
     pub s: Scalar,
     pub r: Scalar,
@@ -155,7 +173,8 @@ impl ScriptAttribute {
 
 /// Structure holding the secret values for pedersen commitments encoding amounts
 #[allow(non_snake_case)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, Copy)]
+#[wasm_bindgen]
 pub struct AmountAttribute {
     #[serde(
         serialize_with = "serialize_amount",
@@ -234,7 +253,8 @@ impl AmountAttribute {
 /// Structure holding the key components of an algebraic MAC, used
 /// by the Mint to verify authenticity of the tokens
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Hash, Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Hash, Debug, Clone, Eq, PartialEq, Copy)]
+#[wasm_bindgen]
 pub struct MAC {
     pub t: Scalar,
     pub V: GroupElement,
@@ -290,7 +310,8 @@ impl MAC {
 /// Structure that captures
 /// `AmountAttribute`, `ScriptAttribute` and the `MAC`
 /// issued on them
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, Copy)]
+#[wasm_bindgen]
 pub struct Coin {
     #[serde(rename = "amount")]
     pub amount_attribute: AmountAttribute,
@@ -327,6 +348,7 @@ impl Coin {
 /// Contains the randomized commitments of a `Coin`.
 #[allow(non_snake_case)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[wasm_bindgen]
 pub struct RandomizedCoin {
     /// Randomized Attribute Commitment
     pub Ca: GroupElement,
@@ -396,19 +418,47 @@ impl RandomizedCoin {
 
 /// Structure that holds information about an equation to be proven
 /// or for which a proof has to be verified.
+#[wasm_bindgen]
 pub struct Equation {
     /// Left-hand side of the equation (public input)
     pub lhs: GroupElement,
     /// Right-hand side of the equation (construction of the relation)
-    pub rhs: Vec<Vec<GroupElement>>,
+    rhs: Vec<Vec<GroupElement>>,
+}
+
+impl Equation {
+    pub fn new(lhs: GroupElement, rhs: Vec<Vec<GroupElement>>) -> Self {
+        Self {
+            lhs,
+            rhs,
+        }
+    }
+
+    pub fn take_rhs(self) -> Vec<Vec<GroupElement>> {
+        self.rhs
+    }
 }
 
 /// A statement is a collection of relations (equations)
+#[wasm_bindgen]
 pub struct Statement {
     /// Domain Separator of the proof
     pub domain_separator: &'static [u8],
     /// Relations
-    pub equations: Vec<Equation>,
+    equations: Vec<Equation>,
+}
+
+impl Statement {
+    pub fn new(domain_separator: &'static [u8], equations: Vec<Equation>) -> Self {
+        Self {
+            domain_separator,
+            equations,
+        }
+    }
+
+    pub fn take_equations(self) -> Vec<Equation> {
+        self.equations
+    }
 }
 
 #[allow(unused_imports)]

@@ -17,3 +17,7 @@ rug = "1.26.1"
 serde = "1.0.216"
 serde_json = "1.0.134"
 thiserror = "2.0.5"
+wasm-bindgen = "0.2.100"
+
+[profile.release]
+lto = true

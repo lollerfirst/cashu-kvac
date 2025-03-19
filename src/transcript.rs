@@ -1,8 +1,10 @@
 use merlin::Transcript;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::secp::{GroupElement, Scalar};
 
 /// A wrapper around `merlin::Transcript` for Fiat-Shamir transformations.
+#[wasm_bindgen]
 pub struct CashuTranscript {
     inner: Transcript,
 }
