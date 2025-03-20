@@ -1,12 +1,15 @@
 use bitcoin::hashes::serde::{Serialize, Serializer};
 use bitcoin::secp256k1::constants::CURVE_ORDER;
 use bitcoin::secp256k1::{rand, All, PublicKey, Scalar as SecpScalar, Secp256k1, SecretKey};
+use num_bigint::{BigInt, BigUint, ToBigInt};
+use num_traits::Signed;
+use num_traits::{One, Zero};
 use once_cell::sync::Lazy;
-use rug::ops::RemRounding;
-use rug::Integer;
 use serde::{Deserialize, Deserializer};
 use std::cmp::PartialEq;
 use std::hash::{Hash, Hasher};
+use std::ops::{AddAssign, BitAnd, Shr, ShrAssign, SubAssign};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::errors::Error;
 use crate::generators::GENERATORS;
@@ -31,54 +34,67 @@ pub enum TweakKind {
 }
 
 /// Wraps a `secp256k1::key::SecretKey` or `None`
-#[derive(Clone, Debug, Eq, PartialEq, Default)]
+#[derive(Clone, Debug, Eq, PartialEq, Default, Copy)]
+#[wasm_bindgen]
 pub struct Scalar {
     inner: Option<SecretKey>,
 }
 
 /// Wraps a `secp256k1::key::PublicKey` or `None`
-#[derive(Hash, Clone, Debug, Eq, PartialEq, Default)]
+#[derive(Hash, Clone, Debug, Eq, PartialEq, Default, Copy)]
+#[wasm_bindgen]
 pub struct GroupElement {
     inner: Option<PublicKey>,
 }
 
-fn div2(m: &Integer, mut x: Integer) -> Integer {
-    if x.is_odd() {
+fn div2(m: &BigInt, mut x: BigInt) -> BigInt {
+    if (&x).bitand(&BigInt::one()) == BigInt::one() {
         x += m;
     }
-    x >> 1
+    x.shr(1)
 }
 
-fn modinv(m: &Integer, x: &Integer) -> Integer {
-    assert!(m.is_odd(), "M must be odd");
+fn euclidean_mod(a: &BigInt, m: &BigInt) -> BigInt {
+    let r = a % m;
+    if r.is_negative() {
+        r + m
+    } else {
+        r
+    }
+}
+
+fn modinv(m: &BigInt, x: &BigInt) -> BigInt {
+    assert!(m.bitand(&BigInt::one()) == BigInt::one(), "M must be odd");
     let mut delta = 1;
     let mut f = m.clone();
     let mut g = x.clone();
-    let mut d = Integer::from(0);
-    let mut e = Integer::from(1);
+    let mut d = BigInt::zero();
+    let mut e = BigInt::one();
 
     while !g.is_zero() {
-        if delta > 0 && g.is_odd() {
+        if delta > 0 && (&g).bitand(&BigInt::one()) == BigInt::one() {
             let tmp_g = g.clone();
-            g = (g - &f) >> 1;
+            g.sub_assign(&f);
+            g.shr_assign(1);
             f = tmp_g;
             let tmp_e = e.clone();
             e = div2(m, e - &d);
             d = tmp_e;
             delta = 1 - delta;
-        } else if g.is_odd() {
-            g = (g + &f) >> 1;
+        } else if (&g).bitand(&BigInt::one()) == BigInt::one() {
+            g.add_assign(&f);
+            g.shr_assign(1);
             e = div2(m, e + &d);
             delta += 1;
         } else {
-            g >>= 1;
+            g.shr_assign(1);
             e = div2(m, e);
             delta += 1;
         }
     }
 
-    // Result: (d * f) % m
-    (d * f).rem_euc(m)
+    // Result: (d * f) % m using Euclidean modulus
+    euclidean_mod(&(d * f), m)
 }
 
 impl Scalar {
@@ -204,14 +220,13 @@ impl Scalar {
         if self.inner.is_none() {
             panic!("Scalar 0 doesn't have an inverse")
         } else {
-            let x = Integer::from_digits(
-                &self.inner.unwrap().secret_bytes(),
-                rug::integer::Order::Msf,
+            let x = BigUint::from_bytes_be(&self.inner.unwrap().secret_bytes());
+            let q = BigUint::from_bytes_be(&CURVE_ORDER);
+            let x_inv = modinv(
+                &q.to_bigint().expect("Can convert BigUint to BigInt"),
+                &x.to_bigint().expect("Can convert BigUint to BigInt"),
             );
-            let q = Integer::from_digits(&CURVE_ORDER, rug::integer::Order::Msf);
-            let x_inv = modinv(&q, &x);
-            //let x_inv = x.clone().invert(&q).unwrap();
-            let mut vec: Vec<u8> = x_inv.to_digits(rug::integer::Order::Lsf);
+            let (_sign, mut vec) = x_inv.to_bytes_le();
             if vec.len() < 32 {
                 vec.extend(vec![0; 32 - vec.len()]);
             }
@@ -382,7 +397,7 @@ impl GroupElement {
     pub fn tweak(&mut self, tweak_kind: TweakKind, tweak: u64) -> &Self {
         match tweak_kind {
             TweakKind::AMOUNT => {
-                let mut ge = GENERATORS.G_amount.clone();
+                let mut ge = GENERATORS.G_amount;
                 let scalar = Scalar::from(tweak);
                 self.combine_add(ge.multiply(&scalar));
                 self
@@ -428,9 +443,9 @@ impl std::ops::Sub<&Scalar> for Scalar {
         if other.inner.is_none() {
             self
         } else if self.inner.is_none() {
-            -(other.clone())
+            -*other
         } else {
-            let other_neg = -(other.clone());
+            let other_neg = -*other;
             self + &other_neg
         }
     }
@@ -592,9 +607,9 @@ impl std::ops::Sub<&GroupElement> for GroupElement {
         if other.inner.is_none() {
             self
         } else if self.inner.is_none() {
-            -(other.clone())
+            -*other
         } else {
-            let other_neg = -(other.clone());
+            let other_neg = -*other;
             self + &other_neg
         }
     }
@@ -610,8 +625,8 @@ impl std::ops::Mul<&Scalar> for GroupElement {
         } else {
             // Multiplication is masked with random `r`
             let r = Scalar::random();
-            let r_copy = r.clone();
-            let mut self_copy = self.clone();
+            let r_copy = r;
+            let mut self_copy = self;
             self.multiply(&(r + other));
             self_copy.multiply(&r_copy);
             self - &self_copy
@@ -719,7 +734,7 @@ mod tests {
     #[test]
     fn test_clone_scalar() {
         let scalar = Scalar::random();
-        let cloned_scalar = scalar.clone();
+        let cloned_scalar = scalar;
         assert_eq!(scalar.inner, cloned_scalar.inner);
         assert_eq!(scalar.is_zero(), cloned_scalar.is_zero());
     }
@@ -789,7 +804,7 @@ mod tests {
     fn test_mul_cmp() {
         let a = Scalar::random();
         let b = Scalar::random();
-        let mut a_clone = a.clone();
+        let mut a_clone = a;
         let c = a_clone.tweak_mul(&b);
         let c_ = a * &b;
         assert!(*c == c_);
@@ -827,23 +842,23 @@ mod tests {
 
     #[test]
     fn test_div2_even() {
-        let m = Integer::from(29);
-        let x = Integer::from(20);
-        assert_eq!(div2(&m, x), Integer::from(10));
+        let m = BigInt::from(29);
+        let x = BigInt::from(20);
+        assert_eq!(div2(&m, x), BigInt::from(10));
     }
 
     #[test]
     fn test_div2_odd() {
-        let m = Integer::from(29);
-        let x = Integer::from(21);
-        assert_eq!(div2(&m, x), Integer::from(25));
+        let m = BigInt::from(29);
+        let x = BigInt::from(21);
+        assert_eq!(div2(&m, x), BigInt::from(25));
     }
 
     #[test]
     fn test_scalar_modular_inversion() {
         let one = Scalar::new(&SCALAR_ONE);
         let scalar = Scalar::try_from("deadbeef").unwrap();
-        let scalar_inv = scalar.clone().invert();
+        let scalar_inv = scalar.invert();
         let prod = scalar * &scalar_inv;
         assert!(one == prod);
     }
@@ -851,7 +866,7 @@ mod tests {
     #[test]
     fn test_invert_scalar_one() {
         let one = Scalar::new(&SCALAR_ONE);
-        let one_inv = one.clone().invert();
+        let one_inv = one.invert();
         assert!(one == one_inv)
     }
 
@@ -918,7 +933,7 @@ mod tests {
         )
         .unwrap();
         let scalar_2 = Scalar::try_from("02").unwrap();
-        let result = g.clone() + &g;
+        let result = g + &g;
         let result_ = g * &scalar_2;
         assert!(result == result_)
     }
@@ -930,7 +945,7 @@ mod tests {
         )
         .unwrap();
         let scalar_2 = Scalar::try_from("02").unwrap();
-        let result = g.clone() * &scalar_2 - &g;
+        let result = g * &scalar_2 - &g;
         assert!(result == g)
     }
 
@@ -959,12 +974,12 @@ mod tests {
 
     #[test]
     fn test_ge_amount_tweak() {
-        let mut ge = GENERATORS.G_amount.clone();
+        let mut ge = GENERATORS.G_amount;
         ge = ge * &Scalar::from(2);
 
         let tweak = 4_u64;
 
         ge.tweak(TweakKind::AMOUNT, tweak);
-        assert_eq!(ge, GENERATORS.G_amount.clone() * &Scalar::from(6));
+        assert_eq!(ge, GENERATORS.G_amount * &Scalar::from(6));
     }
 }

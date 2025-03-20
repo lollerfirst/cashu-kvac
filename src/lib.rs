@@ -6,3 +6,4 @@ pub mod models;
 pub mod recovery;
 pub mod secp;
 pub mod transcript;
+pub mod wasm;
