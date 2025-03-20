@@ -50,7 +50,6 @@ impl AmountAttribute {
 
 #[wasm_bindgen]
 impl ScriptAttribute {
-
     #[allow(non_snake_case)]
     pub fn wasmCreateNew(script: Vec<u8>, blindingFactor: Option<Vec<u8>>) -> Self {
         match blindingFactor {
@@ -106,12 +105,8 @@ impl RandomizedCoin {
 
 #[wasm_bindgen]
 impl BootstrapProof {
-
     #[allow(non_snake_case)]
-    pub fn wasmCreate(
-        amountAttribute: &AmountAttribute,
-        transcript: &mut CashuTranscript,
-    ) -> ZKP {
+    pub fn wasmCreate(amountAttribute: &AmountAttribute, transcript: &mut CashuTranscript) -> ZKP {
         BootstrapProof::create(amountAttribute, transcript)
     }
 
@@ -127,7 +122,6 @@ impl BootstrapProof {
 
 #[wasm_bindgen]
 impl MacProof {
-
     #[allow(non_snake_case)]
     pub fn wasmCreate(
         mintPublickey: &MintPublicKey,
@@ -162,7 +156,6 @@ impl MacProof {
 #[wasm_bindgen]
 #[allow(non_snake_case)]
 impl IParamsProof {
-
     #[allow(non_snake_case)]
     pub fn wasmCreate(
         mintPrivkey: &MintPrivateKey,
@@ -230,7 +223,6 @@ pub struct OutputCommitmentsPair {
 
 #[wasm_bindgen]
 impl ScriptEqualityProof {
-
     #[allow(non_snake_case)]
     pub fn wasmCreate(
         inputs: Vec<Coin>,
@@ -309,11 +301,11 @@ impl WasmBulletProof {
         attributeCommitments: Vec<GroupElement>,
         transcript: &mut CashuTranscript,
     ) -> bool {
-    let ipaPublicInputs: Result<Vec<(GroupElement, GroupElement)>, Error> =
-        from_value(self.ipa.publicInputs);
+        let ipaPublicInputs: Result<Vec<(GroupElement, GroupElement)>, Error> =
+            from_value(self.ipa.publicInputs);
         let ipaPublicInputs = match ipaPublicInputs {
             Ok(ipaPublicInputs) => ipaPublicInputs, // If the conversion is successful, return the public inputs
-            Err(_) => return false,                  // If conversion fails, return false
+            Err(_) => return false,                 // If conversion fails, return false
         };
         let ipa = InnerProductArgument {
             public_inputs: ipaPublicInputs,
@@ -332,7 +324,7 @@ impl WasmBulletProof {
         bulletproof.verify(transcript, &attributeCommitments)
     }
 }
-    
+
 #[wasm_bindgen]
 #[allow(non_snake_case)]
 impl CashuTranscript {
@@ -340,4 +332,3 @@ impl CashuTranscript {
         Self::new()
     }
 }
-    
