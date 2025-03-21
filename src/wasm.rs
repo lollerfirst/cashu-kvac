@@ -40,13 +40,16 @@ impl Scalar {
         Self::from(number)
     }
 
-    pub fn toJson(&self) -> Result<String, JsValue> {
-        toJson!(self)
+    pub fn wasmSerialize(&self) -> Vec<u8> {
+        self.to_bytes()
     }
 
-    pub fn fromJson(json: String) -> Result<Self, JsValue> {
-        let me: Self = fromJson!(json.as_ref())?;
-        Ok(me)
+    pub fn wasmSerializeToHex(&self) -> String {
+        self.into()
+    }
+
+    pub fn wasmCreateRandom() -> Self {
+        Self::random()
     }
 }
 
@@ -60,13 +63,12 @@ impl GroupElement {
         Self::try_from(hex.as_ref()).map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
 
-    pub fn toJson(&self) -> Result<String, JsValue> {
-        toJson!(self)
+    pub fn wasmSerialize(&self) -> Vec<u8> {
+        self.to_bytes()
     }
 
-    pub fn fromJson(json: String) -> Result<Self, JsValue> {
-        let me: Self = fromJson!(json.as_ref())?;
-        Ok(me)
+    pub fn wasmSerializeToHex(&self) -> String {
+        self.into()
     }
 }
 
