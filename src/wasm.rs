@@ -139,7 +139,6 @@ impl ScriptAttribute {
 }
 
 #[wasm_bindgen]
-
 impl MAC {
     pub fn wasmGenerate(
         mintPrivkey: &MintPrivateKey,
@@ -188,7 +187,6 @@ impl Coin {
 }
 
 #[wasm_bindgen]
-
 impl RandomizedCoin {
     pub fn wasmFromCoin(coin: &Coin, revealScript: bool) -> Result<Self, JsValue> {
         Self::from_coin(coin, revealScript).map_err(|e| JsValue::from_str(&format!("{}", e)))
