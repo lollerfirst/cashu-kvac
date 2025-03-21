@@ -15,6 +15,37 @@ use crate::{
 };
 
 #[wasm_bindgen]
+impl Scalar {
+    #[allow(non_snake_case)]
+    pub fn wasmFromBytesBE(bytes: Vec<u8>) -> Self {
+        Self::new(&bytes)
+    }
+
+    #[allow(non_snake_case)]
+    pub fn wasmFromHex(hex: String) -> Result<Self, JsValue> {
+        Self::try_from(hex.as_ref()).map_err(|e| JsValue::from_str(&format!("{}", e)))
+    }
+
+    #[allow(non_snake_case)]
+    pub fn wasmFromUnsignedNumber(number: u64) -> Self {
+        Self::from(number)
+    }
+}
+
+#[wasm_bindgen]
+impl GroupElement {
+    #[allow(non_snake_case)]
+    pub fn wasmFromBytesBE(bytes: Vec<u8>) -> Self {
+        Self::new(&bytes)
+    }
+
+    #[allow(non_snake_case)]
+    pub fn wasmFromHex(hex: String) -> Result<Self, JsValue> {
+        Self::try_from(hex.as_ref()).map_err(|e| JsValue::from_str(&format!("{}", e)))
+    }
+}
+
+#[wasm_bindgen]
 impl MintPrivateKey {
     #[allow(non_snake_case)]
     pub fn wasmFromScalars(scalars: Vec<Scalar>) -> Result<Self, JsValue> {
