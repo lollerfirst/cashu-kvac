@@ -1,10 +1,10 @@
 //! Module used to bridge the interface of cashu_kvac methods to webassembly
-use serde_wasm_bindgen::{from_value, to_value, Error};
+#![allow(non_snake_case)]
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 
 use crate::{
-    bulletproof::{BulletProof, InnerProductArgument},
+    bulletproof::BulletProof,
     kvac::{BalanceProof, BootstrapProof, IParamsProof, MacProof, ScriptEqualityProof},
     models::{
         AmountAttribute, Coin, MintPrivateKey, MintPublicKey, RandomizedCoin, ScriptAttribute, MAC,
@@ -14,53 +14,93 @@ use crate::{
     transcript::CashuTranscript,
 };
 
+macro_rules! toJson {
+    ($self_ref: ident) => {
+        serde_json::to_string_pretty($self_ref).map_err(|e| JsValue::from_str(&format!("{}", e)))
+    }
+}
+
+macro_rules! fromJson {
+    ($json_str: expr) => {
+        serde_json::from_str($json_str).map_err(|e| JsValue::from_str(&format!("{}", e)))
+    }
+}
+
 #[wasm_bindgen]
 impl Scalar {
-    #[allow(non_snake_case)]
+    
     pub fn wasmFromBytesBE(bytes: Vec<u8>) -> Self {
         Self::new(&bytes)
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmFromHex(hex: String) -> Result<Self, JsValue> {
         Self::try_from(hex.as_ref()).map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmFromUnsignedNumber(number: u64) -> Self {
         Self::from(number)
+    }
+
+    
+    pub fn toJson(&self) -> Result<String, JsValue> {
+        toJson!(self)
+    }
+
+    
+    pub fn fromJson(json: String) -> Result<Self, JsValue> {
+        let me: Self = fromJson!(json.as_ref())?;
+        Ok(me)
     }
 }
 
 #[wasm_bindgen]
 impl GroupElement {
-    #[allow(non_snake_case)]
+    
     pub fn wasmFromBytesBE(bytes: Vec<u8>) -> Self {
         Self::new(&bytes)
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmFromHex(hex: String) -> Result<Self, JsValue> {
         Self::try_from(hex.as_ref()).map_err(|e| JsValue::from_str(&format!("{}", e)))
+    }
+
+    
+    pub fn toJson(&self) -> Result<String, JsValue> {
+        toJson!(self)
+    }
+
+    
+    pub fn fromJson(json: String) -> Result<Self, JsValue> {
+        let me: Self = fromJson!(json.as_ref())?;
+        Ok(me)
     }
 }
 
 #[wasm_bindgen]
 impl MintPrivateKey {
-    #[allow(non_snake_case)]
+    
     pub fn wasmFromScalars(scalars: Vec<Scalar>) -> Result<Self, JsValue> {
         Self::from_scalars(&scalars).map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmToScalars(&self) -> Vec<Scalar> {
         self.to_scalars()
+    }
+
+    
+    pub fn fromJson(json: String) -> Result<Self, JsValue> {
+        let me: Self = fromJson!(json.as_ref())?;
+        Ok(me)
     }
 }
 
 #[wasm_bindgen]
 impl AmountAttribute {
-    #[allow(non_snake_case)]
+    
     pub fn wasmCreateNew(amount: u64, blindingFactor: Option<Vec<u8>>) -> Self {
         match blindingFactor {
             Some(blinding_factor) => Self::new(amount, Some(&blinding_factor)),
@@ -68,20 +108,31 @@ impl AmountAttribute {
         }
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmCommitment(&self) -> GroupElement {
         self.commitment()
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmTweakAmount(&mut self, amount: u64) {
         let _ = self.tweak_amount(amount);
+    }
+
+    
+    pub fn toJson(&self) -> Result<String, JsValue> {
+        toJson!(self)
+    }
+
+    
+    pub fn fromJson(json: String) -> Result<Self, JsValue> {
+        let me: Self = fromJson!(json.as_ref())?;
+        Ok(me)
     }
 }
 
 #[wasm_bindgen]
 impl ScriptAttribute {
-    #[allow(non_snake_case)]
+    
     pub fn wasmCreateNew(script: Vec<u8>, blindingFactor: Option<Vec<u8>>) -> Self {
         match blindingFactor {
             Some(blinding_factor) => Self::new(&script, Some(&blinding_factor)),
@@ -89,14 +140,25 @@ impl ScriptAttribute {
         }
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmCommitment(&self) -> GroupElement {
         self.commitment()
+    }
+
+    
+    pub fn toJson(&self) -> Result<String, JsValue> {
+        toJson!(self)
+    }
+
+    
+    pub fn fromJson(json: String) -> Result<Self, JsValue> {
+        let me: Self = fromJson!(json.as_ref())?;
+        Ok(me)
     }
 }
 
 #[wasm_bindgen]
-#[allow(non_snake_case)]
+
 impl MAC {
     pub fn wasmGenerate(
         mintPrivkey: &MintPrivateKey,
@@ -112,10 +174,21 @@ impl MAC {
         )
         .map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
+
+    
+    pub fn toJson(&self) -> Result<String, JsValue> {
+        toJson!(self)
+    }
+
+    
+    pub fn fromJson(json: String) -> Result<Self, JsValue> {
+        let me: Self = fromJson!(json.as_ref())?;
+        Ok(me)
+    }
 }
 
 #[wasm_bindgen]
-#[allow(non_snake_case)]
+
 impl Coin {
     pub fn wasmCreateNew(
         amountAttribute: AmountAttribute,
@@ -124,24 +197,46 @@ impl Coin {
     ) -> Self {
         Self::new(amountAttribute, scriptAttribute, mac)
     }
+
+    
+    pub fn toJson(&self) -> Result<String, JsValue> {
+        toJson!(self)
+    }
+
+    
+    pub fn fromJson(json: String) -> Result<Self, JsValue> {
+        let me: Self = fromJson!(json.as_ref())?;
+        Ok(me)
+    }
 }
 
 #[wasm_bindgen]
-#[allow(non_snake_case)]
+
 impl RandomizedCoin {
     pub fn wasmFromCoin(coin: &Coin, revealScript: bool) -> Result<Self, JsValue> {
         Self::from_coin(coin, revealScript).map_err(|e| JsValue::from_str(&format!("{}", e)))
+    }
+
+    
+    pub fn toJson(&self) -> Result<String, JsValue> {
+        toJson!(self)
+    }
+
+    
+    pub fn fromJson(json: String) -> Result<Self, JsValue> {
+        let me: Self = fromJson!(json.as_ref())?;
+        Ok(me)
     }
 }
 
 #[wasm_bindgen]
 impl BootstrapProof {
-    #[allow(non_snake_case)]
+    
     pub fn wasmCreate(amountAttribute: &AmountAttribute, transcript: &mut CashuTranscript) -> ZKP {
         BootstrapProof::create(amountAttribute, transcript)
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmVerify(
         amountCommitment: &GroupElement,
         proof: ZKP,
@@ -153,7 +248,7 @@ impl BootstrapProof {
 
 #[wasm_bindgen]
 impl MacProof {
-    #[allow(non_snake_case)]
+    
     pub fn wasmCreate(
         mintPublickey: &MintPublicKey,
         coin: &Coin,
@@ -163,7 +258,7 @@ impl MacProof {
         MacProof::create(mintPublickey, coin, randomizedCoin, transcript)
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmVerify(
         mintPrivkey: &MintPrivateKey,
         randomizedCoin: &RandomizedCoin,
@@ -185,9 +280,9 @@ impl MacProof {
 }
 
 #[wasm_bindgen]
-#[allow(non_snake_case)]
+
 impl IParamsProof {
-    #[allow(non_snake_case)]
+    
     pub fn wasmCreate(
         mintPrivkey: &MintPrivateKey,
         mac: &MAC,
@@ -204,7 +299,7 @@ impl IParamsProof {
         )
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmVerify(
         mintPublickey: &MintPublicKey,
         coin: &Coin,
@@ -217,7 +312,7 @@ impl IParamsProof {
 
 #[wasm_bindgen]
 impl BalanceProof {
-    #[allow(non_snake_case)]
+    
     pub fn wasmCreate(
         inputs: Vec<AmountAttribute>,
         outputs: Vec<AmountAttribute>,
@@ -226,7 +321,7 @@ impl BalanceProof {
         BalanceProof::create(&inputs, &outputs, transcript)
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmVerify(
         inputs: Vec<RandomizedCoin>,
         outputs: Vec<GroupElement>,
@@ -239,14 +334,12 @@ impl BalanceProof {
 }
 
 #[wasm_bindgen]
-#[allow(non_snake_case)]
 pub struct OutputAttributesPair {
     amountAttribute: AmountAttribute,
     scriptAttribute: ScriptAttribute,
 }
 
 #[wasm_bindgen]
-#[allow(non_snake_case)]
 pub struct OutputCommitmentsPair {
     amountCommitment: GroupElement,
     scriptCommitment: GroupElement,
@@ -254,7 +347,7 @@ pub struct OutputCommitmentsPair {
 
 #[wasm_bindgen]
 impl ScriptEqualityProof {
-    #[allow(non_snake_case)]
+    
     pub fn wasmCreate(
         inputs: Vec<Coin>,
         randomizedInputs: Vec<RandomizedCoin>,
@@ -269,7 +362,7 @@ impl ScriptEqualityProof {
             .map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
 
-    #[allow(non_snake_case)]
+    
     pub fn wasmVerify(
         randomizedInputs: Vec<RandomizedCoin>,
         outputs: Vec<OutputCommitmentsPair>,
@@ -285,79 +378,40 @@ impl ScriptEqualityProof {
 }
 
 #[wasm_bindgen]
-#[allow(non_snake_case)]
-pub struct WasmInnerProductArgument {
-    publicInputs: JsValue,
-    tailEndScalars: (Scalar, Scalar),
-}
-
-#[wasm_bindgen]
-#[allow(non_snake_case)]
-pub struct WasmBulletProof {
-    A: GroupElement,
-    S: GroupElement,
-    T1: GroupElement,
-    T2: GroupElement,
-    tX: Scalar,
-    tauX: Scalar,
-    mu: Scalar,
-    ipa: WasmInnerProductArgument,
-}
-
-#[wasm_bindgen]
-impl WasmBulletProof {
-    #[allow(non_snake_case)]
+impl BulletProof {
     pub fn wasmCreate(attributes: Vec<AmountAttribute>, transcript: &mut CashuTranscript) -> Self {
-        let bulletproof = BulletProof::new(transcript, &attributes);
-        let wasmIpa = WasmInnerProductArgument {
-            publicInputs: to_value(&bulletproof.ipa.public_inputs)
-                .expect("can always convert IPA public inputs to JsValue"),
-            tailEndScalars: bulletproof.ipa.tail_end_scalars,
-        };
-        WasmBulletProof {
-            A: bulletproof.A,
-            S: bulletproof.S,
-            T1: bulletproof.T1,
-            T2: bulletproof.T2,
-            tX: bulletproof.t_x,
-            tauX: bulletproof.tau_x,
-            mu: bulletproof.mu,
-            ipa: wasmIpa,
-        }
+        Self::new(transcript, &attributes)
+    }
+    
+    pub fn wasmVerify(self, amount_commiments: Vec<GroupElement>, transcript: &mut CashuTranscript) -> bool {
+        self.verify(transcript, &amount_commiments)
     }
 
-    #[allow(non_snake_case)]
-    pub fn wasmVerify(
-        self,
-        attributeCommitments: Vec<GroupElement>,
-        transcript: &mut CashuTranscript,
-    ) -> bool {
-        let ipaPublicInputs: Result<Vec<(GroupElement, GroupElement)>, Error> =
-            from_value(self.ipa.publicInputs);
-        let ipaPublicInputs = match ipaPublicInputs {
-            Ok(ipaPublicInputs) => ipaPublicInputs, // If the conversion is successful, return the public inputs
-            Err(_) => return false,                 // If conversion fails, return false
-        };
-        let ipa = InnerProductArgument {
-            public_inputs: ipaPublicInputs,
-            tail_end_scalars: self.ipa.tailEndScalars,
-        };
-        let bulletproof = BulletProof {
-            A: self.A,
-            S: self.S,
-            T1: self.T1,
-            T2: self.T2,
-            t_x: self.tX,
-            tau_x: self.tauX,
-            mu: self.mu,
-            ipa,
-        };
-        bulletproof.verify(transcript, &attributeCommitments)
+    pub fn toJson(&self) -> Result<String, JsValue> {
+        toJson!(self)
+    }
+
+    
+    pub fn fromJson(json: String) -> Result<Self, JsValue> {
+        let me: Self = fromJson!(json.as_ref())?;
+        Ok(me)
     }
 }
 
 #[wasm_bindgen]
-#[allow(non_snake_case)]
+impl ZKP {
+
+    pub fn toJson(&self) -> Result<String, JsValue> {
+        toJson!(self)
+    }
+    
+    pub fn fromJson(json: String) -> Result<Self, JsValue> {
+        let me: Self = fromJson!(json.as_ref())?;
+        Ok(me)
+    }
+}
+
+#[wasm_bindgen]
 impl CashuTranscript {
     pub fn wasmCreateNew() -> Self {
         Self::new()
