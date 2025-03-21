@@ -17,38 +17,33 @@ use crate::{
 macro_rules! toJson {
     ($self_ref: ident) => {
         serde_json::to_string_pretty($self_ref).map_err(|e| JsValue::from_str(&format!("{}", e)))
-    }
+    };
 }
 
 macro_rules! fromJson {
     ($json_str: expr) => {
         serde_json::from_str($json_str).map_err(|e| JsValue::from_str(&format!("{}", e)))
-    }
+    };
 }
 
 #[wasm_bindgen]
 impl Scalar {
-    
     pub fn wasmFromBytesBE(bytes: Vec<u8>) -> Self {
         Self::new(&bytes)
     }
 
-    
     pub fn wasmFromHex(hex: String) -> Result<Self, JsValue> {
         Self::try_from(hex.as_ref()).map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
 
-    
     pub fn wasmFromUnsignedNumber(number: u64) -> Self {
         Self::from(number)
     }
 
-    
     pub fn toJson(&self) -> Result<String, JsValue> {
         toJson!(self)
     }
 
-    
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
         let me: Self = fromJson!(json.as_ref())?;
         Ok(me)
@@ -57,22 +52,18 @@ impl Scalar {
 
 #[wasm_bindgen]
 impl GroupElement {
-    
     pub fn wasmFromBytesBE(bytes: Vec<u8>) -> Self {
         Self::new(&bytes)
     }
 
-    
     pub fn wasmFromHex(hex: String) -> Result<Self, JsValue> {
         Self::try_from(hex.as_ref()).map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
 
-    
     pub fn toJson(&self) -> Result<String, JsValue> {
         toJson!(self)
     }
 
-    
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
         let me: Self = fromJson!(json.as_ref())?;
         Ok(me)
@@ -81,17 +72,14 @@ impl GroupElement {
 
 #[wasm_bindgen]
 impl MintPrivateKey {
-    
     pub fn wasmFromScalars(scalars: Vec<Scalar>) -> Result<Self, JsValue> {
         Self::from_scalars(&scalars).map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
 
-    
     pub fn wasmToScalars(&self) -> Vec<Scalar> {
         self.to_scalars()
     }
 
-    
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
         let me: Self = fromJson!(json.as_ref())?;
         Ok(me)
@@ -100,7 +88,6 @@ impl MintPrivateKey {
 
 #[wasm_bindgen]
 impl AmountAttribute {
-    
     pub fn wasmCreateNew(amount: u64, blindingFactor: Option<Vec<u8>>) -> Self {
         match blindingFactor {
             Some(blinding_factor) => Self::new(amount, Some(&blinding_factor)),
@@ -108,22 +95,18 @@ impl AmountAttribute {
         }
     }
 
-    
     pub fn wasmCommitment(&self) -> GroupElement {
         self.commitment()
     }
 
-    
     pub fn wasmTweakAmount(&mut self, amount: u64) {
         let _ = self.tweak_amount(amount);
     }
 
-    
     pub fn toJson(&self) -> Result<String, JsValue> {
         toJson!(self)
     }
 
-    
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
         let me: Self = fromJson!(json.as_ref())?;
         Ok(me)
@@ -132,7 +115,6 @@ impl AmountAttribute {
 
 #[wasm_bindgen]
 impl ScriptAttribute {
-    
     pub fn wasmCreateNew(script: Vec<u8>, blindingFactor: Option<Vec<u8>>) -> Self {
         match blindingFactor {
             Some(blinding_factor) => Self::new(&script, Some(&blinding_factor)),
@@ -140,17 +122,14 @@ impl ScriptAttribute {
         }
     }
 
-    
     pub fn wasmCommitment(&self) -> GroupElement {
         self.commitment()
     }
 
-    
     pub fn toJson(&self) -> Result<String, JsValue> {
         toJson!(self)
     }
 
-    
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
         let me: Self = fromJson!(json.as_ref())?;
         Ok(me)
@@ -175,12 +154,10 @@ impl MAC {
         .map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
 
-    
     pub fn toJson(&self) -> Result<String, JsValue> {
         toJson!(self)
     }
 
-    
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
         let me: Self = fromJson!(json.as_ref())?;
         Ok(me)
@@ -198,12 +175,10 @@ impl Coin {
         Self::new(amountAttribute, scriptAttribute, mac)
     }
 
-    
     pub fn toJson(&self) -> Result<String, JsValue> {
         toJson!(self)
     }
 
-    
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
         let me: Self = fromJson!(json.as_ref())?;
         Ok(me)
@@ -217,12 +192,10 @@ impl RandomizedCoin {
         Self::from_coin(coin, revealScript).map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
 
-    
     pub fn toJson(&self) -> Result<String, JsValue> {
         toJson!(self)
     }
 
-    
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
         let me: Self = fromJson!(json.as_ref())?;
         Ok(me)
@@ -231,12 +204,10 @@ impl RandomizedCoin {
 
 #[wasm_bindgen]
 impl BootstrapProof {
-    
     pub fn wasmCreate(amountAttribute: &AmountAttribute, transcript: &mut CashuTranscript) -> ZKP {
         BootstrapProof::create(amountAttribute, transcript)
     }
 
-    
     pub fn wasmVerify(
         amountCommitment: &GroupElement,
         proof: ZKP,
@@ -248,7 +219,6 @@ impl BootstrapProof {
 
 #[wasm_bindgen]
 impl MacProof {
-    
     pub fn wasmCreate(
         mintPublickey: &MintPublicKey,
         coin: &Coin,
@@ -258,7 +228,6 @@ impl MacProof {
         MacProof::create(mintPublickey, coin, randomizedCoin, transcript)
     }
 
-    
     pub fn wasmVerify(
         mintPrivkey: &MintPrivateKey,
         randomizedCoin: &RandomizedCoin,
@@ -282,7 +251,6 @@ impl MacProof {
 #[wasm_bindgen]
 
 impl IParamsProof {
-    
     pub fn wasmCreate(
         mintPrivkey: &MintPrivateKey,
         mac: &MAC,
@@ -299,7 +267,6 @@ impl IParamsProof {
         )
     }
 
-    
     pub fn wasmVerify(
         mintPublickey: &MintPublicKey,
         coin: &Coin,
@@ -312,7 +279,6 @@ impl IParamsProof {
 
 #[wasm_bindgen]
 impl BalanceProof {
-    
     pub fn wasmCreate(
         inputs: Vec<AmountAttribute>,
         outputs: Vec<AmountAttribute>,
@@ -321,7 +287,6 @@ impl BalanceProof {
         BalanceProof::create(&inputs, &outputs, transcript)
     }
 
-    
     pub fn wasmVerify(
         inputs: Vec<RandomizedCoin>,
         outputs: Vec<GroupElement>,
@@ -347,7 +312,6 @@ pub struct OutputCommitmentsPair {
 
 #[wasm_bindgen]
 impl ScriptEqualityProof {
-    
     pub fn wasmCreate(
         inputs: Vec<Coin>,
         randomizedInputs: Vec<RandomizedCoin>,
@@ -362,7 +326,6 @@ impl ScriptEqualityProof {
             .map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
 
-    
     pub fn wasmVerify(
         randomizedInputs: Vec<RandomizedCoin>,
         outputs: Vec<OutputCommitmentsPair>,
@@ -382,8 +345,12 @@ impl BulletProof {
     pub fn wasmCreate(attributes: Vec<AmountAttribute>, transcript: &mut CashuTranscript) -> Self {
         Self::new(transcript, &attributes)
     }
-    
-    pub fn wasmVerify(self, amount_commiments: Vec<GroupElement>, transcript: &mut CashuTranscript) -> bool {
+
+    pub fn wasmVerify(
+        self,
+        amount_commiments: Vec<GroupElement>,
+        transcript: &mut CashuTranscript,
+    ) -> bool {
         self.verify(transcript, &amount_commiments)
     }
 
@@ -391,7 +358,6 @@ impl BulletProof {
         toJson!(self)
     }
 
-    
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
         let me: Self = fromJson!(json.as_ref())?;
         Ok(me)
@@ -400,11 +366,10 @@ impl BulletProof {
 
 #[wasm_bindgen]
 impl ZKP {
-
     pub fn toJson(&self) -> Result<String, JsValue> {
         toJson!(self)
     }
-    
+
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
         let me: Self = fromJson!(json.as_ref())?;
         Ok(me)

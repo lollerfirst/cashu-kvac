@@ -2,7 +2,7 @@ use crate::{
     generators::{hash_to_curve, GENERATORS},
     models::AmountAttribute,
     secp::{GroupElement, Scalar, SCALAR_ONE, SCALAR_ZERO},
-    transcript::CashuTranscript
+    transcript::CashuTranscript,
 };
 use itertools::izip;
 use once_cell::sync::Lazy;
@@ -233,12 +233,16 @@ impl InnerProductArgument {
         let b = self.recursion_end_scalar_right;
 
         if self.recursion_inputs_left.len() != self.recursion_inputs_right.len() {
-            return false
+            return false;
         }
 
         // Get challenges
         let mut challenges = Vec::new();
-        for (L, R) in self.recursion_inputs_left.into_iter().zip(self.recursion_inputs_right.into_iter()) {
+        for (L, R) in self
+            .recursion_inputs_left
+            .into_iter()
+            .zip(self.recursion_inputs_right.into_iter())
+        {
             transcript.append_element(b"IPA_L_", &L);
             transcript.append_element(b"IPA_R_", &R);
             let x = transcript.get_challenge(b"IPA_chall_");
@@ -271,7 +275,10 @@ impl InnerProductArgument {
     }
 
     pub fn public_inputs_len(&self) -> usize {
-        assert_eq!(self.recursion_inputs_left.len(), self.recursion_inputs_right.len());
+        assert_eq!(
+            self.recursion_inputs_left.len(),
+            self.recursion_inputs_right.len()
+        );
         self.recursion_inputs_left.len()
     }
 }
