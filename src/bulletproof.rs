@@ -7,6 +7,7 @@ use crate::{
 use itertools::izip;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 // Maximum allowed for a single attribute
 pub const RANGE_LIMIT: u64 = 1 << 32;
@@ -84,9 +85,12 @@ fn inner_product(l: &[Scalar], r: &[Scalar]) -> Scalar {
 }
 
 #[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
+#[wasm_bindgen]
 pub struct InnerProductArgument {
-    pub public_inputs: Vec<(GroupElement, GroupElement)>,
-    pub tail_end_scalars: (Scalar, Scalar),
+    recursion_inputs_left: Vec<GroupElement>,
+    recursion_inputs_right: Vec<GroupElement>,
+    pub recursion_end_scalar_left: Scalar,
+    pub recursion_end_scalar_right: Scalar,
 }
 
 // https://eprint.iacr.org/2017/1066.pdf
@@ -118,7 +122,8 @@ impl InnerProductArgument {
         assert!(a.len().count_ones() == 1);
         let mut n = a.len();
 
-        let mut inputs = Vec::new();
+        let mut recursion_inputs_left = Vec::new();
+        let mut recursion_inputs_right = Vec::new();
 
         // Recursive subdivision
         while n > 1 {
@@ -149,7 +154,8 @@ impl InnerProductArgument {
 
             transcript.append_element(b"IPA_L_", &L);
             transcript.append_element(b"IPA_R_", &R);
-            inputs.push((L, R));
+            recursion_inputs_left.push(L);
+            recursion_inputs_right.push(R);
 
             let x = transcript.get_challenge(b"IPA_chall_");
             let x_inv = x.invert();
@@ -192,8 +198,10 @@ impl InnerProductArgument {
         assert!(a.len() == 1 && b.len() == 1);
 
         Self {
-            public_inputs: inputs,
-            tail_end_scalars: (a.pop().unwrap(), b.pop().unwrap()),
+            recursion_inputs_left,
+            recursion_inputs_right,
+            recursion_end_scalar_left: a.pop().unwrap(),
+            recursion_end_scalar_right: b.pop().unwrap(),
         }
     }
 
@@ -221,11 +229,20 @@ impl InnerProductArgument {
 
         // ## PROTOCOL 2 ##
         // Extract scalars of the recursion end from IPA
-        let (a, b) = self.tail_end_scalars;
+        let a = self.recursion_end_scalar_left;
+        let b = self.recursion_end_scalar_right;
+
+        if self.recursion_inputs_left.len() != self.recursion_inputs_right.len() {
+            return false;
+        }
 
         // Get challenges
         let mut challenges = Vec::new();
-        for (L, R) in self.public_inputs.into_iter() {
+        for (L, R) in self
+            .recursion_inputs_left
+            .into_iter()
+            .zip(self.recursion_inputs_right.into_iter())
+        {
             transcript.append_element(b"IPA_L_", &L);
             transcript.append_element(b"IPA_R_", &R);
             let x = transcript.get_challenge(b"IPA_chall_");
@@ -256,19 +273,28 @@ impl InnerProductArgument {
 
         G_aH_b + &(U_ * &(a * &b)) == P
     }
+
+    pub fn public_inputs_len(&self) -> usize {
+        assert_eq!(
+            self.recursion_inputs_left.len(),
+            self.recursion_inputs_right.len()
+        );
+        self.recursion_inputs_left.len()
+    }
 }
 
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq, Eq)]
+#[wasm_bindgen]
 pub struct BulletProof {
-    pub A: GroupElement,
-    pub S: GroupElement,
-    pub T1: GroupElement,
-    pub T2: GroupElement,
-    pub t_x: Scalar,
-    pub tau_x: Scalar,
-    pub mu: Scalar,
-    pub ipa: InnerProductArgument,
+    A: GroupElement,
+    S: GroupElement,
+    T1: GroupElement,
+    T2: GroupElement,
+    t_x: Scalar,
+    tau_x: Scalar,
+    mu: Scalar,
+    ipa: InnerProductArgument,
 }
 
 #[allow(non_snake_case)]
@@ -500,14 +526,14 @@ impl BulletProof {
         // Verifier -> Prover: y, z
 
         let n = LOG_RANGE_LIMIT;
-        let len_pow2 = 1 << self.ipa.public_inputs.len();
+        let len_pow2 = 1 << self.ipa.public_inputs_len();
         let m = len_pow2 / n;
 
         // This check shouldn't be necessary but better safe than sorry
-        // plus we save some computation
+        // plus we save some computation in case this is not satisfied.
         let check = n * attribute_commitments.len();
-        if (check.count_ones() == 1 && check.ilog2() != self.ipa.public_inputs.len() as u32)
-            || (check.count_ones() != 1 && check.ilog2() + 1 != self.ipa.public_inputs.len() as u32)
+        if (check.count_ones() == 1 && check.ilog2() != self.ipa.public_inputs_len() as u32)
+            || (check.count_ones() != 1 && check.ilog2() + 1 != self.ipa.public_inputs_len() as u32)
         {
             return false;
         }
