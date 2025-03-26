@@ -1,9 +1,9 @@
 //! Module used to bridge the interface of cashu_kvac methods to webassembly
 #![allow(non_snake_case)]
 use serde::{Deserialize, Serialize};
+use serde_wasm_bindgen::{from_value, to_value};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
-use serde_wasm_bindgen::{from_value, to_value};
 
 use crate::{
     bulletproof::BulletProof,
@@ -21,11 +21,14 @@ macro_rules! json {
         #[wasm_bindgen]
         impl $name {
             pub fn toJson(&self) -> String {
-                serde_json::to_string(self).map_err(|e| JsValue::from_str(&format!("{}", e))).expect("json string")
+                serde_json::to_string(self)
+                    .map_err(|e| JsValue::from_str(&format!("{}", e)))
+                    .expect("json string")
             }
 
             pub fn fromJson(json: String) -> Result<Self, JsValue> {
-                serde_json::from_str(json.as_ref()).map_err(|e| JsValue::from_str(&format!("{}", e)))
+                serde_json::from_str(json.as_ref())
+                    .map_err(|e| JsValue::from_str(&format!("{}", e)))
             }
         }
     };
@@ -40,11 +43,12 @@ macro_rules! js_value {
             }
 
             pub fn fromJsValue(value: JsValue) -> Result<Self, JsValue> {
-                let me: Self = from_value(value).map_err(|e| JsValue::from_str(&format!("{}", e)))?;
+                let me: Self =
+                    from_value(value).map_err(|e| JsValue::from_str(&format!("{}", e)))?;
                 Ok(me)
             }
         }
-    }
+    };
 }
 
 #[wasm_bindgen]
@@ -104,7 +108,8 @@ impl MintPrivateKey {
     }
 
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
-        let me: Self = serde_json::from_str(json.as_ref()).map_err(|e| JsValue::from_str(&format!("{}", e)))?;
+        let me: Self = serde_json::from_str(json.as_ref())
+            .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
         Ok(me)
     }
 }
