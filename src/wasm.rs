@@ -139,7 +139,6 @@ impl ScriptAttribute {
 }
 
 #[wasm_bindgen]
-
 impl MAC {
     pub fn wasmGenerate(
         mintPrivkey: &MintPrivateKey,
@@ -167,7 +166,6 @@ impl MAC {
 }
 
 #[wasm_bindgen]
-
 impl Coin {
     pub fn wasmCreateNew(
         amountAttribute: AmountAttribute,
@@ -188,7 +186,6 @@ impl Coin {
 }
 
 #[wasm_bindgen]
-
 impl RandomizedCoin {
     pub fn wasmFromCoin(coin: &Coin, revealScript: bool) -> Result<Self, JsValue> {
         Self::from_coin(coin, revealScript).map_err(|e| JsValue::from_str(&format!("{}", e)))
@@ -251,7 +248,6 @@ impl MacProof {
 }
 
 #[wasm_bindgen]
-
 impl IParamsProof {
     pub fn wasmCreate(
         mintPrivkey: &MintPrivateKey,
