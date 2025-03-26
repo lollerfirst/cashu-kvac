@@ -1,7 +1,9 @@
 //! Module used to bridge the interface of cashu_kvac methods to webassembly
 #![allow(non_snake_case)]
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
+use serde_wasm_bindgen::{from_value, to_value};
 
 use crate::{
     bulletproof::BulletProof,
@@ -14,16 +16,35 @@ use crate::{
     transcript::CashuTranscript,
 };
 
-macro_rules! toJson {
-    ($self_ref: ident) => {
-        serde_json::to_string_pretty($self_ref).map_err(|e| JsValue::from_str(&format!("{}", e)))
+macro_rules! json {
+    ($name:ident) => {
+        #[wasm_bindgen]
+        impl $name {
+            pub fn toJson(&self) -> String {
+                serde_json::to_string(self).map_err(|e| JsValue::from_str(&format!("{}", e))).expect("json string")
+            }
+
+            pub fn fromJson(json: String) -> Result<Self, JsValue> {
+                serde_json::from_str(json.as_ref()).map_err(|e| JsValue::from_str(&format!("{}", e)))
+            }
+        }
     };
 }
 
-macro_rules! fromJson {
-    ($json_str: expr) => {
-        serde_json::from_str($json_str).map_err(|e| JsValue::from_str(&format!("{}", e)))
-    };
+macro_rules! js_value {
+    ($name:ident) => {
+        #[wasm_bindgen]
+        impl $name {
+            pub fn toJsValue(&self) -> JsValue {
+                to_value(&self).unwrap()
+            }
+
+            pub fn fromJsValue(value: JsValue) -> Result<Self, JsValue> {
+                let me: Self = from_value(value).map_err(|e| JsValue::from_str(&format!("{}", e)))?;
+                Ok(me)
+            }
+        }
+    }
 }
 
 #[wasm_bindgen]
@@ -83,7 +104,7 @@ impl MintPrivateKey {
     }
 
     pub fn fromJson(json: String) -> Result<Self, JsValue> {
-        let me: Self = fromJson!(json.as_ref())?;
+        let me: Self = serde_json::from_str(json.as_ref()).map_err(|e| JsValue::from_str(&format!("{}", e)))?;
         Ok(me)
     }
 }
@@ -104,15 +125,6 @@ impl AmountAttribute {
     pub fn wasmTweakAmount(&mut self, amount: u64) {
         let _ = self.tweak_amount(amount);
     }
-
-    pub fn toJson(&self) -> Result<String, JsValue> {
-        toJson!(self)
-    }
-
-    pub fn fromJson(json: String) -> Result<Self, JsValue> {
-        let me: Self = fromJson!(json.as_ref())?;
-        Ok(me)
-    }
 }
 
 #[wasm_bindgen]
@@ -126,15 +138,6 @@ impl ScriptAttribute {
 
     pub fn wasmCommitment(&self) -> GroupElement {
         self.commitment()
-    }
-
-    pub fn toJson(&self) -> Result<String, JsValue> {
-        toJson!(self)
-    }
-
-    pub fn fromJson(json: String) -> Result<Self, JsValue> {
-        let me: Self = fromJson!(json.as_ref())?;
-        Ok(me)
     }
 }
 
@@ -154,15 +157,6 @@ impl MAC {
         )
         .map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
-
-    pub fn toJson(&self) -> Result<String, JsValue> {
-        toJson!(self)
-    }
-
-    pub fn fromJson(json: String) -> Result<Self, JsValue> {
-        let me: Self = fromJson!(json.as_ref())?;
-        Ok(me)
-    }
 }
 
 #[wasm_bindgen]
@@ -174,30 +168,12 @@ impl Coin {
     ) -> Self {
         Self::new(amountAttribute, scriptAttribute, mac)
     }
-
-    pub fn toJson(&self) -> Result<String, JsValue> {
-        toJson!(self)
-    }
-
-    pub fn fromJson(json: String) -> Result<Self, JsValue> {
-        let me: Self = fromJson!(json.as_ref())?;
-        Ok(me)
-    }
 }
 
 #[wasm_bindgen]
 impl RandomizedCoin {
     pub fn wasmFromCoin(coin: &Coin, revealScript: bool) -> Result<Self, JsValue> {
         Self::from_coin(coin, revealScript).map_err(|e| JsValue::from_str(&format!("{}", e)))
-    }
-
-    pub fn toJson(&self) -> Result<String, JsValue> {
-        toJson!(self)
-    }
-
-    pub fn fromJson(json: String) -> Result<Self, JsValue> {
-        let me: Self = fromJson!(json.as_ref())?;
-        Ok(me)
     }
 }
 
@@ -296,12 +272,14 @@ impl BalanceProof {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 #[wasm_bindgen]
 pub struct OutputAttributesPair {
     amountAttribute: AmountAttribute,
     scriptAttribute: ScriptAttribute,
 }
 
+#[derive(Serialize, Deserialize)]
 #[wasm_bindgen]
 pub struct OutputCommitmentsPair {
     amountCommitment: GroupElement,
@@ -351,27 +329,6 @@ impl BulletProof {
     ) -> bool {
         self.verify(transcript, &amount_commiments)
     }
-
-    pub fn toJson(&self) -> Result<String, JsValue> {
-        toJson!(self)
-    }
-
-    pub fn fromJson(json: String) -> Result<Self, JsValue> {
-        let me: Self = fromJson!(json.as_ref())?;
-        Ok(me)
-    }
-}
-
-#[wasm_bindgen]
-impl ZKP {
-    pub fn toJson(&self) -> Result<String, JsValue> {
-        toJson!(self)
-    }
-
-    pub fn fromJson(json: String) -> Result<Self, JsValue> {
-        let me: Self = fromJson!(json.as_ref())?;
-        Ok(me)
-    }
 }
 
 #[wasm_bindgen]
@@ -380,3 +337,23 @@ impl CashuTranscript {
         Self::new()
     }
 }
+
+json!(AmountAttribute);
+json!(ScriptAttribute);
+json!(MAC);
+json!(Coin);
+json!(RandomizedCoin);
+json!(ZKP);
+json!(BulletProof);
+
+js_value!(Scalar);
+js_value!(GroupElement);
+js_value!(AmountAttribute);
+js_value!(ScriptAttribute);
+js_value!(MAC);
+js_value!(Coin);
+js_value!(RandomizedCoin);
+js_value!(ZKP);
+js_value!(BulletProof);
+js_value!(OutputAttributesPair);
+js_value!(OutputCommitmentsPair);
