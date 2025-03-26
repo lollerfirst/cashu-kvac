@@ -106,29 +106,52 @@ let proof = BalanceProof::create(&inputs, &outputs, &mut transcript);
 ```
 
 > [!NOTE]
-> It is possible to prove/verify custom statement with `SchorrProver` and `SchnorrVerifier`
+> You can prove prove/verify arbitrary statement with `SchorrProver` and `SchnorrVerifier`
+
+### WASM and Javascript bindings
+To generate the WASM and javascript bindings, install `wasm-pack`:
+
+```sh
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+```
+
+Clone this repository:
+```sh
+git clone https://github.com/lollerfirst/cashu-kvac
+```
+
+Then, navigate to the repository directory generate the WASM with:
+```sh
+wasm-pack build --target {node|web}
+```
+
+The library will be compiled to a package under `./pkg` from the root directory of the repository.
 
 ### KVAC Scheme
-* Paper on KVAC used for CoinJoins: https://eprint.iacr.org/2021/206.pdf
+The design of this library is based around the KVAC scheme, and specifically around these 2 papers:
+
+* KVAC used for CoinJoins (WabiSabi): https://eprint.iacr.org/2021/206.pdf
 * The Signal Private Group System and Anonymous Credentials Supporting Efficient Verifiable Encryption: https://eprint.iacr.org/2019/1416
 
-### KVAC for Cashu
+### Protocol Explanation
 Definitions and Protocol explaination (WIP): [HERE](protocol_explanation.md)
 
 ### Extras
 * [Deterministic Recovery](deterministic_recovery.md)
-* Server/Mint can tweak the amounts encoded in the attributes: $M_a' = M_a + \delta G_\text{amount}$
-* Using the $r$ blinding factor in Pedersen Commitments as the randomizing factor as well:
-  - different generators with unknown discrete log between them guarantees hiding.
-  - Benefit: no $\pi_\text{serial}$ because not needed anymore.
-  - $C_a$ (Randomized Amount Commitment) is chosen to be the nullifier.
+* Server/Mint can tweak the amounts encoded in the attributes: $M_a' = M_a + \delta G_\text{amount}$ . This can be used to return things like excess fees in a concise way.
+* **[Deviation from scheme]** Using the $r$ blinding factor in Pedersen Commitments for both blinding and randomization:
+  * different generators with unknown discrete log between them guarantees hiding.
+  * Benefit: no $\pi_\text{serial}$ because not needed anymore.
+  * $C_a$ (Randomized Amount Commitment) is chosen to be the nullifier.
 
 ### Range proofs
+
+Range proofs are needed to verify the outputs to the requests are within a certain range, preventing any potential overflows that could cheat the Balance Proof.
 
 Variations:
 
 * [x] [BULLETPROOFS](https://eprint.iacr.org/2017/1066.pdf)
-* [ ] [BULLETPROOFS++](https://eprint.iacr.org/2022/510.pdf) aritmetic circuits
+* [ ] [BULLETPROOFS++](https://eprint.iacr.org/2022/510.pdf) arithmetic circuits
 * [ ] [SHARP](https://eprint.iacr.org/2022/1153.pdf) which would improve creation/verification time tenfold. There are some different flavours of sharp, some of which make use of hidden order groups.
 
 ### Transcript
