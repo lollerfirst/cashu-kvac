@@ -362,3 +362,5 @@ js_value!(ZKP);
 js_value!(BulletProof);
 js_value!(OutputAttributesPair);
 js_value!(OutputCommitmentsPair);
+js_value!(MintPublicKey);
+js_value!(MintPrivateKey);
