@@ -20,29 +20,11 @@ macro_rules! json {
     ($name:ident) => {
         #[wasm_bindgen]
         impl $name {
-            pub fn toJSON(&self) -> String {
-                serde_json::to_string(self)
-                    .map_err(|e| JsValue::from_str(&format!("{}", e)))
-                    .expect("json string")
-            }
-
-            pub fn fromJSON(json: String) -> Result<Self, JsValue> {
-                serde_json::from_str(json.as_ref())
-                    .map_err(|e| JsValue::from_str(&format!("{}", e)))
-            }
-        }
-    };
-}
-
-macro_rules! js_value {
-    ($name:ident) => {
-        #[wasm_bindgen]
-        impl $name {
-            pub fn toJsValue(&self) -> JsValue {
+            pub fn toJSON(&self) -> JsValue {
                 to_value(&self).unwrap()
             }
 
-            pub fn fromJsValue(value: JsValue) -> Result<Self, JsValue> {
+            pub fn fromJSON(value: JsValue) -> Result<Self, JsValue> {
                 let me: Self =
                     from_value(value).map_err(|e| JsValue::from_str(&format!("{}", e)))?;
                 Ok(me)
@@ -356,17 +338,3 @@ json!(OutputAttributesPair);
 json!(OutputCommitmentsPair);
 json!(MintPublicKey);
 json!(MintPrivateKey);
-
-js_value!(Scalar);
-js_value!(GroupElement);
-js_value!(AmountAttribute);
-js_value!(ScriptAttribute);
-js_value!(MAC);
-js_value!(Coin);
-js_value!(RandomizedCoin);
-js_value!(ZKP);
-js_value!(BulletProof);
-js_value!(OutputAttributesPair);
-js_value!(OutputCommitmentsPair);
-js_value!(MintPublicKey);
-js_value!(MintPrivateKey);
