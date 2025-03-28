@@ -20,13 +20,13 @@ macro_rules! json {
     ($name:ident) => {
         #[wasm_bindgen]
         impl $name {
-            pub fn toJson(&self) -> String {
+            pub fn toJSON(&self) -> String {
                 serde_json::to_string(self)
                     .map_err(|e| JsValue::from_str(&format!("{}", e)))
                     .expect("json string")
             }
 
-            pub fn fromJson(json: String) -> Result<Self, JsValue> {
+            pub fn fromJSON(json: String) -> Result<Self, JsValue> {
                 serde_json::from_str(json.as_ref())
                     .map_err(|e| JsValue::from_str(&format!("{}", e)))
             }
@@ -343,6 +343,8 @@ impl CashuTranscript {
     }
 }
 
+json!(Scalar);
+json!(GroupElement);
 json!(AmountAttribute);
 json!(ScriptAttribute);
 json!(MAC);
@@ -350,6 +352,10 @@ json!(Coin);
 json!(RandomizedCoin);
 json!(ZKP);
 json!(BulletProof);
+json!(OutputAttributesPair);
+json!(OutputCommitmentsPair);
+json!(MintPublicKey);
+json!(MintPrivateKey);
 
 js_value!(Scalar);
 js_value!(GroupElement);
