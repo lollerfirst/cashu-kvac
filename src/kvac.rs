@@ -362,6 +362,7 @@ impl MacProof {
     }
 }
 
+#[wasm_bindgen]
 pub struct IParamsProof;
 
 #[allow(non_snake_case)]
@@ -481,6 +482,7 @@ impl IParamsProof {
     }
 }
 
+#[wasm_bindgen]
 pub struct BalanceProof;
 
 #[allow(non_snake_case)]
@@ -570,6 +572,8 @@ impl BalanceProof {
     }
 }
 
+
+#[wasm_bindgen]
 pub struct ScriptEqualityProof;
 
 #[allow(non_snake_case)]
