@@ -572,7 +572,6 @@ impl BalanceProof {
     }
 }
 
-
 #[wasm_bindgen]
 pub struct ScriptEqualityProof;
 
