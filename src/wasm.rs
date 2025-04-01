@@ -70,12 +70,15 @@ impl AmountAttribute {
         }
     }
 
-    pub fn wasmCommitment(&self) -> JsValue {
-        self.commitment().toJSON()
+    pub fn wasmCommitment(amountAttr: JsValue) -> Result<JsValue, JsError> {
+        let amountAttr = AmountAttribute::fromJSON(amountAttr)?;
+        Ok(amountAttr.commitment().toJSON())
     }
 
-    pub fn wasmTweakAmount(&mut self, amount: u64) {
-        let _ = self.tweak_amount(amount);
+    pub fn wasmTweakAmount(amountAttr: JsValue, amount: u64) -> Result<JsValue, JsError> {
+        let mut amountAttr = AmountAttribute::fromJSON(amountAttr)?;
+        amountAttr.tweak_amount(amount);
+        Ok(amountAttr.toJSON())
     }
 }
 
@@ -88,8 +91,9 @@ impl ScriptAttribute {
         }
     }
 
-    pub fn wasmCommitment(&self) -> JsValue {
-        self.commitment().toJSON()
+    pub fn wasmCommitment(scriptAttr: JsValue) -> Result<JsValue, JsError> {
+        let scriptAttr = ScriptAttribute::fromJSON(scriptAttr)?;
+        Ok(scriptAttr.commitment().toJSON())
     }
 }
 
