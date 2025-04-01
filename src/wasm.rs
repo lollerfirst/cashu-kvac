@@ -314,13 +314,14 @@ impl BulletProof {
     }
 
     pub fn wasmVerify(
-        self,
         amount_commiments: JsValue,
+        proof: JsValue,
         transcript: &mut CashuTranscript,
     ) -> Result<bool, JsError> {
         let amountComm: Vec<GroupElement> =
             from_value(amount_commiments).map_err(|e| JsError::new(&format!("{}", e)))?;
-        Ok(self.verify(transcript, &amountComm))
+        let proof = BulletProof::fromJSON(proof)?;
+        Ok(proof.verify(transcript, &amountComm))
     }
 }
 
