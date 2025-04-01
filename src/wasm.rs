@@ -131,13 +131,13 @@ impl ScriptAttribute {
 #[wasm_bindgen]
 impl MAC {
     pub fn wasmGenerate(
-        mintPrivkey: &MintPrivateKey,
+        mintPrivkey: MintPrivateKey,
         amountCommitment: GroupElement,
         scriptCommitment: Option<GroupElement>,
         tag: Option<Scalar>,
     ) -> Result<Self, JsValue> {
         Self::generate(
-            mintPrivkey,
+            &mintPrivkey,
             &amountCommitment,
             scriptCommitment.as_ref(),
             tag.as_ref(),
@@ -159,35 +159,35 @@ impl Coin {
 
 #[wasm_bindgen]
 impl RandomizedCoin {
-    pub fn wasmFromCoin(coin: &Coin, revealScript: bool) -> Result<Self, JsValue> {
-        Self::from_coin(coin, revealScript).map_err(|e| JsValue::from_str(&format!("{}", e)))
+    pub fn wasmFromCoin(coin: Coin, revealScript: bool) -> Result<Self, JsValue> {
+        Self::from_coin(&coin, revealScript).map_err(|e| JsValue::from_str(&format!("{}", e)))
     }
 }
 
 #[wasm_bindgen]
 impl BootstrapProof {
-    pub fn wasmCreate(amountAttribute: &AmountAttribute, transcript: &mut CashuTranscript) -> ZKP {
-        BootstrapProof::create(amountAttribute, transcript)
+    pub fn wasmCreate(amountAttribute: AmountAttribute, transcript: &mut CashuTranscript) -> ZKP {
+        BootstrapProof::create(&amountAttribute, transcript)
     }
 
     pub fn wasmVerify(
-        amountCommitment: &GroupElement,
+        amountCommitment: GroupElement,
         proof: ZKP,
         transcript: &mut CashuTranscript,
     ) -> bool {
-        BootstrapProof::verify(amountCommitment, proof, transcript)
+        BootstrapProof::verify(&amountCommitment, proof, transcript)
     }
 }
 
 #[wasm_bindgen]
 impl MacProof {
     pub fn wasmCreate(
-        mintPublickey: &MintPublicKey,
-        coin: &Coin,
-        randomizedCoin: &RandomizedCoin,
+        mintPublickey: MintPublicKey,
+        coin: Coin,
+        randomizedCoin: RandomizedCoin,
         transcript: &mut CashuTranscript,
     ) -> ZKP {
-        MacProof::create(mintPublickey, coin, randomizedCoin, transcript)
+        MacProof::create(&mintPublickey, &coin, &randomizedCoin, transcript)
     }
 
     pub fn wasmVerify(
@@ -213,15 +213,15 @@ impl MacProof {
 #[wasm_bindgen]
 impl IParamsProof {
     pub fn wasmCreate(
-        mintPrivkey: &MintPrivateKey,
-        mac: &MAC,
+        mintPrivkey: MintPrivateKey,
+        mac: MAC,
         amountCommitment: GroupElement,
         scriptCommitment: Option<GroupElement>,
         transcript: &mut CashuTranscript,
     ) -> ZKP {
         IParamsProof::create(
-            mintPrivkey,
-            mac,
+            &mintPrivkey,
+            &mac,
             &amountCommitment,
             scriptCommitment.as_ref(),
             transcript,
@@ -229,12 +229,12 @@ impl IParamsProof {
     }
 
     pub fn wasmVerify(
-        mintPublickey: &MintPublicKey,
-        coin: &Coin,
+        mintPublickey: MintPublicKey,
+        coin: Coin,
         proof: ZKP,
         transcript: &mut CashuTranscript,
     ) -> bool {
-        IParamsProof::verify(mintPublickey, coin, proof, transcript)
+        IParamsProof::verify(&mintPublickey, &coin, proof, transcript)
     }
 }
 
