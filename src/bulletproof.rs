@@ -333,7 +333,8 @@ impl BulletProof {
         }
         transcript.append_element(
             b"Com(m)_",
-            &hash_to_curve(&m.to_be_bytes()).expect("Couldn't map m length to GroupElement"),
+            &hash_to_curve(&(m as u32).to_be_bytes())
+                .expect("Couldn't map m length to GroupElement"),
         );
 
         // Get generators
@@ -548,7 +549,8 @@ impl BulletProof {
         // Commit to the padded-to-pow2 number of attributes
         transcript.append_element(
             b"Com(m)_",
-            &hash_to_curve(&m.to_be_bytes()).expect("Couldn't map m length to GroupElement"),
+            &hash_to_curve(&(m as u32).to_be_bytes())
+                .expect("Couldn't map m length to GroupElement"),
         );
 
         // Append A and S to transcript

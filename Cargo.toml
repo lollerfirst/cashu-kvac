@@ -4,6 +4,10 @@ version = "0.0.4-alpha"
 edition = "2021"
 rust-version = "1.80.1"
 
+[features]
+default = []
+proof-debug = []
+
 [lib]
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
