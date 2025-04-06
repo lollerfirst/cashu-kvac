@@ -4,6 +4,7 @@ use serde_wasm_bindgen::{from_value, to_value};
 use wasm_bindgen::JsValue;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 
+use crate::generators::hash_to_curve;
 use crate::{
     bulletproof::BulletProof,
     kvac::{BalanceProof, BootstrapProof, IParamsProof, MacProof, ScriptEqualityProof},
@@ -330,4 +331,11 @@ impl CashuTranscript {
     pub fn wasmCreateNew() -> Self {
         Self::new()
     }
+}
+
+#[wasm_bindgen]
+pub fn wasmHashToG(hex: String) -> Result<JsValue, JsError> {
+    let bytes = hex::decode(hex).map_err(|e| JsError::new(&format!("{}", e)))?;
+    let ge = hash_to_curve(&bytes).expect("can map to GroupElement");
+    Ok(ge.toJSON())
 }

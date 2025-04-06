@@ -131,11 +131,14 @@ impl Scalar {
     pub fn random() -> Self {
         #[cfg(feature = "proof-debug")]
         {
-            let inner = SecretKey::new(&SCALAR_ONE);
-            return Scalar { inner: Some(inner) };
+            let inner = SecretKey::from_slice(&SCALAR_ONE).expect("1 is a valid scalar");
+            Scalar { inner: Some(inner) }
         }
-        let inner = SecretKey::new(&mut rand::thread_rng());
-        Scalar { inner: Some(inner) }        
+        #[cfg(not(feature = "proof-debug"))]
+        {
+            let inner = SecretKey::new(&mut rand::thread_rng());
+            Scalar { inner: Some(inner) }
+        }
     }
 
     /// Multiplies the current `Scalar` by another `Scalar` using a tweak.

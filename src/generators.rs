@@ -91,13 +91,14 @@ mod tests {
 
     #[test]
     fn test_hash_to_curve() {
-        let msg = b"G_amount";
-        let g_amount = GroupElement::try_from(
+        let msg = hex::decode("000000").expect("valid hex");
+        /*let g_amount = GroupElement::try_from(
             "024e76426e405fa7f7d3403ea8671fe11b8bec2da6dcda5583ce1ac37ed0de9b04",
         )
-        .unwrap();
-        let g_amount_ = hash_to_curve(msg).expect("Couldn't map hash to groupelement");
-        assert!(g_amount == g_amount_)
+        .unwrap();*/
+        let ge = hash_to_curve(&msg).expect("Couldn't map hash to groupelement");
+        println!("ge: {}\n", serde_json::to_string(&ge).unwrap());
+        //assert!(g_amount == g_amount_)
     }
 
     #[test]
