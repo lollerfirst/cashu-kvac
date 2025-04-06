@@ -129,8 +129,13 @@ impl Scalar {
     ///
     /// A new `Scalar` instance with a random value.
     pub fn random() -> Self {
+        #[cfg(feature = "proof-debug")]
+        {
+            let inner = SecretKey::new(&SCALAR_ONE);
+            return Scalar { inner: Some(inner) };
+        }
         let inner = SecretKey::new(&mut rand::thread_rng());
-        Scalar { inner: Some(inner) }
+        Scalar { inner: Some(inner) }        
     }
 
     /// Multiplies the current `Scalar` by another `Scalar` using a tweak.
