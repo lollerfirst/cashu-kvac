@@ -363,10 +363,10 @@ impl MacProof {
 }
 
 #[wasm_bindgen]
-pub struct IParamsProof;
+pub struct IssuanceProof;
 
 #[allow(non_snake_case)]
-impl IParamsProof {
+impl IssuanceProof {
     /// Creates a statement for the IParams proof, which includes the necessary equations.
     ///
     /// # Arguments
@@ -421,7 +421,6 @@ impl IParamsProof {
     /// * `mac` - A reference to the `MAC` instance associated with the proof.
     /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment.
     /// * `script_commitment` - An optional reference to a `GroupElement` representing the script commitment.
-    /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used during the proof creation.
     ///
     /// # Returns
     ///
@@ -431,19 +430,19 @@ impl IParamsProof {
         mac: &MAC,
         amount_commitment: &GroupElement,
         script_commitment: Option<&GroupElement>,
-        transcript: &mut CashuTranscript,
     ) -> ZKP {
+        let mut transcript = CashuTranscript::new();
         let script_commitment: &GroupElement = match script_commitment {
             Some(scr) => scr,
             None => GENERATORS.O.as_ref(),
         };
-        let statement = IParamsProof::statement(
+        let statement = IssuanceProof::statement(
             &mint_privkey.public_key,
             mac,
             amount_commitment,
             script_commitment,
         );
-        SchnorrProver::new(transcript, mint_privkey.to_scalars())
+        SchnorrProver::new(&mut transcript, mint_privkey.to_scalars())
             .add_statement(statement)
             .prove()
     }
@@ -460,23 +459,19 @@ impl IParamsProof {
     /// # Returns
     ///
     /// Returns a boolean indicating whether the proof is valid (`true`) or invalid (`false`).
-    pub fn verify(
-        mint_publickey: &MintPublicKey,
-        coin: &Coin,
-        proof: ZKP,
-        transcript: &mut CashuTranscript,
-    ) -> bool {
+    pub fn verify(mint_publickey: &MintPublicKey, coin: &Coin, proof: ZKP) -> bool {
+        let mut transcript = CashuTranscript::new();
         let script_commitment: GroupElement = match &coin.script_attribute {
             Some(scr) => scr.commitment(),
             None => GENERATORS.O,
         };
-        let statement = IParamsProof::statement(
+        let statement = IssuanceProof::statement(
             mint_publickey,
             &coin.mac,
             &coin.amount_attribute.commitment(),
             &script_commitment,
         );
-        SchnorrVerifier::new(transcript, proof)
+        SchnorrVerifier::new(&mut transcript, proof)
             .add_statement(statement)
             .verify()
     }
@@ -755,7 +750,7 @@ mod tests {
         transcript::CashuTranscript,
     };
 
-    use super::{BalanceProof, BootstrapProof, IParamsProof, MacProof, ScriptEqualityProof};
+    use super::{BalanceProof, BootstrapProof, IssuanceProof, MacProof, ScriptEqualityProof};
 
     fn transcripts() -> (CashuTranscript, CashuTranscript) {
         let mint_transcript = CashuTranscript::new();
@@ -794,48 +789,32 @@ mod tests {
 
     #[test]
     fn test_iparams() {
-        let (mut mint_transcript, mut client_transcript) = transcripts();
         let mint_privkey = privkey();
         let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
-        let proof = IParamsProof::create(
-            &mint_privkey,
-            &mac,
-            &amount_attr.commitment(),
-            None,
-            &mut client_transcript,
-        );
+        let proof = IssuanceProof::create(&mint_privkey, &mac, &amount_attr.commitment(), None);
         let coin = Coin::new(amount_attr, None, mac);
-        assert!(IParamsProof::verify(
+        assert!(IssuanceProof::verify(
             &mint_privkey.public_key,
             &coin,
             proof,
-            &mut mint_transcript
         ));
     }
 
     #[test]
     fn test_wrong_iparams() {
-        let (mut mint_transcript, mut client_transcript) = transcripts();
         let mint_privkey = privkey();
         let mint_privkey_1 = privkey();
         let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
-        let proof = IParamsProof::create(
-            &mint_privkey,
-            &mac,
-            &amount_attr.commitment(),
-            None,
-            &mut client_transcript,
-        );
+        let proof = IssuanceProof::create(&mint_privkey, &mac, &amount_attr.commitment(), None);
         let coin = Coin::new(amount_attr, None, mac);
-        assert!(!IParamsProof::verify(
+        assert!(!IssuanceProof::verify(
             &mint_privkey_1.public_key,
             &coin,
             proof,
-            &mut mint_transcript
         ))
     }
 

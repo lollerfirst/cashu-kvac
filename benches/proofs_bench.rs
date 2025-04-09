@@ -9,7 +9,9 @@ use cashu_kvac::{
 };
 use test::Bencher;
 
-use cashu_kvac::kvac::{BalanceProof, BootstrapProof, IParamsProof, MacProof, ScriptEqualityProof};
+use cashu_kvac::kvac::{
+    BalanceProof, BootstrapProof, IssuanceProof, MacProof, ScriptEqualityProof,
+};
 
 fn transcripts() -> (CashuTranscript, CashuTranscript) {
     let mint_transcript = CashuTranscript::new();
@@ -31,20 +33,11 @@ fn bench_bootstrap_proof(bencher: &mut Bencher) {
 
 #[bench]
 fn bench_iparams_proof(bencher: &mut Bencher) {
-    let (_, mut client_transcript) = transcripts();
     let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(12, None);
     let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
         .expect("Couldn't generate MAC");
-    bencher.iter(|| {
-        IParamsProof::create(
-            &mint_privkey,
-            &mac,
-            &amount_attr.commitment(),
-            None,
-            &mut client_transcript,
-        )
-    });
+    bencher.iter(|| IssuanceProof::create(&mint_privkey, &mac, &amount_attr.commitment(), None));
 }
 
 #[bench]
@@ -166,27 +159,13 @@ fn bench_bootstrap_proof_verification(bencher: &mut Bencher) {
 
 #[bench]
 fn bench_iparams_proof_verification(bencher: &mut Bencher) {
-    let (mut mint_transcript, mut client_transcript) = transcripts();
     let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(12, None);
     let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
         .expect("Couldn't generate MAC");
-    let proof = IParamsProof::create(
-        &mint_privkey,
-        &mac,
-        &amount_attr.commitment(),
-        None,
-        &mut client_transcript,
-    );
+    let proof = IssuanceProof::create(&mint_privkey, &mac, &amount_attr.commitment(), None);
     let coin = Coin::new(amount_attr, None, mac);
-    bencher.iter(|| {
-        IParamsProof::verify(
-            &mint_privkey.public_key,
-            &coin,
-            proof.clone(),
-            &mut mint_transcript,
-        )
-    });
+    bencher.iter(|| IssuanceProof::verify(&mint_privkey.public_key, &coin, proof.clone()));
 }
 
 #[bench]
