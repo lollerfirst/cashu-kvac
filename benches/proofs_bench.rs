@@ -1,15 +1,11 @@
 #![feature(test)]
 extern crate test;
 use cashu_kvac::{
-    bulletproof::BulletProof,
-    generators::GENERATORS,
-    models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, ScriptAttribute, MAC},
-    secp::{GroupElement, Scalar},
-    transcript::CashuTranscript,
+    bulletproof::BulletProof, generators::GENERATORS, models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, ScriptAttribute, MAC}, secp::{GroupElement, Scalar}, transcript::CashuTranscript
 };
 use test::Bencher;
 
-use cashu_kvac::kvac::{BalanceProof, BootstrapProof, IParamsProof, MacProof, ScriptEqualityProof};
+use cashu_kvac::kvac::{BalanceProof, BootstrapProof, IssuanceProof, MacProof, ScriptEqualityProof};
 
 fn transcripts() -> (CashuTranscript, CashuTranscript) {
     let mint_transcript = CashuTranscript::new();
@@ -31,18 +27,16 @@ fn bench_bootstrap_proof(bencher: &mut Bencher) {
 
 #[bench]
 fn bench_iparams_proof(bencher: &mut Bencher) {
-    let (_, mut client_transcript) = transcripts();
     let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(12, None);
     let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
         .expect("Couldn't generate MAC");
     bencher.iter(|| {
-        IParamsProof::create(
+        IssuanceProof::create(
             &mint_privkey,
             &mac,
             &amount_attr.commitment(),
             None,
-            &mut client_transcript,
         )
     });
 }
@@ -166,25 +160,22 @@ fn bench_bootstrap_proof_verification(bencher: &mut Bencher) {
 
 #[bench]
 fn bench_iparams_proof_verification(bencher: &mut Bencher) {
-    let (mut mint_transcript, mut client_transcript) = transcripts();
     let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(12, None);
     let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
         .expect("Couldn't generate MAC");
-    let proof = IParamsProof::create(
+    let proof = IssuanceProof::create(
         &mint_privkey,
         &mac,
         &amount_attr.commitment(),
         None,
-        &mut client_transcript,
     );
     let coin = Coin::new(amount_attr, None, mac);
     bencher.iter(|| {
-        IParamsProof::verify(
+        IssuanceProof::verify(
             &mint_privkey.public_key,
             &coin,
             proof.clone(),
-            &mut mint_transcript,
         )
     });
 }

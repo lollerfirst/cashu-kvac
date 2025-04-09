@@ -7,7 +7,7 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 use crate::generators::hash_to_curve;
 use crate::{
     bulletproof::BulletProof,
-    kvac::{BalanceProof, BootstrapProof, IParamsProof, MacProof, ScriptEqualityProof},
+    kvac::{BalanceProof, BootstrapProof, IssuanceProof, MacProof, ScriptEqualityProof},
     models::{
         AmountAttribute, Coin, MintPrivateKey, MintPublicKey, RandomizedCoin, ScriptAttribute, MAC,
         ZKP,
@@ -186,25 +186,23 @@ impl MacProof {
 }
 
 #[wasm_bindgen]
-impl IParamsProof {
+impl IssuanceProof {
     pub fn wasmCreate(
         mintPrivkey: JsValue,
         mac: JsValue,
         amountCommitment: JsValue,
         scriptCommitment: JsValue,
-        transcript: &mut CashuTranscript,
     ) -> Result<JsValue, JsError> {
         let mintPrivkey: MintPrivateKey = MintPrivateKey::fromJSON(mintPrivkey)?;
         let mac: MAC = MAC::fromJSON(mac)?;
         let amountCommitment: GroupElement = GroupElement::fromJSON(amountCommitment)?;
         let scriptCommitment: Option<GroupElement> =
             from_value(scriptCommitment).map_err(|e| JsError::new(&format!("{}", e)))?;
-        Ok(IParamsProof::create(
+        Ok(IssuanceProof::create(
             &mintPrivkey,
             &mac,
             &amountCommitment,
             scriptCommitment.as_ref(),
-            transcript,
         )
         .toJSON())
     }
@@ -213,16 +211,14 @@ impl IParamsProof {
         mintPublickey: JsValue,
         coin: JsValue,
         proof: JsValue,
-        transcript: &mut CashuTranscript,
     ) -> Result<bool, JsError> {
         let mintPublickey: MintPublicKey = MintPublicKey::fromJSON(mintPublickey)?;
         let coin: Coin = Coin::fromJSON(coin)?;
         let proof: ZKP = ZKP::fromJSON(proof)?;
-        Ok(IParamsProof::verify(
+        Ok(IssuanceProof::verify(
             &mintPublickey,
             &coin,
             proof,
-            transcript,
         ))
     }
 }
