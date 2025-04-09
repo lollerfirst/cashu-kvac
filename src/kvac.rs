@@ -459,11 +459,7 @@ impl IssuanceProof {
     /// # Returns
     ///
     /// Returns a boolean indicating whether the proof is valid (`true`) or invalid (`false`).
-    pub fn verify(
-        mint_publickey: &MintPublicKey,
-        coin: &Coin,
-        proof: ZKP,
-    ) -> bool {
+    pub fn verify(mint_publickey: &MintPublicKey, coin: &Coin, proof: ZKP) -> bool {
         let mut transcript = CashuTranscript::new();
         let script_commitment: GroupElement = match &coin.script_attribute {
             Some(scr) => scr.commitment(),
@@ -797,12 +793,7 @@ mod tests {
         let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
-        let proof = IssuanceProof::create(
-            &mint_privkey,
-            &mac,
-            &amount_attr.commitment(),
-            None,
-        );
+        let proof = IssuanceProof::create(&mint_privkey, &mac, &amount_attr.commitment(), None);
         let coin = Coin::new(amount_attr, None, mac);
         assert!(IssuanceProof::verify(
             &mint_privkey.public_key,
@@ -818,12 +809,7 @@ mod tests {
         let amount_attr = AmountAttribute::new(12, None);
         let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
             .expect("Couldn't generate MAC");
-        let proof = IssuanceProof::create(
-            &mint_privkey,
-            &mac,
-            &amount_attr.commitment(),
-            None,
-        );
+        let proof = IssuanceProof::create(&mint_privkey, &mac, &amount_attr.commitment(), None);
         let coin = Coin::new(amount_attr, None, mac);
         assert!(!IssuanceProof::verify(
             &mint_privkey_1.public_key,

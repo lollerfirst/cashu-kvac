@@ -215,11 +215,7 @@ impl IssuanceProof {
         let mintPublickey: MintPublicKey = MintPublicKey::fromJSON(mintPublickey)?;
         let coin: Coin = Coin::fromJSON(coin)?;
         let proof: ZKP = ZKP::fromJSON(proof)?;
-        Ok(IssuanceProof::verify(
-            &mintPublickey,
-            &coin,
-            proof,
-        ))
+        Ok(IssuanceProof::verify(&mintPublickey, &coin, proof))
     }
 }
 
