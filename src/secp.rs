@@ -576,7 +576,7 @@ impl<'de> Deserialize<'de> for Scalar {
     {
         let hex: String = String::deserialize(deserializer)?;
         let scalar = Scalar::try_from(hex.as_str())
-            .map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
+            .map_err(|e| serde::de::Error::custom(format!("{e}")))?;
         Ok(scalar)
     }
 }
@@ -709,7 +709,7 @@ impl<'de> Deserialize<'de> for GroupElement {
     {
         let hex: String = String::deserialize(deserializer)?;
         let ge = GroupElement::try_from(hex.as_str())
-            .map_err(|e| serde::de::Error::custom(format!("{}", e)))?;
+            .map_err(|e| serde::de::Error::custom(format!("{e}")))?;
         Ok(ge)
     }
 }

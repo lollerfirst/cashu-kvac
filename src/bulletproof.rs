@@ -25,7 +25,7 @@ pub static G: Lazy<Vec<GroupElement>> = Lazy::new(|| {
     let mut result = Vec::new();
     for i in 0..32 {
         result.push(
-            hash_to_curve(format!("IPA_G_{}_", i).as_bytes())
+            hash_to_curve(format!("IPA_G_{i}_").as_bytes())
                 .expect("Couldn't map hash to point on the curve"),
         );
     }
@@ -35,7 +35,7 @@ pub static H: Lazy<Vec<GroupElement>> = Lazy::new(|| {
     let mut result = Vec::new();
     for i in 0..32 {
         result.push(
-            hash_to_curve(format!("IPA_H_{}_", i).as_bytes())
+            hash_to_curve(format!("IPA_H_{i}_").as_bytes())
                 .expect("Couldn't map hash to point on the curve"),
         );
     }
@@ -50,11 +50,11 @@ fn get_generators(n: usize) -> (Vec<GroupElement>, Vec<GroupElement>, GroupEleme
     if n > G_.len() {
         for i in G.len()..n {
             G_.push(
-                hash_to_curve(format!("IPA_G_{}_", i).as_bytes())
+                hash_to_curve(format!("IPA_G_{i}_").as_bytes())
                     .expect("Couldn't map hash to point on the curve"),
             );
             H_.push(
-                hash_to_curve(format!("IPA_H_{}_", i).as_bytes())
+                hash_to_curve(format!("IPA_H_{i}_").as_bytes())
                     .expect("Couldn't map hash to point on the curve"),
             );
         }
