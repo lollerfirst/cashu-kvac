@@ -5,6 +5,7 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 
 use crate::generators::hash_to_curve;
+use crate::recovery::recover_amounts;
 use crate::{
     bulletproof::BulletProof,
     kvac::{BalanceProof, BootstrapProof, IssuanceProof, MacProof, ScriptEqualityProof},
@@ -330,4 +331,16 @@ pub fn wasmHashToG(hex: String) -> Result<JsValue, JsError> {
     let bytes = hex::decode(hex).map_err(|e| JsError::new(&format!("{}", e)))?;
     let ge = hash_to_curve(&bytes).expect("can map to GroupElement");
     Ok(ge.toJSON())
+}
+
+#[wasm_bindgen]
+pub fn wasmRecoverAmounts(
+    amount_commitments: JsValue,
+    blinding_factors: JsValue,
+    upper_bound: u64,
+) -> Result<JsValue, JsError> {
+    let amount_commitments: Vec<GroupElement> = from_value(amount_commitments)?;
+    let blinding_factors: Vec<Scalar> = from_value(blinding_factors)?;
+    let recovered_amounts = recover_amounts(&amount_commitments, &blinding_factors, upper_bound);
+    Ok(to_value(&recovered_amounts)?)
 }
