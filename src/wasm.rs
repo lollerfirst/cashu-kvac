@@ -5,6 +5,7 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 
 use crate::generators::hash_to_curve;
+use crate::recovery::recover_amounts;
 use crate::{
     bulletproof::BulletProof,
     kvac::{BalanceProof, BootstrapProof, IssuanceProof, MacProof, ScriptEqualityProof},
@@ -25,7 +26,7 @@ macro_rules! json {
             }
 
             pub fn fromJSON(value: JsValue) -> Result<Self, JsError> {
-                let me: Self = from_value(value).map_err(|e| JsError::new(&format!("{}", e)))?;
+                let me: Self = from_value(value).map_err(|e| JsError::new(&format!("{e}")))?;
                 Ok(me)
             }
         }
@@ -107,7 +108,7 @@ impl Coin {
     ) -> Result<JsValue, JsError> {
         let amountAttribute: AmountAttribute = AmountAttribute::fromJSON(amountAttribute)?;
         let scriptAttribute: Option<ScriptAttribute> =
-            from_value(scriptAttribute).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(scriptAttribute).map_err(|e| JsError::new(&format!("{e}")))?;
         let mac: MAC = MAC::fromJSON(mac)?;
         Ok(Self::new(amountAttribute, scriptAttribute, mac).toJSON())
     }
@@ -197,7 +198,7 @@ impl IssuanceProof {
         let mac: MAC = MAC::fromJSON(mac)?;
         let amountCommitment: GroupElement = GroupElement::fromJSON(amountCommitment)?;
         let scriptCommitment: Option<GroupElement> =
-            from_value(scriptCommitment).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(scriptCommitment).map_err(|e| JsError::new(&format!("{e}")))?;
         Ok(IssuanceProof::create(
             &mintPrivkey,
             &mac,
@@ -227,9 +228,9 @@ impl BalanceProof {
         transcript: &mut CashuTranscript,
     ) -> Result<JsValue, JsError> {
         let inputs: Vec<AmountAttribute> =
-            from_value(inputs).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(inputs).map_err(|e| JsError::new(&format!("{e}")))?;
         let outputs: Vec<AmountAttribute> =
-            from_value(outputs).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(outputs).map_err(|e| JsError::new(&format!("{e}")))?;
         Ok(BalanceProof::create(&inputs, &outputs, transcript).toJSON())
     }
 
@@ -241,9 +242,9 @@ impl BalanceProof {
         transcript: &mut CashuTranscript,
     ) -> Result<bool, JsError> {
         let inputs: Vec<RandomizedCoin> =
-            from_value(inputs).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(inputs).map_err(|e| JsError::new(&format!("{e}")))?;
         let outputs: Vec<GroupElement> =
-            from_value(outputs).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(outputs).map_err(|e| JsError::new(&format!("{e}")))?;
         let proof: ZKP = ZKP::fromJSON(proof)?;
         Ok(BalanceProof::verify(
             &inputs,
@@ -264,10 +265,10 @@ impl ScriptEqualityProof {
         transcript: &mut CashuTranscript,
     ) -> Result<JsValue, JsError> {
         let outputs: Vec<(AmountAttribute, ScriptAttribute)> =
-            from_value(outputs).map_err(|e| JsError::new(&format!("{}", e)))?;
-        let inputs: Vec<Coin> = from_value(inputs).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(outputs).map_err(|e| JsError::new(&format!("{e}")))?;
+        let inputs: Vec<Coin> = from_value(inputs).map_err(|e| JsError::new(&format!("{e}")))?;
         let randomizedInputs: Vec<RandomizedCoin> =
-            from_value(randomizedInputs).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(randomizedInputs).map_err(|e| JsError::new(&format!("{e}")))?;
         Ok(
             ScriptEqualityProof::create(&inputs, &randomizedInputs, &outputs, transcript)
                 .unwrap()
@@ -282,9 +283,9 @@ impl ScriptEqualityProof {
         transcript: &mut CashuTranscript,
     ) -> Result<bool, JsError> {
         let outputs: Vec<(GroupElement, GroupElement)> =
-            from_value(outputs).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(outputs).map_err(|e| JsError::new(&format!("{e}")))?;
         let randomizedInputs: Vec<RandomizedCoin> =
-            from_value(randomizedInputs).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(randomizedInputs).map_err(|e| JsError::new(&format!("{e}")))?;
         let proof: ZKP = ZKP::fromJSON(proof)?;
         Ok(ScriptEqualityProof::verify(
             &randomizedInputs,
@@ -302,7 +303,7 @@ impl BulletProof {
         transcript: &mut CashuTranscript,
     ) -> Result<JsValue, JsError> {
         let attributes: Vec<AmountAttribute> =
-            from_value(attributes).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(attributes).map_err(|e| JsError::new(&format!("{e}")))?;
         Ok(Self::new(transcript, &attributes).toJSON())
     }
 
@@ -312,7 +313,7 @@ impl BulletProof {
         transcript: &mut CashuTranscript,
     ) -> Result<bool, JsError> {
         let amountComm: Vec<GroupElement> =
-            from_value(amount_commiments).map_err(|e| JsError::new(&format!("{}", e)))?;
+            from_value(amount_commiments).map_err(|e| JsError::new(&format!("{e}")))?;
         let proof = BulletProof::fromJSON(proof)?;
         Ok(proof.verify(transcript, &amountComm))
     }
@@ -327,7 +328,19 @@ impl CashuTranscript {
 
 #[wasm_bindgen]
 pub fn wasmHashToG(hex: String) -> Result<JsValue, JsError> {
-    let bytes = hex::decode(hex).map_err(|e| JsError::new(&format!("{}", e)))?;
+    let bytes = hex::decode(hex).map_err(|e| JsError::new(&format!("{e}")))?;
     let ge = hash_to_curve(&bytes).expect("can map to GroupElement");
     Ok(ge.toJSON())
+}
+
+#[wasm_bindgen]
+pub fn wasmRecoverAmounts(
+    amount_commitments: JsValue,
+    blinding_factors: JsValue,
+    upper_bound: u64,
+) -> Result<JsValue, JsError> {
+    let amount_commitments: Vec<GroupElement> = from_value(amount_commitments)?;
+    let blinding_factors: Vec<Scalar> = from_value(blinding_factors)?;
+    let recovered_amounts = recover_amounts(&amount_commitments, &blinding_factors, upper_bound);
+    Ok(to_value(&recovered_amounts)?)
 }
