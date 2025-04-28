@@ -126,26 +126,25 @@ Nullifiers are values (or a single value) used to mark credentials as spent, ens
 
 Here, we decide to use $C_a$ from the `RandomizedCoin` as the nullifier. The rationale is rooted in the design of $\pi_\text{MAC}$, which requires $C_a$ to be constructed using the same witness term $r_a$ for both blinding and randomization. This dependency ensures that there is only one valid way to randomize $M_a$ while maintaining valid credentials. Consequently, $C_a$ is guaranteed to be unique and suitable as a nullifier.
 
-### Proof of same secret keys ($\pi_\text{iparams}$)
+### Proof of issuance ($\pi_\text{iparams}$)
 > [IparamsStatement](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/kvac.py#L187)
 
 Proof $\pi_\text{iparams}$ of knowledge of $(w, w', x_0, x_1, y_a)$ such that:
 
-1) $w, w'$ were used to construct $C_w$:
+1) $w, w'$ were used to create $C_w$:
 ```math
 C_w = w\cdot G_w + w'\cdot G_{w'}
 ```
-2) $x0, x1, y_a, y_s$ were used to construct $I$:
+2) $x0, x1, y_a, y_s$ were used to create $I$:
 ```math
 G_\text{z-mac} - I = x_0\cdot G_{x_0} + x_1\cdot G_{x_1} + y_a\cdot G_\text{z-amount} + y_s\cdot G_\text{z-script}
 ```
-3) the same secret values were used to construct $V$:
+3) the same secret values were used to create the algebraic MAC $V$:
 ```math
 V = w\cdot G_w + x_0\cdot U + x_1\cdot t\cdot U + y_a\cdot M_a + y_s\cdot M_s
 ```
 
-This is the equivalent of Cashu's current DLEQ proofs, where the Mint proves to the client they are signing with the same
-keys as for everybody else (no tagging).
+This is the equivalent of Cashu's current NUT-12 proofs, where the Mint shows they are signing with the same keys for every client.
 
 <!--
 construction:
@@ -189,6 +188,9 @@ c' &\overset{?}= c
 
 This is to prove that the amount encoded into $M_a$ does not exceed a particular limit $L$ (chosen as a power of 2).
 
+> [!WARNING]
+> A range proof can be implemented in many different ways. Currently, cashu-kvac uses `BulletProofs`. What follows is the description of a naive/vanilla range proof which is terribly inefficient.
+
 The attribute's amount is decomposed into a bit-vector $\mathbf{b}$ of length $l = \log_2(L-1)$.
 $\mathbf{b}$ is then committed to:
 ```math
@@ -211,7 +213,6 @@ a = \sum_{i=0}^l2^i\cdot b_i
 ```math
 \displaylines{
 \mathbf{b}\circ\mathbf{b} - \mathbf{b} = 0\\
-\text{($\circ$ is the Hadamard or element-wise product of vectors.)}
 }
 ```
 
@@ -352,25 +353,29 @@ The client also generates the following ZK-proofs:
 - $\pi_\text{balance}$: Proves that the balance difference $\Delta_a$ (should equal $0$ or the fees) between old and new wallet balances is valid. Inputs: **old** and **new** `AmountAttribute`s [(78)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L78).
 - $\pi_\text{range}$: For each new `AmountAttribute`, proves the value is within the range $[0, L-1]$. [(69)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L69).
 - $\pi_\text{MAC}$: Proves that the provided `RandomizedCoin`s are valid and unspent. [(75)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L75)
+<!--
 - $\pi_\text{script}$: Ensures all **new** `ScriptAttribute`s encode the same script hash $s$ as the **old** `RandomizedCoin`s. [(81)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L81).
-
+-->
 Then the client sends:
 - **old** `RandomizedCoin`s defined in (2) as inputs
 - **new** (`AmountAttribute`/`ScriptAttribute`) pairs' **COMMITMENTS** (not the secret values) as described in (1) 
-- The script the coins were locked to, if any, together with its script-signature
+- The script the coins were bound to, if any, together with a witness that can unlock it.
 - All proofs as described above.
 
 The Mint then [(89-105)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L89):
-1. Acknowledges the balance difference $\Delta_a$ between inputs and outputs.
-2. Verifies that it hasn’t seen the `RandomizedCoin` $C_a$ before.
-3. Verifies all proofs.
+1. Acknowledges the balance difference $\Delta_a$ between inputs and outputs and verifies the peg-in/peg-out value (including the fees) is correct.
+2. Verifies that it hasn’t seen the `RandomizedCoin` $C_a$ before. This is otherwise known as the "nullifier" of the coin.
+4. Verifies the spending conditions and whether the provided currectly unlocks them.
+5. Hashes the provided script to a scalar value $s = H(\text{script})$ and "completes"
+   the randomized script commitment value $C_s' = C_s + s \cdot G_\text{script}$.
+3. Verifies all proofs, including the `MacProof` with the modified $C_s'$.
 4. If all verifications are successful, the Mint issues new `MAC`s for the outputs commitment pairs [(108)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L108). As with the `BootstrapRequest`, the Mint also produces $\pi_\text{iparams}$ to prove to the wallet its private key usage [(109)](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/examples/full_interaction.py#L109).
 
 ### Wallet-to-Wallet
 Sending coins to another wallet is simpler, as sending wallet only needs to communicate the
 `Coin` of intended value to the receiving wallet, and the receiving wallet will immediately swap it for a new one encoding the same value.
 
-No extra information is needed, as all proofs and randomization can be computed directly by the receiving wallet.
+No extra information is required, as all proofs and randomization can be computed directly by the receiving wallet.
 
 ### Blank Outputs for Overpaid Fee Change
 
@@ -390,9 +395,9 @@ With KVAC, this process is simplified:
 
 ### `CashuTranscript`
 
-> [CashuTranscript](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/kvac.py#L26)
+`CashuTranscript` is a wrapper around a `MerlinTranscript`, which is used to manage a transcript for cryptographic operations. The `MerlinTranscript` itself is a tool for maintaining a running log of messages during interactive or non-interactive cryptographic protocols. It provides a way to securely commit to various inputs and derive challenges deterministically using the STROBE protocol.
 
-`CashuTranscript` is a wrapper around a `MerlinTranscript`, which is used to manage a transcript for cryptographic operations. The `MerlinTranscript` itself is a tool for maintaining a running log of messages during interactive or non-interactive cryptographic protocols. It provides a way to securely commit to various inputs and derive challenges deterministically.
+> [CashuTranscript](https://github.com/lollerfirst/cashu-kvac/blob/14024615471e3d6cb328bade1db0db3e6d67fd38/src/kvac.py#L26)
 
 ### Key Features of `CashuTranscript`:
 
@@ -400,10 +405,10 @@ With KVAC, this process is simplified:
    - `domain_sep` ensures that different contexts or types of operations within the protocol are distinguishable by their unique labels. This prevents potential cross-protocol attacks where inputs in one context might be interpreted as valid in another.
 
 2. **Commitments**:
-   - The `append` method commits a group element to the transcript.
+   - Utilizes the STROBE-128 `AD` operation to commit data to the transcript. The `append` method absorbs group elements into the transcript state, ensuring that all data is securely incorporated into the protocol's cryptographic context.
 
 3. **Challenge Derivation**:
-   - The `get_challenge` method extracts a cryptographic challenge deterministically from the transcript. This challenge is used in proofs, ensuring it depends on all prior transcript data, providing strong security guarantees.
+   - Uses the STROBE-128 `PRF` operation to extract a cryptographic challenge deterministically from the transcript. The `get_challenge` method generates challenges that depend on all prior transcript data, providing strong security guarantees.
 
 ### Role in Zero-Knowledge Proving and Verifying:
 
