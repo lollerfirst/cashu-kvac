@@ -49,14 +49,14 @@ The Mint's "public key" is a tuple $(I, C_w)$, calculated as:
 
 A point encoding an amount `a` with blindness `r_a`.
 Composition:
-* $r_a \leftarrow \text{BIP39}(\text{seed}, \text{"r-amount"}, \text{derivation})$
+* $r_a \leftarrow \text{HMAC-SHA2}(\text{seed}, \text{"r-amount"}, \text{derivation})$
 * secret: $(a, r_a)$
 * public: $M_a = r_a\cdot G_\text{blind} + a\cdot G_\text{amount}$
 
 ### Bootstrap AmountAttribute
 Simply a `AmountAttribute` encoding $0$.
 Composition:
-* $r_a \leftarrow \text{BIP39}(\text{seed}, \text{"r-amount"}, \text{derivation})$
+* $r_a \leftarrow \text{HMAC-SHA2}(\text{seed}, \text{"r-amount"}, \text{derivation})$
 * secret: $(r_a)$
 * public: $M_a = r_a\cdot G_\text{blind}$
 
@@ -65,7 +65,7 @@ Composition:
 
 A point encoding a script hash `s` with blindness `r_s`.
 Composition:
-* $r_s \leftarrow \text{BIP39}(\text{seed}, \text{"r-script"}, \text{derivation})$
+* $r_s \leftarrow \text{HMAC-SHA2}(\text{seed}, \text{"r-script"}, \text{derivation})$
 * secret: $(s, r_s)$
 * public: $M_s = r_s\cdot G_\text{blind} + s\cdot G_\text{script}$
 
@@ -82,7 +82,7 @@ The main advantage of letting the wallet derive $t$ from seed is that we
 can later leverage this for a recovery scheme that does not leak information to the Mint.
 
 Composition:
-* $t \overset{\\$}\leftarrow Z_q$ (Mint) or $t \leftarrow \text{BIP39}(\text{seed}, \text{"t"}, \text{derivation})$ (wallet)
+* $t \overset{\\$}\leftarrow Z_q$ (Mint) or $t \leftarrow \text{HMAC-SHA2}(\text{seed}, \text{"t"}, \text{derivation})$ (wallet)
 * $M_a$ from `AmountAttribute`
 * $M_s$ from `ScriptAttribute` or point at infinity if no script.
 * $U = \text{HashToCurve}(t)$
