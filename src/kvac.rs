@@ -2,7 +2,7 @@ use crate::bulletproof::BulletProof;
 use crate::errors::Error;
 use crate::generators::{hash_to_curve, GENERATORS};
 use crate::models::{
-    AmountAttribute, Equation, MintPrivateKey, MintPublicKey, RandomizedCommitments, RangeZKP, ScriptAttribute, Statement, MAC, ZKP
+    AmountAttribute, Equation, MintPrivateKey, MintPublicKey, RandomizedCommitments, RangeZKP, ScriptAttribute, Statement, ZKP
 };
 use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use crate::transcript::CashuTranscript;
