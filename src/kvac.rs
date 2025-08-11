@@ -945,7 +945,7 @@ mod tests {
             })
             .collect();
         let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
-        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(outputs.iter())
+        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
             .map(|((tag, mac), amount_attr)|
                 RandomizedCommitments::from_attributes_and_mac(amount_attr, None, *tag, *mac, false).expect("RandomzedCommittment expected"))
             .collect();
@@ -966,7 +966,7 @@ mod tests {
     fn test_wrong_balance() {
         let (mut mint_transcript, mut client_transcript) = transcripts();
         let privkey = privkey();
-        let mut inputs = vec![
+        let inputs = vec![
             AmountAttribute::new(12, None),
             AmountAttribute::new(11, None),
         ];
@@ -981,7 +981,7 @@ mod tests {
             })
             .collect();
         let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
-        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(outputs.iter())
+        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
             .map(|((tag, mac), amount_attr)|
                 RandomizedCommitments::from_attributes_and_mac(amount_attr, None, *tag, *mac, false).expect("RandomzedCommittment expected"))
             .collect();
@@ -1036,7 +1036,7 @@ mod tests {
                 MAC::generate(&privkey, input.0.commitment(), Some(input.1.commitment()), *tag).expect("MAC expected")
             })
             .collect();
-        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(outputs.iter())
+        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
             .map(|((tag, mac), attr)|
                 RandomizedCommitments::from_attributes_and_mac(&attr.0, Some(&attr.1), *tag, *mac, false).expect("RandomzedCommittment expected"))
             .collect();
@@ -1097,7 +1097,7 @@ mod tests {
                 MAC::generate(&privkey, input.0.commitment(), Some(input.1.commitment()), *tag).expect("MAC expected")
             })
             .collect();
-        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(outputs.iter())
+        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
             .map(|((tag, mac), attr)|
                 RandomizedCommitments::from_attributes_and_mac(&attr.0, Some(&attr.1), *tag, *mac, false).expect("RandomzedCommittment expected"))
             .collect();
