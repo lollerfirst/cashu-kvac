@@ -256,14 +256,14 @@ impl MAC {
     /// # Arguments
     ///
     /// * `privkey` - A reference to the `MintPrivateKey` used to generate the MAC.
-    /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment.
-    /// * `script_commitment` - An optional reference to a `GroupElement` representing the script commitment.
-    ///   If not provided, a zero `GroupElement` is used.
-    /// * `tag` - A reference to a `Scalar` that will be used as a tag.
+    /// * `amount_commitment` - A `GroupElement` representing the amount commitment.
+    /// * `script_commitment` - An optional `GroupElement` representing the script commitment.
+    ///   If not provided, the origin `GroupElement` is used.
+    /// * `tag` - A `Scalar` that will be used as a unique tag for the note.
     ///
     /// # Returns
     ///
-    /// Returns a `Result<Self, Error>`, where `Self` is the newly generated `MAC` instance on success,
+    /// Returns a `Result<GroupElement, Error>`, where `GroupElement` is the newly generated MAC on success,
     /// or an `Error` if the MAC generation fails (e.g., if hashing to curve fails).
     #[allow(non_snake_case)]
     pub fn generate(
@@ -314,7 +314,10 @@ impl RandomizedCommitments {
     ///
     /// # Arguments
     ///
-    /// * `coin` - A reference to a `Coin` instance from which the randomized coin will be created.
+    /// * `amount_attribute` - A reference to an `AmountAttribute` containing the amount information.
+    /// * `script_attribute` - An optional reference to a `ScriptAttribute` containing script information.
+    /// * `tag` - A `Scalar` value representing the unique tag for the note.
+    /// * `mac` - A `GroupElement` representing the MAC issued by the Mint.
     /// * `reveal_script` - A boolean indicating whether the script inside the `ScriptAttribute`
     ///   will be revealed. If true, the randomized script commitment will be void,
     ///   leaving space for the Mint to "fill in" the blank with the hash of the
@@ -322,8 +325,8 @@ impl RandomizedCommitments {
     ///
     /// # Returns
     ///
-    /// Returns a `Result<Self, Error>`, where `Self` is the newly created `RandomizedCoin` instance
-    /// on success, or an `Error` if the creation of the randomized coin fails (e.g., if hashing to
+    /// Returns a `Result<Self, Error>`, where `Self` is the newly created `RandomizedCommitments` instance
+    /// on success, or an `Error` if the creation of the randomized commitments fails (e.g., if hashing to
     /// curve fails).
     #[allow(non_snake_case)]
     pub fn from_attributes_and_mac(

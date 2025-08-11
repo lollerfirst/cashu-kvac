@@ -298,8 +298,10 @@ impl MacProof {
     /// # Arguments
     ///
     /// * `mint_publickey` - A reference to the `MintPublicKey` used for generating the proof.
-    /// * `coin` - A reference to a `Coin` that contains the amount attribute and MAC.
-    /// * `randomized_coin` - A reference to a `RandomizedCoin` that contains the commitments needed for the proof.
+    /// * `amount_attribute` - A reference to an `AmountAttribute` containing the amount information.
+    /// * `script_attribute` - An optional reference to a `ScriptAttribute` containing script information.
+    /// * `tag` - A `Scalar` value representing the unique tag for the note.
+    /// * `randomized_commitments` - A reference to `RandomizedCommitments` that contains the commitments needed for the proof.
     /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used during the proof creation.
     ///
     /// # Returns
@@ -338,7 +340,7 @@ impl MacProof {
     /// # Arguments
     ///
     /// * `mint_privkey` - A reference to the `MintPrivateKey` used for verification.
-    /// * `randomized_coin` - A reference to a `RandomizedCoin` that contains the commitments needed for verification.
+    /// * `randomized_commitments` - A reference to `RandomizedCommitments` that contains the commitments needed for verification.
     /// * `script` - An optional reference to a byte slice representing the script, if applicable.
     /// * `proof` - A `ZKP` instance containing the proof to be verified.
     /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used during the verification.
@@ -443,9 +445,10 @@ impl IssuanceProof {
     /// # Arguments
     ///
     /// * `mint_privkey` - A reference to the `MintPrivateKey` used for generating the proof.
-    /// * `mac` - A reference to the `MAC` instance associated with the proof.
-    /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment.
-    /// * `script_commitment` - An optional reference to a `GroupElement` representing the script commitment.
+    /// * `tag` - A `Scalar` value representing the unique tag for the note.
+    /// * `mac` - A `GroupElement` representing the MAC issued by the Mint.
+    /// * `amount_commitment` - A `GroupElement` representing the amount commitment.
+    /// * `script_commitment` - An optional `GroupElement` representing the script commitment.
     ///
     /// # Returns
     ///
@@ -474,14 +477,16 @@ impl IssuanceProof {
             .prove()
     }
 
-    /// Verifies the IParams proof against the provided parameters and transcript.
+    /// Verifies the IParams proof against the provided parameters.
     ///
     /// # Arguments
     ///
     /// * `mint_publickey` - A reference to the `MintPublicKey` used for verification.
-    /// * `coin` - A reference to a `Coin` that contains the MAC and amount attribute.
+    /// * `tag` - A `Scalar` value representing the unique tag for the note.
+    /// * `mac` - A `GroupElement` representing the MAC issued by the Mint.
+    /// * `amount_attribute` - A reference to an `AmountAttribute` containing the amount information.
+    /// * `script_attribute` - An optional reference to a `ScriptAttribute` containing script information.
     /// * `proof` - A `ZKP` instance containing the proof to be verified.
-    /// * `transcript` - A mutable reference to a `CashuTranscript` that will be used during the verification.
     ///
     /// # Returns
     ///
@@ -569,7 +574,7 @@ impl BalanceProof {
     /// Verifies a zero-knowledge proof for the balance of inputs and outputs.
     ///
     /// # Parameters
-    /// - `inputs`: A slice of `RandomizedCoin` with the randomized inputs to a transaction.
+    /// - `inputs`: A slice of `RandomizedCommitments` with the randomized inputs to a transaction.
     /// - `outputs`: A slice of `GroupElement` with the outputs to a transaction.
     /// - `delta_amount`: An integer representing the net change in amount (positive or negative).
     /// - `proof`: A `ZKP` representing the zero-knowledge balance proof to be verified.
@@ -610,7 +615,7 @@ impl ScriptEqualityProof {
     /// Creates a statement for the script equality proof based on the given inputs and outputs.
     ///
     /// # Parameters
-    /// - `inputs`: A slice of `RandomizedCoin` representing the randomized input coins.
+    /// - `inputs`: A slice of `RandomizedCommitments` representing the randomized input commitments.
     /// - `outputs`: A slice of tuples containing `GroupElement` commitments for amounts and scripts.
     ///
     /// # Returns
@@ -655,8 +660,8 @@ impl ScriptEqualityProof {
     /// Creates a zero-knowledge proof (ZKP) for the equality of scripts in the given inputs and outputs.
     ///
     /// # Parameters
-    /// - `inputs`: A slice of `Coin` representing the original input coins.
-    /// - `randomized_inputs`: A slice of `RandomizedCoin` representing the randomized input coins.
+    /// - `inputs`: A slice of tuples containing `AmountAttribute` and `ScriptAttribute` representing the original input attributes.
+    /// - `randomized_inputs`: A slice of `RandomizedCommitments` representing the randomized input commitments.
     /// - `outputs`: A slice of tuples containing `AmountAttribute` and `ScriptAttribute` for the outputs.
     /// - `transcript`: A mutable reference to a `CashuTranscript` used for the proof generation.
     ///
@@ -697,7 +702,7 @@ impl ScriptEqualityProof {
     /// Verifies a zero-knowledge proof for the equality of scripts in the given randomized inputs and outputs.
     ///
     /// # Parameters
-    /// - `randomized_inputs`: A slice of `RandomizedCoin` representing the randomized input coins.
+    /// - `randomized_inputs`: A slice of `RandomizedCommitments` representing the randomized input commitments.
     /// - `outputs`: A slice of tuples containing `GroupElement` commitments for amounts and scripts.
     /// - `proof`: A `ZKP` representing the zero-knowledge proof to be verified.
     /// - `transcript`: A mutable reference to a `CashuTranscript` used for the verification process.

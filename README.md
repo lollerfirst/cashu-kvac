@@ -44,7 +44,7 @@ let script_attribute = ScriptAttribute::new(script, custom_blinding_factor);
 
 Issuing a `MAC` on a `AmountAttribute`:
 ```rust
-use cashu_kvac::models::{AmountAttribute, ScriptAttribute, MAC};
+use cashu_kvac::models::{AmountAttribute, ScriptAttribute, MAC, MintPrivateKey};
 use cashu_kvac::secp::Scalar;
 
 let scalars = (0..6).map(|_| Scalar::random()).collect();
@@ -53,37 +53,44 @@ let mint_privkey = MintPrivateKey::from_scalars(&scalars).unwrap();
 // Client generates these
 let amount_attribute = AmountAttribute::new(10, None);
 let amount_commitment = amount_attribute.commitment();
-let t_tag = Scalar::random();
+let tag = Scalar::random();
 
-// Mint issues the MAC on the tag `t` and the commitments (amount and possibly script)
-let mac = MAC::generate(&mint_privkey, amount_commitment, None, Some(t_tag)).unwrap();
+// Mint issues the MAC on the tag and the commitments (amount and possibly script)
+// Returns a GroupElement representing the MAC
+let mac = MAC::generate(&mint_privkey, amount_commitment, None, tag).unwrap();
 
 ```
 
-Assembling a `Coin`:
+Creating `RandomizedCommitments` from attributes and MAC (mandatory before performing a swap, mint, melt):
 ```rust
-use cashu_kvac::models::Coin;
+use cashu_kvac::models::RandomizedCommitments;
 
-// Takes ownership of the arguments
-let coin = Coin::new(amount_attribute, script_attribute, mac);
-```
+// Create randomized commitments from amount attribute, script attribute, tag, and MAC
+let randomized_commitments = RandomizedCommitments::from_attributes_and_mac(
+    &amount_attribute,
+    Some(&script_attribute), // or None if no script
+    tag,
+    mac,
+    false // reveal_script
+).unwrap();
 
-Randomizing a `Coin` into a `RandomizedCoin` (mandatory before perfoming a swap, mint, melt):
-```rust
-use cashu_kvac::models::RandomizedCoin;
-
-let randomized_coin = RandomizedCoin::from_coin(&coin, false).unwrap();
-
-// Randomized coin, but the script will be revealed
-let randomized_coin_with_script_reveal = RandomizedCoin::from_coin(&coin, true).unwrap();
+// Randomized commitments, but the script will be revealed
+let randomized_commitments_with_script_reveal = RandomizedCommitments::from_attributes_and_mac(
+    &amount_attribute,
+    Some(&script_attribute),
+    tag,
+    mac,
+    true // reveal_script
+).unwrap();
 ```
 
 Proving the balance between inputs and outputs of a swap:
 ```rust
 use cashu_kvac::transcript::CashuTranscript;
-use cashu_kvac::models::{AmountAttribute, MAC};
+use cashu_kvac::models::{AmountAttribute, MAC, MintPrivateKey};
+use cashu_kvac::secp::{Scalar, GroupElement};
 
-let transcript = CashuTranscript::new();
+let mut transcript = CashuTranscript::new();
 
 let scalars = (0..6).map(|_| Scalar::random()).collect();
 let mint_privkey = MintPrivateKey::from_scalars(&scalars).unwrap();
@@ -95,10 +102,12 @@ let inputs = vec![
 let outputs = vec![AmountAttribute::new(23, None)];
 
 // We assume the inputs were already issued a MAC previously
-let macs: Vec<MAC> = inputs
+let tags: Vec<Scalar> = inputs.iter().map(|_| Scalar::random()).collect();
+let macs: Vec<GroupElement> = inputs
     .iter()
-    .map(|input| {
-        MAC::generate(&privkey, input.commitment(), None, None).expect("MAC expected")
+    .zip(tags.iter())
+    .map(|(input, tag)| {
+        MAC::generate(&mint_privkey, input.commitment(), None, *tag).expect("MAC expected")
     })
     .collect();
 
