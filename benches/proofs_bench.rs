@@ -3,7 +3,7 @@ extern crate test;
 use cashu_kvac::{
     bulletproof::BulletProof,
     generators::GENERATORS,
-    models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, ScriptAttribute, MAC},
+    models::{AmountAttribute, MintPrivateKey, RandomizedCommitments, ScriptAttribute, MAC},
     secp::{GroupElement, Scalar},
     transcript::CashuTranscript,
 };
@@ -35,9 +35,10 @@ fn bench_bootstrap_proof(bencher: &mut Bencher) {
 fn bench_iparams_proof(bencher: &mut Bencher) {
     let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(12, None);
-    let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
+    let tag = Scalar::random();
+    let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
         .expect("Couldn't generate MAC");
-    bencher.iter(|| IssuanceProof::create(&mint_privkey, &mac, &amount_attr.commitment(), None));
+    bencher.iter(|| IssuanceProof::create(&mint_privkey, tag, mac, amount_attr.commitment(), None));
 }
 
 #[bench]
@@ -45,16 +46,18 @@ fn bench_mac_proof(bencher: &mut Bencher) {
     let (_, mut client_transcript) = transcripts();
     let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(12, None);
-    let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
+    let tag = Scalar::random();
+    let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
         .expect("Couldn't generate MAC");
-    let coin = Coin::new(amount_attr, None, mac);
-    let randomized_coin =
-        RandomizedCoin::from_coin(&coin, false).expect("Expected a randomized coin");
+    let randomized_commitments =
+        RandomizedCommitments::from_attributes_and_mac(&amount_attr, None, tag, mac, false).expect("Expected randomized commitments");
     bencher.iter(|| {
         MacProof::create(
             &mint_privkey.public_key,
-            &coin,
-            &randomized_coin,
+            &amount_attr,
+            None,
+            tag,
+            &randomized_commitments,
             &mut client_transcript,
         )
     });
@@ -96,31 +99,28 @@ fn bench_script_proofs(bencher: &mut Bencher) {
             ScriptAttribute::new(script, None),
         ),
     ];
-    let macs: Vec<MAC> = inputs
+    let tags: Vec<Scalar> = inputs.iter().map(|_| Scalar::random()).collect();
+    let macs: Vec<GroupElement> = inputs
         .iter()
-        .map(|(amount_attr, script_attr)| {
+        .zip(tags.iter())
+        .map(|(input, tag)| {
             MAC::generate(
                 &privkey,
-                &amount_attr.commitment(),
-                Some(&script_attr.commitment()),
-                None,
+                input.0.commitment(),
+                Some(input.1.commitment()),
+                *tag,
             )
-            .expect("")
+            .expect("MAC expected")
         })
         .collect();
-    let coins: Vec<Coin> = inputs
-        .into_iter()
-        .zip(macs)
-        .map(|((aa, sa), mac)| Coin::new(aa, Some(sa), mac))
-        .collect();
-    let randomized_coins: Vec<RandomizedCoin> = coins
-        .iter()
-        .map(|coin| RandomizedCoin::from_coin(coin, false).expect(""))
+    let randomized_commitments: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
+        .map(|((tag, mac), attr)|
+            RandomizedCommitments::from_attributes_and_mac(&attr.0, Some(&attr.1), *tag, *mac, false).expect("RandomizedCommitments expected"))
         .collect();
     bencher.iter(|| {
         ScriptEqualityProof::create(
-            &coins,
-            &randomized_coins,
+            &inputs,
+            &randomized_commitments,
             &outputs,
             client_transcript.as_mut(),
         )
@@ -161,11 +161,11 @@ fn bench_bootstrap_proof_verification(bencher: &mut Bencher) {
 fn bench_iparams_proof_verification(bencher: &mut Bencher) {
     let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(12, None);
-    let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
+    let tag = Scalar::random();
+    let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
         .expect("Couldn't generate MAC");
-    let proof = IssuanceProof::create(&mint_privkey, &mac, &amount_attr.commitment(), None);
-    let coin = Coin::new(amount_attr, None, mac);
-    bencher.iter(|| IssuanceProof::verify(&mint_privkey.public_key, &coin, proof.clone()));
+    let proof = IssuanceProof::create(&mint_privkey, tag, mac, amount_attr.commitment(), None);
+    bencher.iter(|| IssuanceProof::verify(&mint_privkey.public_key, tag, mac, &amount_attr, None, proof.clone()));
 }
 
 #[bench]
@@ -178,21 +178,18 @@ fn bench_balance_proof_verification(bencher: &mut Bencher) {
     ];
     let outputs = vec![AmountAttribute::new(23, None)];
     // We assume the inputs were already attributed a MAC previously
-    let macs: Vec<MAC> = inputs
+    let tags: Vec<Scalar> = inputs.iter().map(|_| Scalar::random()).collect();
+    let macs: Vec<GroupElement> = inputs
         .iter()
-        .map(|input| {
-            MAC::generate(&privkey, &input.commitment(), None, None).expect("MAC expected")
+        .zip(tags.iter())
+        .map(|(input, tag)| {
+            MAC::generate(&privkey, input.commitment(), None, *tag).expect("MAC expected")
         })
         .collect();
     let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
-    let mut coins: Vec<Coin> = macs
-        .into_iter()
-        .zip(inputs)
-        .map(|(mac, input)| Coin::new(input, None, mac))
-        .collect();
-    let randomized_coins: Vec<RandomizedCoin> = coins
-        .iter_mut()
-        .map(|coin| RandomizedCoin::from_coin(coin, false).expect("RandomzedCoin expected"))
+    let randomized_commitments: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
+        .map(|((tag, mac), amount_attr)|
+            RandomizedCommitments::from_attributes_and_mac(amount_attr, None, *tag, *mac, false).expect("RandomizedCommitments expected"))
         .collect();
     let outputs: Vec<GroupElement> = outputs
         .into_iter()
@@ -200,7 +197,7 @@ fn bench_balance_proof_verification(bencher: &mut Bencher) {
         .collect();
     bencher.iter(|| {
         BalanceProof::verify(
-            &randomized_coins,
+            &randomized_commitments,
             &outputs,
             0,
             proof.clone(),
@@ -214,21 +211,23 @@ fn bench_mac_proof_verification(bencher: &mut Bencher) {
     let (mut mint_transcript, mut client_transcript) = transcripts();
     let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(12, None);
-    let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
+    let tag = Scalar::random();
+    let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
         .expect("Couldn't generate MAC");
-    let coin = Coin::new(amount_attr, None, mac);
-    let randomized_coin =
-        RandomizedCoin::from_coin(&coin, false).expect("Expected a randomized coin");
+    let randomized_commitments =
+        RandomizedCommitments::from_attributes_and_mac(&amount_attr, None, tag, mac, false).expect("Expected randomized commitments");
     let proof = MacProof::create(
         &mint_privkey.public_key,
-        &coin,
-        &randomized_coin,
+        &amount_attr,
+        None,
+        tag,
+        &randomized_commitments,
         &mut client_transcript,
     );
     bencher.iter(|| {
         MacProof::verify(
             &mint_privkey,
-            &randomized_coin,
+            &randomized_commitments,
             None,
             proof.clone(),
             &mut mint_transcript,
@@ -265,30 +264,27 @@ fn bench_script_proof_verification(bencher: &mut Bencher) {
             ScriptAttribute::new(script, None),
         ),
     ];
-    let macs: Vec<MAC> = inputs
+    let tags: Vec<Scalar> = inputs.iter().map(|_| Scalar::random()).collect();
+    let macs: Vec<GroupElement> = inputs
         .iter()
-        .map(|(amount_attr, script_attr)| {
+        .zip(tags.iter())
+        .map(|(input, tag)| {
             MAC::generate(
                 &privkey,
-                &amount_attr.commitment(),
-                Some(&script_attr.commitment()),
-                None,
+                input.0.commitment(),
+                Some(input.1.commitment()),
+                *tag,
             )
-            .expect("")
+            .expect("MAC expected")
         })
         .collect();
-    let coins: Vec<Coin> = inputs
-        .into_iter()
-        .zip(macs)
-        .map(|((aa, sa), mac)| Coin::new(aa, Some(sa), mac))
-        .collect();
-    let randomized_coins: Vec<RandomizedCoin> = coins
-        .iter()
-        .map(|coin| RandomizedCoin::from_coin(coin, false).expect(""))
+    let randomized_commitments: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
+        .map(|((tag, mac), attr)|
+            RandomizedCommitments::from_attributes_and_mac(&attr.0, Some(&attr.1), *tag, *mac, false).expect("RandomizedCommitments expected"))
         .collect();
     let proof = ScriptEqualityProof::create(
-        &coins,
-        &randomized_coins,
+        &inputs,
+        &randomized_commitments,
         &outputs,
         client_transcript.as_mut(),
     )
@@ -299,7 +295,7 @@ fn bench_script_proof_verification(bencher: &mut Bencher) {
         .collect();
     bencher.iter(|| {
         ScriptEqualityProof::verify(
-            &randomized_coins,
+            &randomized_commitments,
             &outputs,
             proof.clone(),
             mint_transcript.as_mut(),
