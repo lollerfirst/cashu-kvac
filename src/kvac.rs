@@ -2,8 +2,7 @@ use crate::bulletproof::BulletProof;
 use crate::errors::Error;
 use crate::generators::{hash_to_curve, GENERATORS};
 use crate::models::{
-    AmountAttribute, Coin, Equation, MintPrivateKey, MintPublicKey, RandomizedCoin, RangeZKP,
-    ScriptAttribute, Statement, MAC, ZKP,
+    AmountAttribute, Equation, MintPrivateKey, MintPublicKey, RandomizedCommitments, RangeZKP, ScriptAttribute, Statement, MAC, ZKP
 };
 use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use crate::transcript::CashuTranscript;
@@ -250,12 +249,13 @@ impl MacProof {
     pub fn statement(
         Z: GroupElement,
         I: GroupElement,
-        randomized_coin: &RandomizedCoin,
+        randomized_commitments: &RandomizedCommitments,
     ) -> Statement {
-        let Cx0 = randomized_coin.Cx0;
-        let Cx1 = randomized_coin.Cx1;
-        let Ca = randomized_coin.Ca;
-        let O = GroupElement::new(&GROUP_ELEMENT_ZERO);
+        let Cx0 = randomized_commitments.Cx0;
+        let Cx1 = randomized_commitments.Cx1;
+        let Ca = randomized_commitments.Ca;
+        let Cs = randomized_commitments.Cs;
+        let O = GENERATORS.O;
         // Can you change the initialization of Equation in the last two entries to use `new` like the first?
         Statement::new(
             b"MAC_Statement_",
@@ -276,6 +276,13 @@ impl MacProof {
                         vec![GENERATORS.G_blind],
                     ],
                 ),
+                Equation::new(
+                    // Cs = r_a*Gz_script + s*G_script + r_s*G_blind 
+                    Cs,
+                    vec![
+                        vec![GENERATORS.Gz_script, O, O, O, GENERATORS.G_script, GENERATORS.G_blind],
+                    ]
+                )
             ],
         )
     }
@@ -294,18 +301,28 @@ impl MacProof {
     /// Returns a `ZKP` instance containing the proof generated for the MAC statement.
     pub fn create(
         mint_publickey: &MintPublicKey,
-        coin: &Coin,
-        randomized_coin: &RandomizedCoin,
+        amount_attribute: &AmountAttribute,
+        script_attribute: Option<&ScriptAttribute>,
+        tag: Scalar,
+        randomized_commitments: &RandomizedCommitments,
         transcript: &mut CashuTranscript,
     ) -> ZKP {
-        let r_a = coin.amount_attribute.r;
-        let a = coin.amount_attribute.a;
-        let t = coin.mac.t;
+        let r_a = amount_attribute.r;
+        let a = amount_attribute.a;
+        let r_s = match script_attribute {
+            Some(script_attribute) => script_attribute.r,
+            None => Scalar::new(&SCALAR_ZERO),
+        };
+        let s = match script_attribute {
+            Some(script_attribute ) => script_attribute.s,
+            None => Scalar::new(&SCALAR_ZERO),
+        };
+        let t = tag;
         let r0 = -r_a * t.as_ref();
         let (_Cw, I) = (mint_publickey.Cw.as_ref(), mint_publickey.I.as_ref());
-        let Z = *I * &coin.amount_attribute.r;
-        let statement = MacProof::statement(Z, *I, randomized_coin);
-        SchnorrProver::new(transcript, vec![r_a, r0, t, a])
+        let Z = *I * &amount_attribute.r;
+        let statement = MacProof::statement(Z, *I, randomized_commitments);
+        SchnorrProver::new(transcript, vec![r_a, r0, t, a, s, r_s])
             .add_statement(statement)
             .prove()
     }
@@ -325,7 +342,7 @@ impl MacProof {
     /// Returns a boolean indicating whether the proof is valid (`true`) or invalid (`false`).
     pub fn verify(
         mint_privkey: &MintPrivateKey,
-        randomized_coin: &RandomizedCoin,
+        randomized_coin: &RandomizedCommitments,
         script: Option<&[u8]>,
         proof: ZKP,
         transcript: &mut CashuTranscript,
@@ -372,7 +389,8 @@ impl IssuanceProof {
     /// # Arguments
     ///
     /// * `mint_publickey` - A reference to the `MintPublicKey` used in the proof.
-    /// * `mac` - A reference to the `MAC` instance associated with the proof.
+    /// * `tag` - A reference to the tag `Scalar` value used for unique identification of the note.
+    /// * `mac` - A reference to the MAC `GroupElement` issued by the Mint. 
     /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment.
     /// * `script_commitment` - A reference to a `GroupElement` representing the script commitment.
     ///
@@ -381,18 +399,19 @@ impl IssuanceProof {
     /// Returns a `Statement` containing the domain separator and the equations related to the IParams proof.
     pub fn statement(
         mint_publickey: &MintPublicKey,
-        mac: &MAC,
-        amount_commitment: &GroupElement,
-        script_commitment: &GroupElement,
+        tag: Scalar,
+        mac: GroupElement,
+        amount_commitment: GroupElement,
+        script_commitment: GroupElement,
     ) -> Statement {
         let O = GroupElement::new(&GROUP_ELEMENT_ZERO);
-        let t_tag_bytes: [u8; 32] = mac.t.as_ref().into();
-        let t = mac.t.as_ref();
+        let t_tag_bytes: [u8; 32] = tag.as_ref().into();
+        let t = tag;
         let U = hash_to_curve(&t_tag_bytes).expect("Couldn't get map MAC tag to GroupElement");
-        let V = mac.V;
+        let V = mac;
         let (Cw, I) = (mint_publickey.Cw.as_ref(), mint_publickey.I.as_ref());
-        let Ma = *amount_commitment;
-        let Ms = *script_commitment;
+        let Ma = amount_commitment;
+        let Ms = script_commitment;
         Statement::new(
             b"Iparams_Statement_",
             vec![
@@ -408,7 +427,7 @@ impl IssuanceProof {
                         -GENERATORS.Gz_script,
                     ]],
                 ),
-                Equation::new(V, vec![vec![GENERATORS.W, O, U, U * t, Ma, Ms]]),
+                Equation::new(V, vec![vec![GENERATORS.W, O, U, U * &t, Ma, Ms]]),
             ],
         )
     }
@@ -427,17 +446,19 @@ impl IssuanceProof {
     /// Returns a `ZKP` instance containing the proof generated for the IParams statement.
     pub fn create(
         mint_privkey: &MintPrivateKey,
-        mac: &MAC,
-        amount_commitment: &GroupElement,
-        script_commitment: Option<&GroupElement>,
+        tag: Scalar,
+        mac: GroupElement,
+        amount_commitment: GroupElement,
+        script_commitment: Option<GroupElement>,
     ) -> ZKP {
         let mut transcript = CashuTranscript::new();
-        let script_commitment: &GroupElement = match script_commitment {
+        let script_commitment: GroupElement = match script_commitment {
             Some(scr) => scr,
-            None => GENERATORS.O.as_ref(),
+            None => GENERATORS.O,
         };
         let statement = IssuanceProof::statement(
             &mint_privkey.public_key,
+            tag,
             mac,
             amount_commitment,
             script_commitment,
@@ -459,17 +480,25 @@ impl IssuanceProof {
     /// # Returns
     ///
     /// Returns a boolean indicating whether the proof is valid (`true`) or invalid (`false`).
-    pub fn verify(mint_publickey: &MintPublicKey, coin: &Coin, proof: ZKP) -> bool {
+    pub fn verify(
+        mint_publickey: &MintPublicKey,
+        tag: Scalar,
+        mac: GroupElement,
+        amount_attribute: &AmountAttribute,
+        script_attribute: Option<&ScriptAttribute>,
+        proof: ZKP
+    ) -> bool {
         let mut transcript = CashuTranscript::new();
-        let script_commitment: GroupElement = match &coin.script_attribute {
+        let script_commitment: GroupElement = match script_attribute {
             Some(scr) => scr.commitment(),
             None => GENERATORS.O,
         };
         let statement = IssuanceProof::statement(
             mint_publickey,
-            &coin.mac,
-            &coin.amount_attribute.commitment(),
-            &script_commitment,
+            tag,
+            mac,
+            amount_attribute.commitment(),
+            script_commitment,
         );
         SchnorrVerifier::new(&mut transcript, proof)
             .add_statement(statement)
@@ -543,7 +572,7 @@ impl BalanceProof {
     /// # Returns
     /// A boolean indicating whether the proof is valid (`true`) or invalid (`false`).
     pub fn verify(
-        inputs: &[RandomizedCoin],
+        inputs: &[RandomizedCommitments],
         outputs: &[GroupElement],
         delta_amount: i64,
         proof: ZKP,
@@ -581,7 +610,7 @@ impl ScriptEqualityProof {
     /// # Returns
     /// A `Statement` containing the domain separator and the equations that represent the script equality proof.
     pub fn statement(
-        inputs: &[RandomizedCoin],
+        inputs: &[RandomizedCommitments],
         outputs: &[(GroupElement, GroupElement)],
     ) -> Statement {
         let O: GroupElement = GENERATORS.O;
@@ -628,8 +657,8 @@ impl ScriptEqualityProof {
     /// # Returns
     /// A `Result` containing a `ZKP` representing the zero-knowledge proof of script equality, or an `Error` if the input lists are empty.
     pub fn create(
-        inputs: &[Coin],
-        randomized_inputs: &[RandomizedCoin],
+        inputs: &[(AmountAttribute, ScriptAttribute)],
+        randomized_inputs: &[RandomizedCommitments],
         outputs: &[(AmountAttribute, ScriptAttribute)],
         transcript: &mut CashuTranscript,
     ) -> Result<ZKP, Error> {
@@ -641,19 +670,12 @@ impl ScriptEqualityProof {
             .map(|(aa, sa)| (aa.commitment(), sa.commitment()))
             .collect();
         let statement = ScriptEqualityProof::statement(randomized_inputs, &commitments);
-        let s = inputs[0]
-            .script_attribute
-            .as_ref()
-            .ok_or(Error::NoScriptProvided)?
-            .s;
-        let r_a_list = inputs.iter().map(|coin| coin.amount_attribute.r).collect();
+        let s = inputs[0].1.s;
+        let r_a_list = inputs.iter().map(|input| input.0.r).collect();
         let r_s_list = inputs
             .iter()
-            .map(|coin| {
-                coin.script_attribute
-                    .as_ref()
-                    .expect("Expected Script Attribute")
-                    .r
+            .map(|input| {
+                input.1.r
             })
             .collect();
         let new_r_s_list = outputs
@@ -682,7 +704,7 @@ impl ScriptEqualityProof {
     /// # Returns
     /// A boolean indicating whether the proof is valid (`true`) or invalid (`false`).
     pub fn verify(
-        randomized_inputs: &[RandomizedCoin],
+        randomized_inputs: &[RandomizedCommitments],
         outputs: &[(GroupElement, GroupElement)],
         proof: ZKP,
         transcript: &mut CashuTranscript,
@@ -745,7 +767,7 @@ mod tests {
     use crate::{
         errors::Error,
         generators::{hash_to_curve, GENERATORS},
-        models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, ScriptAttribute, MAC},
+        models::{AmountAttribute, MintPrivateKey, RandomizedCommitments, ScriptAttribute, MAC},
         secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO},
         transcript::CashuTranscript,
     };
@@ -791,13 +813,17 @@ mod tests {
     fn test_iparams() {
         let mint_privkey = privkey();
         let amount_attr = AmountAttribute::new(12, None);
-        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
+        let tag = Scalar::random();
+        let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
             .expect("Couldn't generate MAC");
-        let proof = IssuanceProof::create(&mint_privkey, &mac, &amount_attr.commitment(), None);
-        let coin = Coin::new(amount_attr, None, mac);
+        let proof = IssuanceProof::create(&mint_privkey, tag, mac, amount_attr.commitment(), None);
+        tag.invert();
         assert!(IssuanceProof::verify(
             &mint_privkey.public_key,
-            &coin,
+            tag,
+            mac,
+            &amount_attr,
+            None,
             proof,
         ));
     }
@@ -807,13 +833,16 @@ mod tests {
         let mint_privkey = privkey();
         let mint_privkey_1 = privkey();
         let amount_attr = AmountAttribute::new(12, None);
-        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
+        let tag = Scalar::random();
+        let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
             .expect("Couldn't generate MAC");
-        let proof = IssuanceProof::create(&mint_privkey, &mac, &amount_attr.commitment(), None);
-        let coin = Coin::new(amount_attr, None, mac);
+        let proof = IssuanceProof::create(&mint_privkey, tag, mac, amount_attr.commitment(), None);
         assert!(!IssuanceProof::verify(
             &mint_privkey_1.public_key,
-            &coin,
+            tag,
+            mac,
+            &amount_attr,
+            None,
             proof,
         ))
     }
@@ -823,20 +852,22 @@ mod tests {
         let (mut mint_transcript, mut client_transcript) = transcripts();
         let mint_privkey = privkey();
         let amount_attr = AmountAttribute::new(12, None);
-        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
+        let tag = Scalar::random();
+        let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
             .expect("Couldn't generate MAC");
-        let coin = Coin::new(amount_attr, None, mac);
-        let randomized_coin =
-            RandomizedCoin::from_coin(&coin, false).expect("Expected a randomized coin");
+        let randomized_coms =
+            RandomizedCommitments::from_attributes_and_mac(&amount_attr, None, tag, mac, false).expect("Expected a randomized coin");
         let proof = MacProof::create(
             &mint_privkey.public_key,
-            &coin,
-            &randomized_coin,
+            &amount_attr,
+            None,
+            tag,
+            &randomized_coms,
             &mut client_transcript,
         );
         assert!(MacProof::verify(
             &mint_privkey,
-            &randomized_coin,
+            &randomized_coms,
             None,
             proof,
             &mut mint_transcript
@@ -846,12 +877,12 @@ mod tests {
     #[test]
     fn test_wrong_mac() {
         #[allow(non_snake_case)]
-        fn generate_custom_rand(coin: &Coin) -> Result<RandomizedCoin, Error> {
-            let t = coin.mac.t;
-            let V = coin.mac.V.as_ref();
-            let t_bytes: [u8; 32] = (&coin.mac.t).into();
+        fn generate_custom_rand(amount_attr: &AmountAttribute, tag: Scalar, mac: GroupElement) -> Result<RandomizedCommitments, Error> {
+            let t = tag;
+            let V = mac.as_ref();
+            let t_bytes: [u8; 32] = tag.as_ref().into();
             let U = hash_to_curve(&t_bytes)?;
-            let Ma = coin.amount_attribute.commitment();
+            let Ma = amount_attr.commitment();
             // We try and randomize differently.
             let z = Scalar::random();
             let Ms: GroupElement = GroupElement::new(&GROUP_ELEMENT_ZERO);
@@ -862,7 +893,7 @@ mod tests {
             let Cx1 = GENERATORS.X1 * z.as_ref() + &(U * &t);
             let Cv = GENERATORS.Gz_mac * z.as_ref() + V;
 
-            Ok(RandomizedCoin {
+            Ok(RandomizedCommitments {
                 Ca,
                 Cs,
                 Cx0,
@@ -874,19 +905,21 @@ mod tests {
         let (mut mint_transcript, mut client_transcript) = transcripts();
         let mint_privkey = privkey();
         let amount_attr = AmountAttribute::new(12, None);
-        let mac = MAC::generate(&mint_privkey, &amount_attr.commitment(), None, None)
+        let tag = Scalar::random();
+        let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
             .expect("Couldn't generate MAC");
-        let coin = Coin::new(amount_attr, None, mac);
-        let randomized_coin = generate_custom_rand(&coin).expect("Expected a randomized coin");
+        let randomized_coms = generate_custom_rand(&amount_attr, tag, mac).unwrap();
         let proof = MacProof::create(
             &mint_privkey.public_key,
-            &coin,
-            &randomized_coin,
+            &amount_attr,
+            None,
+            tag,
+            &randomized_coms,
             &mut client_transcript,
         );
         assert!(!MacProof::verify(
             &mint_privkey,
-            &randomized_coin,
+            &randomized_coms,
             None,
             proof,
             &mut mint_transcript
@@ -903,28 +936,25 @@ mod tests {
         ];
         let outputs = vec![AmountAttribute::new(23, None)];
         // We assume the inputs were already attributed a MAC previously
-        let macs: Vec<MAC> = inputs
+        let tags: Vec<Scalar> = inputs.iter().map(|_| Scalar::random()).collect();
+        let macs: Vec<GroupElement> = inputs
             .iter()
-            .map(|input| {
-                MAC::generate(&privkey, &input.commitment(), None, None).expect("MAC expected")
+            .zip(tags.iter())
+            .map(|(input, tag)| {
+                MAC::generate(&privkey, input.commitment(), None, *tag).expect("MAC expected")
             })
             .collect();
         let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
-        let mut coins: Vec<Coin> = macs
-            .into_iter()
-            .zip(inputs)
-            .map(|(mac, input)| Coin::new(input, None, mac))
-            .collect();
-        let randomized_coins: Vec<RandomizedCoin> = coins
-            .iter_mut()
-            .map(|coin| RandomizedCoin::from_coin(coin, false).expect("RandomzedCoin expected"))
+        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(outputs.iter())
+            .map(|((tag, mac), amount_attr)|
+                RandomizedCommitments::from_attributes_and_mac(amount_attr, None, *tag, *mac, false).expect("RandomzedCommittment expected"))
             .collect();
         let outputs: Vec<GroupElement> = outputs
             .into_iter()
             .map(|output| output.commitment())
             .collect();
         assert!(BalanceProof::verify(
-            &randomized_coins,
+            &randomized_coms,
             &outputs,
             0,
             proof,
@@ -942,28 +972,25 @@ mod tests {
         ];
         let outputs = vec![AmountAttribute::new(23, None)];
         // We assume the inputs were already attributed a MAC previously
-        let macs: Vec<MAC> = inputs
-            .iter_mut()
-            .map(|input| {
-                MAC::generate(&privkey, &input.commitment(), None, None).expect("MAC expected")
+        let tags: Vec<Scalar> = inputs.iter().map(|_| Scalar::random()).collect();
+        let macs: Vec<GroupElement> = inputs
+            .iter()
+            .zip(tags.iter())
+            .map(|(input, tag)| {
+                MAC::generate(&privkey, input.commitment(), None, *tag).expect("MAC expected")
             })
             .collect();
         let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
-        let mut coins: Vec<Coin> = macs
-            .into_iter()
-            .zip(inputs)
-            .map(|(mac, input)| Coin::new(input, None, mac))
-            .collect();
-        let randomized_coins: Vec<RandomizedCoin> = coins
-            .iter_mut()
-            .map(|coin| RandomizedCoin::from_coin(coin, false).expect("RandomzedCoin expected"))
+        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(outputs.iter())
+            .map(|((tag, mac), amount_attr)|
+                RandomizedCommitments::from_attributes_and_mac(amount_attr, None, *tag, *mac, false).expect("RandomzedCommittment expected"))
             .collect();
         let outputs: Vec<GroupElement> = outputs
             .into_iter()
             .map(|output| output.commitment())
             .collect();
         assert!(!BalanceProof::verify(
-            &randomized_coins,
+            &randomized_coms,
             &outputs,
             1,
             proof,
@@ -1000,30 +1027,22 @@ mod tests {
                 ScriptAttribute::new(script, None),
             ),
         ];
-        let macs: Vec<MAC> = inputs
+        // We assume the inputs were already attributed a MAC previously
+        let tags: Vec<Scalar> = inputs.iter().map(|_| Scalar::random()).collect();
+        let macs: Vec<GroupElement> = inputs
             .iter()
-            .map(|(amount_attr, script_attr)| {
-                MAC::generate(
-                    &privkey,
-                    &amount_attr.commitment(),
-                    Some(&script_attr.commitment()),
-                    None,
-                )
-                .expect("")
+            .zip(tags.iter())
+            .map(|(input, tag)| {
+                MAC::generate(&privkey, input.0.commitment(), Some(input.1.commitment()), *tag).expect("MAC expected")
             })
             .collect();
-        let coins: Vec<Coin> = inputs
-            .into_iter()
-            .zip(macs)
-            .map(|((aa, sa), mac)| Coin::new(aa, Some(sa), mac))
-            .collect();
-        let randomized_coins: Vec<RandomizedCoin> = coins
-            .iter()
-            .map(|coin| RandomizedCoin::from_coin(coin, false).expect(""))
+        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(outputs.iter())
+            .map(|((tag, mac), attr)|
+                RandomizedCommitments::from_attributes_and_mac(&attr.0, Some(&attr.1), *tag, *mac, false).expect("RandomzedCommittment expected"))
             .collect();
         let proof = ScriptEqualityProof::create(
-            &coins,
-            &randomized_coins,
+            &inputs,
+            &randomized_coms,
             &outputs,
             client_transcript.as_mut(),
         )
@@ -1033,7 +1052,7 @@ mod tests {
             .map(|(aa, sa)| (aa.commitment(), sa.commitment()))
             .collect();
         assert!(ScriptEqualityProof::verify(
-            &randomized_coins,
+            &randomized_coms,
             &outputs,
             proof,
             mint_transcript.as_mut()
@@ -1069,30 +1088,22 @@ mod tests {
                 ScriptAttribute::new(script, None),
             ),
         ];
-        let macs: Vec<MAC> = inputs
+        // We assume the inputs were already attributed a MAC previously
+        let tags: Vec<Scalar> = inputs.iter().map(|_| Scalar::random()).collect();
+        let macs: Vec<GroupElement> = inputs
             .iter()
-            .map(|(amount_attr, script_attr)| {
-                MAC::generate(
-                    &privkey,
-                    &amount_attr.commitment(),
-                    Some(&script_attr.commitment()),
-                    None,
-                )
-                .expect("")
+            .zip(tags.iter())
+            .map(|(input, tag)| {
+                MAC::generate(&privkey, input.0.commitment(), Some(input.1.commitment()), *tag).expect("MAC expected")
             })
             .collect();
-        let coins: Vec<Coin> = inputs
-            .into_iter()
-            .zip(macs)
-            .map(|((aa, sa), mac)| Coin::new(aa, Some(sa), mac))
-            .collect();
-        let randomized_coins: Vec<RandomizedCoin> = coins
-            .iter()
-            .map(|coin| RandomizedCoin::from_coin(coin, false).expect(""))
+        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(outputs.iter())
+            .map(|((tag, mac), attr)|
+                RandomizedCommitments::from_attributes_and_mac(&attr.0, Some(&attr.1), *tag, *mac, false).expect("RandomzedCommittment expected"))
             .collect();
         let proof = ScriptEqualityProof::create(
-            &coins,
-            &randomized_coins,
+            &inputs,
+            &randomized_coms,
             &outputs,
             client_transcript.as_mut(),
         )
@@ -1102,7 +1113,7 @@ mod tests {
             .map(|(aa, sa)| (aa.commitment(), sa.commitment()))
             .collect();
         assert!(!ScriptEqualityProof::verify(
-            &randomized_coins,
+            &randomized_coms,
             &outputs,
             proof,
             mint_transcript.as_mut()

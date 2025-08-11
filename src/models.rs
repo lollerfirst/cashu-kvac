@@ -246,12 +246,8 @@ impl AmountAttribute {
 /// Structure holding the key components of an algebraic MAC, used
 /// by the Mint to verify authenticity of the tokens
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Hash, Debug, Clone, Eq, PartialEq, Copy)]
 #[wasm_bindgen]
-pub struct MAC {
-    pub t: Scalar,
-    pub V: GroupElement,
-}
+pub struct MAC {}
 
 impl MAC {
     /// Generate a new MAC from the Mint's private key,
@@ -263,8 +259,7 @@ impl MAC {
     /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment.
     /// * `script_commitment` - An optional reference to a `GroupElement` representing the script commitment.
     ///   If not provided, a zero `GroupElement` is used.
-    /// * `t_tag` - An optional reference to a `Scalar` that can be used as a tag. If not provided, a random
-    ///   `Scalar` is generated.
+    /// * `tag` - A reference to a `Scalar` that will be used as a tag.
     ///
     /// # Returns
     ///
@@ -273,68 +268,24 @@ impl MAC {
     #[allow(non_snake_case)]
     pub fn generate(
         privkey: &MintPrivateKey,
-        amount_commitment: &GroupElement,
-        script_commitment: Option<&GroupElement>,
-        t_tag: Option<&Scalar>,
-    ) -> Result<Self, Error> {
-        let t: Scalar;
-        if let Some(t_tag_some) = t_tag {
-            t = *t_tag_some;
-        } else {
-            t = Scalar::random();
-        }
-        let t_bytes: [u8; 32] = t.as_ref().into();
+        amount_commitment: GroupElement,
+        script_commitment: Option<GroupElement>,
+        tag: Scalar,
+    ) -> Result<GroupElement, Error> {
+        let t_bytes: [u8; 32] = tag.as_ref().into();
         let U = hash_to_curve(&t_bytes)?;
-        let Ma = *amount_commitment;
+        let Ma = amount_commitment;
         let Ms: GroupElement;
         if let Some(com) = script_commitment {
-            Ms = *com;
+            Ms = com;
         } else {
-            Ms = GroupElement::new(&GROUP_ELEMENT_ZERO);
+            Ms = GENERATORS.O
         }
         let V = GENERATORS.W * &privkey.w
             + &(U * &privkey.x0)
-            + &(U * &(t * &privkey.x1))
+            + &(U * &(tag * &privkey.x1))
             + &(Ma * &(privkey.ya) + &(Ms * &(privkey.ys)));
-        Ok(MAC { t, V })
-    }
-}
-
-/// Structure that captures
-/// `AmountAttribute`, `ScriptAttribute` and the `MAC`
-/// issued on them
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize, Copy)]
-#[wasm_bindgen]
-pub struct Coin {
-    #[serde(rename = "amount")]
-    pub amount_attribute: AmountAttribute,
-    #[serde(rename = "script")]
-    pub script_attribute: Option<ScriptAttribute>,
-    pub mac: MAC,
-}
-
-impl Coin {
-    /// Create a new `Coin` from an amount attribute, a script attribute, and a MAC.
-    ///
-    /// # Arguments
-    ///
-    /// * `amount_attribute` - An `AmountAttribute` representing the amount associated with the coin.
-    /// * `script_attribute` - An optional `ScriptAttribute` that may contain additional script-related information.
-    /// * `mac` - A `MAC` issued by the mint for authentication and integrity of the coin.
-    ///
-    /// # Returns
-    ///
-    /// Returns a new instance of `Coin` containing the provided
-    pub fn new(
-        amount_attribute: AmountAttribute,
-        script_attribute: Option<ScriptAttribute>,
-        mac: MAC,
-    ) -> Self {
-        Coin {
-            amount_attribute,
-            script_attribute,
-            mac,
-        }
+        Ok(V)
     }
 }
 
@@ -342,7 +293,7 @@ impl Coin {
 #[allow(non_snake_case)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[wasm_bindgen]
-pub struct RandomizedCoin {
+pub struct RandomizedCommitments {
     /// Randomized Attribute Commitment
     pub Ca: GroupElement,
     /// Randomized Script Commitment
@@ -355,8 +306,8 @@ pub struct RandomizedCoin {
     pub Cv: GroupElement,
 }
 
-impl RandomizedCoin {
-    /// Create a randomized coin, with randomized commitments from a normal `Coin`.
+impl RandomizedCommitments {
+    /// Create randomized commitments from AmountAttribute, ScriptAttribute and MAC.
     ///
     /// `reveal_script` must be set to true if the script inside the `ScriptAttribute`
     /// will be revealed to the Mint/server.
@@ -375,31 +326,37 @@ impl RandomizedCoin {
     /// on success, or an `Error` if the creation of the randomized coin fails (e.g., if hashing to
     /// curve fails).
     #[allow(non_snake_case)]
-    pub fn from_coin(coin: &Coin, reveal_script: bool) -> Result<Self, Error> {
-        let t = coin.mac.t;
-        let V = coin.mac.V.as_ref();
-        let t_bytes: [u8; 32] = (&coin.mac.t).into();
+    pub fn from_attributes_and_mac(
+        amount_attribute: &AmountAttribute,
+        script_attribute: Option<&ScriptAttribute>,
+        tag: Scalar,
+        mac: GroupElement,
+        reveal_script: bool
+    ) -> Result<Self, Error> {
+        let t = tag;
+        let V = mac;
+        let t_bytes: [u8; 32] = tag.as_ref().into();
         let U = hash_to_curve(&t_bytes)?;
-        let Ma = coin.amount_attribute.commitment();
-        let r = &coin.amount_attribute.r;
+        let Ma = amount_attribute.commitment();
+        let r = &amount_attribute.r;
         let Ms: GroupElement;
-        if let Some(attr) = &coin.script_attribute {
+        if let Some(attr) = script_attribute {
             if reveal_script {
                 Ms = GENERATORS.G_blind * attr.r.as_ref();
             } else {
                 Ms = attr.commitment();
             }
         } else {
-            Ms = GroupElement::new(&GROUP_ELEMENT_ZERO);
+            Ms = GENERATORS.O;
         }
 
         let Ca = GENERATORS.Gz_attribute * r + &Ma;
         let Cs = GENERATORS.Gz_script * r + &Ms;
         let Cx0 = GENERATORS.X0 * r + &U;
         let Cx1 = GENERATORS.X1 * r + &(U * &t);
-        let Cv = GENERATORS.Gz_mac * r + V;
+        let Cv = GENERATORS.Gz_mac * r + &V;
 
-        Ok(RandomizedCoin {
+        Ok(RandomizedCommitments {
             Ca,
             Cs,
             Cx0,
@@ -491,37 +448,5 @@ mod tests {
         let serialized = "{\"s\":\"c87557af1c5e640a085df471d68a5a97c9aaf4d379add58da3d7d5e0fe0df487\",\"r\":\"6465616462656566646561646265656664656164626565666465616462656566\"}";
         let deserialized: ScriptAttribute = serde_json::from_str(serialized).unwrap();
         assert!(deserialized.s == script_attr.s);
-    }
-
-    #[test]
-    fn test_serialize_mac() {
-        let target = "{\"t\":\"fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4\",\"V\":\"022b5028285ab8646380eed0a07d76cab4379a43680df72428ee792a6f7a3910d0\"}";
-        // fake MAC for testing purposes
-        let t =
-            Scalar::try_from("fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4")
-                .unwrap();
-        let t_bytes: [u8; 32] = t.as_ref().into();
-        let mac = MAC {
-            t,
-            V: hash_to_curve(&t_bytes).unwrap(),
-        };
-        let serialized = serde_json::to_string(&mac).unwrap();
-        assert_eq!(serialized, target);
-    }
-
-    #[test]
-    fn test_deserialize_mac() {
-        let serialized = "{\"t\":\"fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4\",\"V\":\"022b5028285ab8646380eed0a07d76cab4379a43680df72428ee792a6f7a3910d0\"}";
-        let t =
-            Scalar::try_from("fa5cb78b4dfaa8763fe62cc687f0e2383ac6a10c7817f5c8bd99c4f87d673da4")
-                .unwrap();
-        let t_bytes: [u8; 32] = t.as_ref().into();
-        let mac = MAC {
-            t,
-            V: hash_to_curve(&t_bytes).unwrap(),
-        };
-        let deserialized: MAC = serde_json::from_str(serialized).unwrap();
-        assert_eq!(mac.t, deserialized.t);
-        assert_eq!(mac.V, deserialized.V);
     }
 }
