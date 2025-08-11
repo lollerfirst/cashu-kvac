@@ -10,8 +10,7 @@ use crate::{
     bulletproof::BulletProof,
     kvac::{BalanceProof, BootstrapProof, IssuanceProof, MacProof, ScriptEqualityProof},
     models::{
-        AmountAttribute, MintPrivateKey, MintPublicKey, RandomizedCommitments, ScriptAttribute,
-        ZKP,
+        AmountAttribute, MintPrivateKey, MintPublicKey, RandomizedCommitments, ScriptAttribute, ZKP,
     },
     secp::{GroupElement, Scalar},
     transcript::CashuTranscript,
@@ -99,12 +98,23 @@ impl ScriptAttribute {
 
 #[wasm_bindgen]
 impl RandomizedCommitments {
-    pub fn wasmFromAttributesAndMac(amountAttr: JsValue, scriptAttr: JsValue, tag: JsValue, mac: JsValue, revealScript: bool) -> Result<JsValue, JsError> {
+    pub fn wasmFromAttributesAndMac(
+        amountAttr: JsValue,
+        scriptAttr: JsValue,
+        tag: JsValue,
+        mac: JsValue,
+        revealScript: bool,
+    ) -> Result<JsValue, JsError> {
         let amountAttr: AmountAttribute = AmountAttribute::fromJSON(amountAttr)?;
-        let scriptAttr: Option<ScriptAttribute> = from_value(scriptAttr).map_err(|e| JsError::new(&format!("{e}")))?;
+        let scriptAttr: Option<ScriptAttribute> =
+            from_value(scriptAttr).map_err(|e| JsError::new(&format!("{e}")))?;
         let tag: Scalar = Scalar::fromJSON(tag)?;
         let mac: GroupElement = GroupElement::fromJSON(mac)?;
-        Ok(Self::from_attributes_and_mac(&amountAttr, scriptAttr.as_ref(), tag, mac, revealScript).unwrap().toJSON())
+        Ok(
+            Self::from_attributes_and_mac(&amountAttr, scriptAttr.as_ref(), tag, mac, revealScript)
+                .unwrap()
+                .toJSON(),
+        )
     }
 }
 
@@ -142,9 +152,19 @@ impl MacProof {
         let mintPubkey: MintPublicKey = MintPublicKey::fromJSON(mintPublickey)?;
         let amountAttr: AmountAttribute = AmountAttribute::fromJSON(amountAttribute)?;
         let tag: Scalar = Scalar::fromJSON(tag)?;
-        let randomizedComms: RandomizedCommitments = RandomizedCommitments::fromJSON(randomizedCoin)?;
-        let scriptAttr: Option<ScriptAttribute> = from_value(scriptAttribute).map_err(|e| JsError::new(&format!("{e}")))?;
-        Ok(MacProof::create(&mintPubkey, &amountAttr, scriptAttr.as_ref(), tag, &randomizedComms, transcript).toJSON())
+        let randomizedComms: RandomizedCommitments =
+            RandomizedCommitments::fromJSON(randomizedCoin)?;
+        let scriptAttr: Option<ScriptAttribute> =
+            from_value(scriptAttribute).map_err(|e| JsError::new(&format!("{e}")))?;
+        Ok(MacProof::create(
+            &mintPubkey,
+            &amountAttr,
+            scriptAttr.as_ref(),
+            tag,
+            &randomizedComms,
+            transcript,
+        )
+        .toJSON())
     }
 
     pub fn wasmVerify(
@@ -155,7 +175,8 @@ impl MacProof {
         transcript: &mut CashuTranscript,
     ) -> Result<bool, JsError> {
         let mintPrivkey: MintPrivateKey = MintPrivateKey::fromJSON(mintPrivkey)?;
-        let randomizedCoin: RandomizedCommitments = RandomizedCommitments::fromJSON(randomizedCoin)?;
+        let randomizedCoin: RandomizedCommitments =
+            RandomizedCommitments::fromJSON(randomizedCoin)?;
         let proof: ZKP = ZKP::fromJSON(proof)?;
         match script {
             None => Ok(MacProof::verify(
@@ -191,14 +212,10 @@ impl IssuanceProof {
         let amountCommitment: GroupElement = GroupElement::fromJSON(amountCommitment)?;
         let scriptCommitment: Option<GroupElement> =
             from_value(scriptCommitment).map_err(|e| JsError::new(&format!("{e}")))?;
-        Ok(IssuanceProof::create(
-            &mintPrivkey,
-            tag,
-            mac,
-            amountCommitment,
-            scriptCommitment,
+        Ok(
+            IssuanceProof::create(&mintPrivkey, tag, mac, amountCommitment, scriptCommitment)
+                .toJSON(),
         )
-        .toJSON())
     }
 
     pub fn wasmVerify(
@@ -211,11 +228,19 @@ impl IssuanceProof {
     ) -> Result<bool, JsError> {
         let mintPublickey: MintPublicKey = MintPublicKey::fromJSON(mintPublickey)?;
         let amountAttr = AmountAttribute::fromJSON(amountAttr)?;
-        let scriptAttr: Option<ScriptAttribute> = from_value(scriptAttr).map_err(|e| JsError::new(&format!("{e}")))?;
+        let scriptAttr: Option<ScriptAttribute> =
+            from_value(scriptAttr).map_err(|e| JsError::new(&format!("{e}")))?;
         let mac = GroupElement::fromJSON(mac)?;
         let tag = Scalar::fromJSON(tag)?;
         let proof: ZKP = ZKP::fromJSON(proof)?;
-        Ok(IssuanceProof::verify(&mintPublickey, tag, mac, &amountAttr, scriptAttr.as_ref(), proof))
+        Ok(IssuanceProof::verify(
+            &mintPublickey,
+            tag,
+            mac,
+            &amountAttr,
+            scriptAttr.as_ref(),
+            proof,
+        ))
     }
 }
 
@@ -265,7 +290,8 @@ impl ScriptEqualityProof {
     ) -> Result<JsValue, JsError> {
         let outputs: Vec<(AmountAttribute, ScriptAttribute)> =
             from_value(outputs).map_err(|e| JsError::new(&format!("{e}")))?;
-        let inputs: Vec<(AmountAttribute, ScriptAttribute)> = from_value(inputs).map_err(|e| JsError::new(&format!("{e}")))?;
+        let inputs: Vec<(AmountAttribute, ScriptAttribute)> =
+            from_value(inputs).map_err(|e| JsError::new(&format!("{e}")))?;
         let randomizedInputs: Vec<RandomizedCommitments> =
             from_value(randomizedInputs).map_err(|e| JsError::new(&format!("{e}")))?;
         Ok(
@@ -277,7 +303,7 @@ impl ScriptEqualityProof {
 
     pub fn wasmVerify(
         randomizedInputs: JsValue, //Vec<RandomizedCommitments>
-        outputs: JsValue, //Vec<(GroupElement, GroupElement)>,
+        outputs: JsValue,          //Vec<(GroupElement, GroupElement)>,
         proof: JsValue,
         transcript: &mut CashuTranscript,
     ) -> Result<bool, JsError> {

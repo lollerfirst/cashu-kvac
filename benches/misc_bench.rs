@@ -51,6 +51,15 @@ fn bench_randomized_commitments_generation(bencher: &mut Bencher) {
         amount_attr.commitment(),
         Some(script_attr.commitment()),
         tag,
-    ).unwrap();
-    bencher.iter(|| RandomizedCommitments::from_attributes_and_mac(&amount_attr, Some(&script_attr), tag, mac, true));
+    )
+    .unwrap();
+    bencher.iter(|| {
+        RandomizedCommitments::from_attributes_and_mac(
+            &amount_attr,
+            Some(&script_attr),
+            tag,
+            mac,
+            true,
+        )
+    });
 }

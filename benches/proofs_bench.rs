@@ -50,7 +50,8 @@ fn bench_mac_proof(bencher: &mut Bencher) {
     let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
         .expect("Couldn't generate MAC");
     let randomized_commitments =
-        RandomizedCommitments::from_attributes_and_mac(&amount_attr, None, tag, mac, false).expect("Expected randomized commitments");
+        RandomizedCommitments::from_attributes_and_mac(&amount_attr, None, tag, mac, false)
+            .expect("Expected randomized commitments");
     bencher.iter(|| {
         MacProof::create(
             &mint_privkey.public_key,
@@ -113,9 +114,20 @@ fn bench_script_proofs(bencher: &mut Bencher) {
             .expect("MAC expected")
         })
         .collect();
-    let randomized_commitments: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
-        .map(|((tag, mac), attr)|
-            RandomizedCommitments::from_attributes_and_mac(&attr.0, Some(&attr.1), *tag, *mac, false).expect("RandomizedCommitments expected"))
+    let randomized_commitments: Vec<RandomizedCommitments> = tags
+        .iter()
+        .zip(macs.iter())
+        .zip(inputs.iter())
+        .map(|((tag, mac), attr)| {
+            RandomizedCommitments::from_attributes_and_mac(
+                &attr.0,
+                Some(&attr.1),
+                *tag,
+                *mac,
+                false,
+            )
+            .expect("RandomizedCommitments expected")
+        })
         .collect();
     bencher.iter(|| {
         ScriptEqualityProof::create(
@@ -165,7 +177,16 @@ fn bench_iparams_proof_verification(bencher: &mut Bencher) {
     let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
         .expect("Couldn't generate MAC");
     let proof = IssuanceProof::create(&mint_privkey, tag, mac, amount_attr.commitment(), None);
-    bencher.iter(|| IssuanceProof::verify(&mint_privkey.public_key, tag, mac, &amount_attr, None, proof.clone()));
+    bencher.iter(|| {
+        IssuanceProof::verify(
+            &mint_privkey.public_key,
+            tag,
+            mac,
+            &amount_attr,
+            None,
+            proof.clone(),
+        )
+    });
 }
 
 #[bench]
@@ -187,9 +208,14 @@ fn bench_balance_proof_verification(bencher: &mut Bencher) {
         })
         .collect();
     let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
-    let randomized_commitments: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
-        .map(|((tag, mac), amount_attr)|
-            RandomizedCommitments::from_attributes_and_mac(amount_attr, None, *tag, *mac, false).expect("RandomizedCommitments expected"))
+    let randomized_commitments: Vec<RandomizedCommitments> = tags
+        .iter()
+        .zip(macs.iter())
+        .zip(inputs.iter())
+        .map(|((tag, mac), amount_attr)| {
+            RandomizedCommitments::from_attributes_and_mac(amount_attr, None, *tag, *mac, false)
+                .expect("RandomizedCommitments expected")
+        })
         .collect();
     let outputs: Vec<GroupElement> = outputs
         .into_iter()
@@ -215,7 +241,8 @@ fn bench_mac_proof_verification(bencher: &mut Bencher) {
     let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
         .expect("Couldn't generate MAC");
     let randomized_commitments =
-        RandomizedCommitments::from_attributes_and_mac(&amount_attr, None, tag, mac, false).expect("Expected randomized commitments");
+        RandomizedCommitments::from_attributes_and_mac(&amount_attr, None, tag, mac, false)
+            .expect("Expected randomized commitments");
     let proof = MacProof::create(
         &mint_privkey.public_key,
         &amount_attr,
@@ -278,9 +305,20 @@ fn bench_script_proof_verification(bencher: &mut Bencher) {
             .expect("MAC expected")
         })
         .collect();
-    let randomized_commitments: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
-        .map(|((tag, mac), attr)|
-            RandomizedCommitments::from_attributes_and_mac(&attr.0, Some(&attr.1), *tag, *mac, false).expect("RandomizedCommitments expected"))
+    let randomized_commitments: Vec<RandomizedCommitments> = tags
+        .iter()
+        .zip(macs.iter())
+        .zip(inputs.iter())
+        .map(|((tag, mac), attr)| {
+            RandomizedCommitments::from_attributes_and_mac(
+                &attr.0,
+                Some(&attr.1),
+                *tag,
+                *mac,
+                false,
+            )
+            .expect("RandomizedCommitments expected")
+        })
         .collect();
     let proof = ScriptEqualityProof::create(
         &inputs,

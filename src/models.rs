@@ -331,7 +331,7 @@ impl RandomizedCommitments {
         script_attribute: Option<&ScriptAttribute>,
         tag: Scalar,
         mac: GroupElement,
-        reveal_script: bool
+        reveal_script: bool,
     ) -> Result<Self, Error> {
         let t = tag;
         let V = mac;

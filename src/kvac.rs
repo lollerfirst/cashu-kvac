@@ -2,7 +2,8 @@ use crate::bulletproof::BulletProof;
 use crate::errors::Error;
 use crate::generators::{hash_to_curve, GENERATORS};
 use crate::models::{
-    AmountAttribute, Equation, MintPrivateKey, MintPublicKey, RandomizedCommitments, RangeZKP, ScriptAttribute, Statement, ZKP
+    AmountAttribute, Equation, MintPrivateKey, MintPublicKey, RandomizedCommitments, RangeZKP,
+    ScriptAttribute, Statement, ZKP,
 };
 use crate::secp::{GroupElement, Scalar, GROUP_ELEMENT_ZERO, SCALAR_ZERO};
 use crate::transcript::CashuTranscript;
@@ -277,12 +278,17 @@ impl MacProof {
                     ],
                 ),
                 Equation::new(
-                    // Cs = r_a*Gz_script + s*G_script + r_s*G_blind 
+                    // Cs = r_a*Gz_script + s*G_script + r_s*G_blind
                     Cs,
-                    vec![
-                        vec![GENERATORS.Gz_script, O, O, O, GENERATORS.G_script, GENERATORS.G_blind],
-                    ]
-                )
+                    vec![vec![
+                        GENERATORS.Gz_script,
+                        O,
+                        O,
+                        O,
+                        GENERATORS.G_script,
+                        GENERATORS.G_blind,
+                    ]],
+                ),
             ],
         )
     }
@@ -314,7 +320,7 @@ impl MacProof {
             None => Scalar::new(&SCALAR_ZERO),
         };
         let s = match script_attribute {
-            Some(script_attribute ) => script_attribute.s,
+            Some(script_attribute) => script_attribute.s,
             None => Scalar::new(&SCALAR_ZERO),
         };
         let t = tag;
@@ -390,7 +396,7 @@ impl IssuanceProof {
     ///
     /// * `mint_publickey` - A reference to the `MintPublicKey` used in the proof.
     /// * `tag` - A reference to the tag `Scalar` value used for unique identification of the note.
-    /// * `mac` - A reference to the MAC `GroupElement` issued by the Mint. 
+    /// * `mac` - A reference to the MAC `GroupElement` issued by the Mint.
     /// * `amount_commitment` - A reference to a `GroupElement` representing the amount commitment.
     /// * `script_commitment` - A reference to a `GroupElement` representing the script commitment.
     ///
@@ -486,7 +492,7 @@ impl IssuanceProof {
         mac: GroupElement,
         amount_attribute: &AmountAttribute,
         script_attribute: Option<&ScriptAttribute>,
-        proof: ZKP
+        proof: ZKP,
     ) -> bool {
         let mut transcript = CashuTranscript::new();
         let script_commitment: GroupElement = match script_attribute {
@@ -672,12 +678,7 @@ impl ScriptEqualityProof {
         let statement = ScriptEqualityProof::statement(randomized_inputs, &commitments);
         let s = inputs[0].1.s;
         let r_a_list = inputs.iter().map(|input| input.0.r).collect();
-        let r_s_list = inputs
-            .iter()
-            .map(|input| {
-                input.1.r
-            })
-            .collect();
+        let r_s_list = inputs.iter().map(|input| input.1.r).collect();
         let new_r_s_list = outputs
             .iter()
             .map(|(_, script_attr)| script_attr.r)
@@ -856,7 +857,8 @@ mod tests {
         let mac = MAC::generate(&mint_privkey, amount_attr.commitment(), None, tag)
             .expect("Couldn't generate MAC");
         let randomized_coms =
-            RandomizedCommitments::from_attributes_and_mac(&amount_attr, None, tag, mac, false).expect("Expected a randomized coin");
+            RandomizedCommitments::from_attributes_and_mac(&amount_attr, None, tag, mac, false)
+                .expect("Expected a randomized coin");
         let proof = MacProof::create(
             &mint_privkey.public_key,
             &amount_attr,
@@ -877,7 +879,11 @@ mod tests {
     #[test]
     fn test_wrong_mac() {
         #[allow(non_snake_case)]
-        fn generate_custom_rand(amount_attr: &AmountAttribute, tag: Scalar, mac: GroupElement) -> Result<RandomizedCommitments, Error> {
+        fn generate_custom_rand(
+            amount_attr: &AmountAttribute,
+            tag: Scalar,
+            mac: GroupElement,
+        ) -> Result<RandomizedCommitments, Error> {
             let t = tag;
             let V = mac.as_ref();
             let t_bytes: [u8; 32] = tag.as_ref().into();
@@ -945,9 +951,14 @@ mod tests {
             })
             .collect();
         let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
-        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
-            .map(|((tag, mac), amount_attr)|
-                RandomizedCommitments::from_attributes_and_mac(amount_attr, None, *tag, *mac, false).expect("RandomzedCommittment expected"))
+        let randomized_coms: Vec<RandomizedCommitments> = tags
+            .iter()
+            .zip(macs.iter())
+            .zip(inputs.iter())
+            .map(|((tag, mac), amount_attr)| {
+                RandomizedCommitments::from_attributes_and_mac(amount_attr, None, *tag, *mac, false)
+                    .expect("RandomzedCommittment expected")
+            })
             .collect();
         let outputs: Vec<GroupElement> = outputs
             .into_iter()
@@ -981,9 +992,14 @@ mod tests {
             })
             .collect();
         let proof = BalanceProof::create(&inputs, &outputs, &mut client_transcript);
-        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
-            .map(|((tag, mac), amount_attr)|
-                RandomizedCommitments::from_attributes_and_mac(amount_attr, None, *tag, *mac, false).expect("RandomzedCommittment expected"))
+        let randomized_coms: Vec<RandomizedCommitments> = tags
+            .iter()
+            .zip(macs.iter())
+            .zip(inputs.iter())
+            .map(|((tag, mac), amount_attr)| {
+                RandomizedCommitments::from_attributes_and_mac(amount_attr, None, *tag, *mac, false)
+                    .expect("RandomzedCommittment expected")
+            })
             .collect();
         let outputs: Vec<GroupElement> = outputs
             .into_iter()
@@ -1033,12 +1049,29 @@ mod tests {
             .iter()
             .zip(tags.iter())
             .map(|(input, tag)| {
-                MAC::generate(&privkey, input.0.commitment(), Some(input.1.commitment()), *tag).expect("MAC expected")
+                MAC::generate(
+                    &privkey,
+                    input.0.commitment(),
+                    Some(input.1.commitment()),
+                    *tag,
+                )
+                .expect("MAC expected")
             })
             .collect();
-        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
-            .map(|((tag, mac), attr)|
-                RandomizedCommitments::from_attributes_and_mac(&attr.0, Some(&attr.1), *tag, *mac, false).expect("RandomzedCommittment expected"))
+        let randomized_coms: Vec<RandomizedCommitments> = tags
+            .iter()
+            .zip(macs.iter())
+            .zip(inputs.iter())
+            .map(|((tag, mac), attr)| {
+                RandomizedCommitments::from_attributes_and_mac(
+                    &attr.0,
+                    Some(&attr.1),
+                    *tag,
+                    *mac,
+                    false,
+                )
+                .expect("RandomzedCommittment expected")
+            })
             .collect();
         let proof = ScriptEqualityProof::create(
             &inputs,
@@ -1094,12 +1127,29 @@ mod tests {
             .iter()
             .zip(tags.iter())
             .map(|(input, tag)| {
-                MAC::generate(&privkey, input.0.commitment(), Some(input.1.commitment()), *tag).expect("MAC expected")
+                MAC::generate(
+                    &privkey,
+                    input.0.commitment(),
+                    Some(input.1.commitment()),
+                    *tag,
+                )
+                .expect("MAC expected")
             })
             .collect();
-        let randomized_coms: Vec<RandomizedCommitments> = tags.iter().zip(macs.iter()).zip(inputs.iter())
-            .map(|((tag, mac), attr)|
-                RandomizedCommitments::from_attributes_and_mac(&attr.0, Some(&attr.1), *tag, *mac, false).expect("RandomzedCommittment expected"))
+        let randomized_coms: Vec<RandomizedCommitments> = tags
+            .iter()
+            .zip(macs.iter())
+            .zip(inputs.iter())
+            .map(|((tag, mac), attr)| {
+                RandomizedCommitments::from_attributes_and_mac(
+                    &attr.0,
+                    Some(&attr.1),
+                    *tag,
+                    *mac,
+                    false,
+                )
+                .expect("RandomzedCommittment expected")
+            })
             .collect();
         let proof = ScriptEqualityProof::create(
             &inputs,
