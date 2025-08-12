@@ -1,7 +1,7 @@
 #![feature(test)]
 
 use cashu_kvac::{
-    models::{AmountAttribute, Coin, MintPrivateKey, RandomizedCoin, ScriptAttribute, MAC},
+    models::{AmountAttribute, MintPrivateKey, RandomizedCommitments, ScriptAttribute, MAC},
     secp::Scalar,
 };
 use test::Bencher;
@@ -29,27 +29,37 @@ fn bench_mac_generation(bencher: &mut Bencher) {
     let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(10, None);
     let script_attr = ScriptAttribute::new(b"3c83", None);
+    let tag = Scalar::random();
     bencher.iter(|| {
         MAC::generate(
             &mint_privkey,
-            &amount_attr.commitment(),
-            Some(&script_attr.commitment()),
-            None,
+            amount_attr.commitment(),
+            Some(script_attr.commitment()),
+            tag,
         )
     });
 }
 
 #[bench]
-fn bench_coin_randomization(bencher: &mut Bencher) {
+fn bench_randomized_commitments_generation(bencher: &mut Bencher) {
     let mint_privkey = privkey();
     let amount_attr = AmountAttribute::new(10, None);
     let script_attr = ScriptAttribute::new(b"3c83", None);
+    let tag = Scalar::random();
     let mac = MAC::generate(
         &mint_privkey,
-        &amount_attr.commitment(),
-        Some(&script_attr.commitment()),
-        None,
-    );
-    let coin = Coin::new(amount_attr, Some(script_attr), mac.unwrap());
-    bencher.iter(|| RandomizedCoin::from_coin(&coin, true));
+        amount_attr.commitment(),
+        Some(script_attr.commitment()),
+        tag,
+    )
+    .unwrap();
+    bencher.iter(|| {
+        RandomizedCommitments::from_attributes_and_mac(
+            &amount_attr,
+            Some(&script_attr),
+            tag,
+            mac,
+            true,
+        )
+    });
 }
