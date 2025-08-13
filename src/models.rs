@@ -367,6 +367,10 @@ impl RandomizedCommitments {
             Cv,
         })
     }
+
+    pub fn get_nullifier(&self) -> GroupElement {
+        self.Cv
+    }
 }
 
 /// Structure that holds information about an equation to be proven
