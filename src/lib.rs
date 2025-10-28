@@ -7,3 +7,4 @@ pub mod recovery;
 pub mod secp;
 pub mod transcript;
 pub mod wasm;
+pub mod sharp;
