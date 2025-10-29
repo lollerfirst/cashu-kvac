@@ -4,8 +4,6 @@ use num_traits::FromBytes;
 use crate::{ errors::Error, generators::{hash_to_curve, GENERATORS}, models::AmountAttribute, secp::{GroupElement, Scalar, SCALAR_ZERO}, transcript::CashuTranscript
 };
 use bitcoin::{secp256k1::constants::CURVE_ORDER};
-use bitcoin::hashes::sha512_256::Hash as Sha512_256;
-use bitcoin::hashes::Hash;
 
 pub fn find_3_squares(value: u64) -> Result<(u64, u64, u64), Error> {
     // Fast check using Legendre's three-square theorem:
@@ -204,9 +202,9 @@ impl SharpPOSO {
                 + &(rast_3dec_generators[(3*i+1) as usize] * &y_2)
                 + &(rast_3dec_generators[(3*i+2) as usize] * &y_3)
         }
-        let mut mu_list: Vec<Scalar>;
-        let mut gamma_list: Vec<Scalar>;
-        let mut zeta_list: Vec<Scalar>;
+        let mu_list: Vec<Scalar>;
+        let gamma_list: Vec<Scalar>;
+        let zeta_list: Vec<Scalar>;
         let R_x = 4*N*B*&Y;
 
         // Masking can succeed with probability 1-1/(L+1), and (1-1/(L+1))^R over all R repetitions
@@ -275,6 +273,44 @@ impl SharpPOSO {
         // ### END PHASE 1 ###
 
         // MARK: - PHASE 2
+
+        // Get masking factors for r_x and r_y
+        let (rr_x, rr_y) = (Scalar::random(), Scalar::random());
+
+        // Get masking factors for x_i and y_i decomposition
+        let xr_list: Vec<Scalar> = (0..N).map(|_| Scalar::random()).collect();
+        let yr_list: Vec<Scalar> = (0..4*N).map(|_| Scalar::random()).collect();
+        let mu_r_list: Vec<Scalar> = (0..R).map(|_| Scalar::random()).collect();
+
+        let mut d_list: Vec<Scalar> = vec![];
+        for k in 0..R {
+            let mut sum = Scalar::new(&SCALAR_ZERO);
+            for i in 0..N {
+                for j in 0..4 {
+                    let gamma_index = k*N*4 + i*4 + j;
+                    let gamma_ijk = gamma_list[gamma_index as usize];
+                    let yr_ij = yr_list[(i*4 + j) as usize];
+                    sum = sum + &(yr_ij * &gamma_ijk);
+                }
+            }
+
+            let d_k = sum + &mu_r_list[k as usize];
+            d_list.push(d_k);
+        }
+        
+        // Set D_x = r_x * G_0 + 𝜮{i=1 to N} x_i * G_i
+        // Set D_y = r_y * G_0 + 𝜮{i=1 to N} 𝜮{j=1 to 3} y_{i,j} * G_{i,j} + 𝜮{k=1 to R} mu_k * G_k
+        let mut D_x = masks_generators[0] * &rr_x;
+        let mut D_y = masks_generators[0] * &rr_y;
+        for i in 1..N+1 {
+            D_x = D_x + &(masks_generators[i as usize] * &xr_list[i as usize]);
+            for j in 0..3 {
+                D_y = D_y + &(rast_3dec_generators[(i*3+j) as usize] * &yr_list[(i*4+j+1) as usize]);
+            } 
+        }
+        for k in 0..R {
+            D_y = D_y + &(rast_3dec_masks_generators[k as usize] * &mu_r_list[k as usize]);
+        }
 
         Ok(Self {
 
