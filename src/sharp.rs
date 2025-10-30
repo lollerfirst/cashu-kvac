@@ -3,7 +3,7 @@ use num_traits::FromBytes;
 
 use crate::{ errors::Error, generators::{hash_to_curve, GENERATORS}, models::AmountAttribute, secp::{GroupElement, Scalar, SCALAR_ZERO}, transcript::CashuTranscript
 };
-use bitcoin::{secp256k1::constants::CURVE_ORDER};
+use bitcoin::{amount, secp256k1::constants::CURVE_ORDER};
 
 pub fn find_3_squares(value: u64) -> Result<(u64, u64, u64), Error> {
     // Fast check using Legendre's three-square theorem:
@@ -58,13 +58,6 @@ fn get_rast_3dec_generators(n: u64) -> Vec<GroupElement> {
         let j = m % 3;
         let i = m / 3;
         hash_to_curve(format!("CASHU_SHARP_RAST_3DEC_{i}_{j}").as_bytes())
-                .expect("Couldn't map hash to point on the curve")
-    }).collect()
-}
-
-fn get_masks_generators(n: u64) -> Vec<GroupElement> {
-    (0..n+1).map(|m| {
-        hash_to_curve(format!("CASHU_SHARP_MASKS_{m}").as_bytes())
                 .expect("Couldn't map hash to point on the curve")
     }).collect()
 }
@@ -159,15 +152,14 @@ impl SharpPOSO {
 
         // MARK: - PHASE 1
 
-        // C_x is our aggregate commitment: C_x = 𝜮i r_i*G_blind + 𝜮i a_i*G_amount
-        // r_x = 𝜮i r_i*G_blind, so C_x = r_x*G_blind + 𝜮i a_i*G_amount
-        let mut C_x: GroupElement = GENERATORS.O;
-        let mut r_x: Scalar = Scalar::new(&SCALAR_ZERO);
-        for attribute in amount_attributes.iter() {
-            C_x = C_x + &attribute.commitment();
-            r_x = r_x + &attribute.r;
+        // A list with all the amount commitments C_x_i = [C_x_0, C_x_1, ...]
+        // A list with all the blinding factors r_x_i = [r_x_0, r_x_1, ...]
+        let mut C_x_list: Vec<GroupElement> = amount_attributes.iter().map(|att| att.commitment()).collect();
+        let mut r_x_list: Vec<Scalar> = amount_attributes.iter().map(|att| att.r).collect();
+        for C_x_i in C_x_list.iter() {
+            transcript.append_element(b"C_x_i", &C_x_i);
         }
-        transcript.append_element(b"C_x", &C_x);
+        
 
         // (Algorithm 2, Phase 1, line 1)
         // For each attribute's amount a_i, find y_(i,1), y_(i,2), y_(i,3)
@@ -175,9 +167,6 @@ impl SharpPOSO {
         let mut y_list: Vec<Scalar> = vec![];
         for attribute in amount_attributes.iter() {
             let a_i = u64::from(&attribute.a);
-            if a_i > B {
-                return Err(Error::OutOfRangeError)
-            }
             let v_i = 4 * a_i * (B - a_i) + 1;
             let (y_i1, y_i2, y_i3) = find_3_squares(v_i)?;
 
@@ -187,13 +176,12 @@ impl SharpPOSO {
 
         // (Algorithm 2, Phase 1, line 2)
         // We need to get generators and masking factors
-        let masks_generators = get_masks_generators(N);
         let rast_3dec_masks_generators = get_rast_3dec_masks_generators(R);
         let rast_3dec_generators = get_rast_3dec_generators(N);
         let r_y = Scalar::random();
 
 
-        let mut C_y = masks_generators[0] * &r_y;
+        let mut C_y = GENERATORS.G_blind * &r_y;
         for i in 0..N {
             let y_1 = y_list[(i*4+1) as usize];
             let y_2 = y_list[(i*4+2) as usize];
@@ -274,8 +262,11 @@ impl SharpPOSO {
 
         // MARK: - PHASE 2
 
-        // Get masking factors for r_x and r_y
-        let (rr_x, rr_y) = (Scalar::random(), Scalar::random());
+        // Get masking factor for r_y
+        let rr_y = Scalar::random();
+
+        // Get masking factors for amount masking factors (xr_list)
+        let rr_x_list = (0..N).map(|_| Scalar::random()).collect::<Vec<Scalar>>();
 
         // Get masking factors for x_i and y_i decomposition
         let xr_list: Vec<Scalar> = (0..N).map(|_| Scalar::random()).collect();
@@ -298,19 +289,63 @@ impl SharpPOSO {
             d_list.push(d_k);
         }
         
-        // Set D_x = r_x * G_0 + 𝜮{i=1 to N} x_i * G_i
-        // Set D_y = r_y * G_0 + 𝜮{i=1 to N} 𝜮{j=1 to 3} y_{i,j} * G_{i,j} + 𝜮{k=1 to R} mu_k * G_k
-        let mut D_x = masks_generators[0] * &rr_x;
-        let mut D_y = masks_generators[0] * &rr_y;
+        // Set D_x_list = [r_x_0 * G_blind + xr_i * G_amount, ...]
+        // Set D_y = rr_y * G_blind + 𝜮{i=1 to N} 𝜮{j=1 to 3} yr_{i,j} * G_{i,j} + 𝜮{k=1 to R} mu_r_k * G_k
+        let D_x: Vec<GroupElement> = (0..N).map(|i| GENERATORS.G_blind * &rr_x_list[i as usize] + &(GENERATORS.G_amount * &xr_list[i as usize])).collect();
+        let mut D_y = GENERATORS.G_blind * &rr_y;
         for i in 1..N+1 {
-            D_x = D_x + &(masks_generators[i as usize] * &xr_list[i as usize]);
             for j in 0..3 {
                 D_y = D_y + &(rast_3dec_generators[(i*3+j) as usize] * &yr_list[(i*4+j+1) as usize]);
-            } 
+            }
         }
         for k in 0..R {
             D_y = D_y + &(rast_3dec_masks_generators[k as usize] * &mu_r_list[k as usize]);
         }
+
+        let (r_star, rr_star) = (Scalar::random(), Scalar::random());
+
+        let mut alpha_star_0_list: Vec<Scalar> = vec![];
+        let mut alpha_star_1_list: Vec<Scalar> = vec![];
+        let scalar_4B = Scalar::from(4_u64) * &Scalar::from(B);
+        let scalar_8 = Scalar::from(8_u64);
+        let scalar_4 = Scalar::from(4_u64);
+        let scalar_2 = Scalar::from(2_u64);
+
+        let H_list = get_generators_second_phase(N);
+
+        // C* = r*H0 + 𝜮 𝛼(*)_1,i*Hi
+        // D* = rr*H0 + 𝜮 𝛼(*)_0,i*Hi
+        let mut C_star = H_list[0] * &r_star;
+        let mut D_star = H_list[0] * &rr_star;
+
+        for i in 0..N {
+            // alpha_*_1_i = 4*B*rr_x_i - 8*a_i*rr_x_i - 2𝜮 y_ij * yr_ij
+            // alpha_*_0_i = -(4xr_i^2 + 𝜮 yr_ij^2)
+            let mut alpha_star_1_i = xr_list[i as usize] * &scalar_4B - &(xr_list[i as usize] * &amount_attributes[i as usize].a * &scalar_8);
+            let mut alpha_star_0_i = -(scalar_4 * &xr_list[i as usize] * &xr_list[i as usize]);        
+            let mut sigma_1: Scalar = Scalar::new(&SCALAR_ZERO);
+            let mut sigma_2: Scalar = Scalar::new(&SCALAR_ZERO);
+            for j in 1..4 {
+                sigma_1 = sigma_1 + &(y_list[(i*4+j+1) as usize] * &yr_list[(i*4+j+1) as usize]);
+                sigma_2 = sigma_2 + &(yr_list[(i*4+j+1) as usize] * &yr_list[(i*4+j+1) as usize]);
+            }
+            alpha_star_1_i = alpha_star_1_i - &(scalar_2 * &sigma_1);
+            alpha_star_0_i = alpha_star_0_i - &sigma_2;
+
+            C_star = C_star + &(H_list[(i+1) as usize] * &alpha_star_1_i);
+            D_star = D_star + &(H_list[(i+1) as usize] * &alpha_star_0_i);   
+        }
+
+        // Prover sends (C*, {Dx_i}_1^N, Dy, D*, {d_k}_1^R) to verifier
+        transcript.append_element(b"C_*", &C_star);
+        let _ = D_x.iter().map(|D_x_i| transcript.append_element(b"D_x_i", &D_x_i));
+        transcript.append_element(b"D_y", &D_y);
+        transcript.append_element(b"D_*", &D_star);
+        let _ = d_list.iter().map(|d_k|
+            transcript.append_element(b"d_k", &hash_to_curve(&d_k.to_bytes()).expect("failed to map scalar to curve")));
+        
+        // Verifier responds with a challenge
+        let gamma = transcript.get_challenge(b"gamma_large_chall");
 
         Ok(Self {
 
@@ -320,7 +355,7 @@ impl SharpPOSO {
 
 #[cfg(test)]
 mod tests {
-    use super::*; // or crate::path::to::find_3_squares
+    use super::*;
 
     #[test]
     fn test_find_3_squares() {
