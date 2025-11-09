@@ -77,7 +77,21 @@ fn get_generators_second_phase(n: u64) -> Vec<GroupElement> {
 }
 #[allow(non_snake_case)]
 pub struct SharpPOSO {
-    //pub C_x: GroupElement,
+    /// C_y
+    pub C_y: GroupElement,
+    /// 𝛇_k
+    pub zeta_list: Vec<Scalar>,
+    /// C*
+    pub C_star: GroupElement,
+    /// z_x_i for each x_i
+    pub z_x_list: Vec<Scalar>,
+    /// z_y_ij for each y_ij (3 squares of x_i)
+    pub z_y_list: Vec<Scalar>,
+    pub t_x_list: Vec<Scalar>,
+    pub t_y: Scalar,
+    pub t_star: Scalar,
+    pub tau_list: Vec<Scalar>,
+    pub d_h: Scalar,
 }
 
 // Paper: https://eprint.iacr.org/2022/1153.pdf
@@ -88,8 +102,8 @@ impl SharpPOSO {
         amount_attributes: &[AmountAttribute],
         range_max: u64,
     ) -> Result<Self, Error> {
-        // PARAMETER SETUP:
-        // We use the same group for proof of short opening and proof of decomposition   
+        // MARK: - PARAMETERS SETUP
+        // We use the same group for short opening and decomposition   
         if amount_attributes.len() == 0 {
             return Err(Error::EmptyList);
         }
@@ -114,7 +128,7 @@ impl SharpPOSO {
         R -= 1;
 
         // L_x is the masking overhead for the short witnesses
-        // We have that 18((BY+1)*L_x)^2 <= P must hold
+        // We have that 18((BY+1)*L_x)^2 <= SECP256K1_ORDER must hold
         let mut L_x = BigInt::from(1);
         tmp = (B*&Y+1) * &L_x;
         tmp.pow(2);
@@ -154,8 +168,9 @@ impl SharpPOSO {
 
         // A list with all the amount commitments C_x_i = [C_x_0, C_x_1, ...]
         // A list with all the blinding factors r_x_i = [r_x_0, r_x_1, ...]
-        let mut C_x_list: Vec<GroupElement> = amount_attributes.iter().map(|att| att.commitment()).collect();
-        let mut r_x_list: Vec<Scalar> = amount_attributes.iter().map(|att| att.r).collect();
+        let C_x_list: Vec<GroupElement> = amount_attributes.iter().map(|att| att.commitment()).collect();
+        let x_list: Vec<Scalar> = amount_attributes.iter().map(|att| att.a).collect();
+        let r_x_list: Vec<Scalar> = amount_attributes.iter().map(|att| att.r).collect();
         for C_x_i in C_x_list.iter() {
             transcript.append_element(b"C_x_i", &C_x_i);
         }
@@ -171,7 +186,7 @@ impl SharpPOSO {
             let (y_i1, y_i2, y_i3) = find_3_squares(v_i)?;
 
             // We insert a_i itself inside this tuple
-            y_list.extend_from_slice(&[Scalar::from(a_i), Scalar::from(y_i1), Scalar::from(y_i2), Scalar::from(y_i3)]);
+            y_list.extend_from_slice(&[Scalar::from(y_i1), Scalar::from(y_i2), Scalar::from(y_i3)]);
         }
 
         // (Algorithm 2, Phase 1, line 2)
@@ -183,12 +198,12 @@ impl SharpPOSO {
 
         let mut C_y = GENERATORS.G_blind * &r_y;
         for i in 0..N {
-            let y_1 = y_list[(i*4+1) as usize];
-            let y_2 = y_list[(i*4+2) as usize];
-            let y_3 = y_list[(i*4+3) as usize];
-            C_y = C_y + &(rast_3dec_generators[(3*i) as usize] * &y_1)
+            let y_1 = y_list[(i*3) as usize];
+            let y_2 = y_list[(i*3+1) as usize];
+            let y_3 = y_list[(i*3+2) as usize];
+            C_y += &((rast_3dec_generators[(3*i) as usize] * &y_1)
                 + &(rast_3dec_generators[(3*i+1) as usize] * &y_2)
-                + &(rast_3dec_generators[(3*i+2) as usize] * &y_3)
+                + &(rast_3dec_generators[(3*i+2) as usize] * &y_3))
         }
         let mu_list: Vec<Scalar>;
         let gamma_list: Vec<Scalar>;
@@ -228,7 +243,7 @@ impl SharpPOSO {
                         let gamma_index = k*N*4 + i*4 + j;
                         let gamma_ijk = tmp_gamma_list[gamma_index as usize];
                         let y_ij = y_list[(i*4 + j) as usize];
-                        sum = sum + &(y_ij * &gamma_ijk);
+                        sum += &(y_ij * &gamma_ijk);
                     }
                 }
                 // Try and mask the sum. If it fails we break out of the this for and set `too_big = true`
@@ -253,7 +268,7 @@ impl SharpPOSO {
             zeta_list = tmp_zeta_list;
 
             transcript.append_element(b"C_y", &C_y);
-            let _ = (0..4*N*R).map(|_| transcript.get_challenge(b"short_chall"));
+            (0..4*N*R).for_each(|_| { transcript.get_challenge(b"short_chall"); });
 
             break;
         }
@@ -270,18 +285,26 @@ impl SharpPOSO {
 
         // Get masking factors for x_i and y_i decomposition
         let xr_list: Vec<Scalar> = (0..N).map(|_| Scalar::random()).collect();
-        let yr_list: Vec<Scalar> = (0..4*N).map(|_| Scalar::random()).collect();
+        let yr_list: Vec<Scalar> = (0..3*N).map(|_| Scalar::random()).collect();
         let mu_r_list: Vec<Scalar> = (0..R).map(|_| Scalar::random()).collect();
 
         let mut d_list: Vec<Scalar> = vec![];
         for k in 0..R {
             let mut sum = Scalar::new(&SCALAR_ZERO);
+
             for i in 0..N {
-                for j in 0..4 {
-                    let gamma_index = k*N*4 + i*4 + j;
+
+                // x_i == y_i0, therefore xr_i == yr_i0
+                let gamma_index = k*N*4 + i*4;
+                let gamma_i0k = gamma_list[gamma_index as usize];
+                let yr_i0 = xr_list[i as usize];
+                sum += &(yr_i0 * &gamma_i0k);
+
+                for j in 0..3 {
+                    let gamma_index = k*N*4 + i*4 + j + 1;
                     let gamma_ijk = gamma_list[gamma_index as usize];
-                    let yr_ij = yr_list[(i*4 + j) as usize];
-                    sum = sum + &(yr_ij * &gamma_ijk);
+                    let yr_ij = yr_list[(i*3 + j) as usize];
+                    sum += &(yr_ij * &gamma_ijk);
                 }
             }
 
@@ -295,17 +318,15 @@ impl SharpPOSO {
         let mut D_y = GENERATORS.G_blind * &rr_y;
         for i in 1..N+1 {
             for j in 0..3 {
-                D_y = D_y + &(rast_3dec_generators[(i*3+j) as usize] * &yr_list[(i*4+j+1) as usize]);
+                D_y += &(rast_3dec_generators[(i*3+j) as usize] * &yr_list[(i*4+j+1) as usize]);
             }
         }
         for k in 0..R {
-            D_y = D_y + &(rast_3dec_masks_generators[k as usize] * &mu_r_list[k as usize]);
+            D_y += &(rast_3dec_masks_generators[k as usize] * &mu_r_list[k as usize]);
         }
 
         let (r_star, rr_star) = (Scalar::random(), Scalar::random());
 
-        let mut alpha_star_0_list: Vec<Scalar> = vec![];
-        let mut alpha_star_1_list: Vec<Scalar> = vec![];
         let scalar_4B = Scalar::from(4_u64) * &Scalar::from(B);
         let scalar_8 = Scalar::from(8_u64);
         let scalar_4 = Scalar::from(4_u64);
@@ -313,42 +334,83 @@ impl SharpPOSO {
 
         let H_list = get_generators_second_phase(N);
 
-        // C* = r*H0 + 𝜮 𝛼(*)_1,i*Hi
-        // D* = rr*H0 + 𝜮 𝛼(*)_0,i*Hi
+        // C* = r* · H0 + 𝜮 𝛼(*)_1,i·Hi
+        // D* = rr* · H0 + 𝜮 𝛼(*)_0,i·Hi
         let mut C_star = H_list[0] * &r_star;
         let mut D_star = H_list[0] * &rr_star;
 
         for i in 0..N {
-            // alpha_*_1_i = 4*B*rr_x_i - 8*a_i*rr_x_i - 2𝜮 y_ij * yr_ij
-            // alpha_*_0_i = -(4xr_i^2 + 𝜮 yr_ij^2)
+            // alpha_*_1_i = 4·B·rr_x_i - 8·a_i·rr_x_i - 2𝜮 y_ij · yr_ij
+            // alpha_*_0_i = -(4·xr_i^2 + 𝜮 yr_ij^2)
             let mut alpha_star_1_i = xr_list[i as usize] * &scalar_4B - &(xr_list[i as usize] * &amount_attributes[i as usize].a * &scalar_8);
             let mut alpha_star_0_i = -(scalar_4 * &xr_list[i as usize] * &xr_list[i as usize]);        
             let mut sigma_1: Scalar = Scalar::new(&SCALAR_ZERO);
             let mut sigma_2: Scalar = Scalar::new(&SCALAR_ZERO);
             for j in 1..4 {
-                sigma_1 = sigma_1 + &(y_list[(i*4+j+1) as usize] * &yr_list[(i*4+j+1) as usize]);
-                sigma_2 = sigma_2 + &(yr_list[(i*4+j+1) as usize] * &yr_list[(i*4+j+1) as usize]);
+                sigma_1 += &(y_list[(i*4+j+1) as usize] * &yr_list[(i*4+j+1) as usize]);
+                sigma_2 += &(yr_list[(i*4+j+1) as usize] * &yr_list[(i*4+j+1) as usize]);
             }
-            alpha_star_1_i = alpha_star_1_i - &(scalar_2 * &sigma_1);
-            alpha_star_0_i = alpha_star_0_i - &sigma_2;
+            alpha_star_1_i += &(-sigma_1 * &scalar_2);
+            alpha_star_0_i += &-sigma_2;
 
-            C_star = C_star + &(H_list[(i+1) as usize] * &alpha_star_1_i);
-            D_star = D_star + &(H_list[(i+1) as usize] * &alpha_star_0_i);   
+            C_star += &(H_list[(i+1) as usize] * &alpha_star_1_i);
+            D_star += &(H_list[(i+1) as usize] * &alpha_star_0_i);   
         }
 
         // Prover sends (C*, {Dx_i}_1^N, Dy, D*, {d_k}_1^R) to verifier
         transcript.append_element(b"C_*", &C_star);
-        let _ = D_x.iter().map(|D_x_i| transcript.append_element(b"D_x_i", &D_x_i));
+        D_x.iter().for_each(|D_x_i| transcript.append_element(b"D_x_i", &D_x_i));
         transcript.append_element(b"D_y", &D_y);
         transcript.append_element(b"D_*", &D_star);
-        let _ = d_list.iter().map(|d_k|
+        d_list.iter().for_each(|d_k|
             transcript.append_element(b"d_k", &hash_to_curve(&d_k.to_bytes()).expect("failed to map scalar to curve")));
         
         // Verifier responds with a challenge
         let gamma = transcript.get_challenge(b"gamma_large_chall");
 
-        Ok(Self {
+        // t_y  = 𝜸 · r_y + rr_y
+        let t_y = gamma * &r_y + &rr_y;
+        
+        // t_x_i  = 𝜸 · r_x_i + rr_x_i
+        let t_x_list: Vec<Scalar> = (0..N).map(|i| gamma * &r_x_list[i as usize] + &rr_x_list[i as usize]).collect();
+        
+        // z_i = 𝜸 · x_i + xr_i
+        let z_x_list: Vec<Scalar> = (0..N).map(|i| gamma * &x_list[i as usize] + &xr_list[i as usize]).collect();
 
+        // z_i_j = 𝜸 · y_i_j + yr_i
+        let mut z_y_list: Vec<Scalar> = vec![];
+        for i in 0..N {
+            for j in 1..4 {
+                let z_ij = gamma * &y_list[(i*4+j) as usize] + &yr_list[(i*3+j-1) as usize];
+                z_y_list.push(z_ij);
+            }
+        }
+
+        // t* = 𝜸 · r* + rr*
+        let t_star = gamma * &r_star + &rr_star;
+
+        // 𝜏_k = 𝜸 · μ + μr
+        let tau_list: Vec<Scalar> = (0..R).map(|k| gamma * &mu_list[k as usize] + &mu_r_list[k as usize]).collect();
+
+        // Saving proof size by compressing {Dx, Dy, D*, d_}
+        (0..N).for_each(|i| transcript.append_element(b"Dx", &D_x[i as usize]));
+        transcript.append_element(b"Dy", &D_y);
+        transcript.append_element(b"D*", &D_star);
+        (0..R).for_each(|k| transcript.append_element(b"d_k", &hash_to_curve(&d_list[k as usize].to_bytes()).unwrap()));
+
+        let d_h = transcript.get_challenge(b"D_h");
+        
+        Ok(Self {
+            C_y,
+            zeta_list,
+            C_star,
+            z_x_list,
+            z_y_list,
+            t_x_list,
+            t_y,
+            t_star,
+            tau_list,
+            d_h,
         })
     }
 }
