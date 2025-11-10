@@ -619,7 +619,7 @@ impl std::ops::Add<&GroupElement> for GroupElement {
 
 impl std::ops::AddAssign<&GroupElement> for GroupElement {
     fn add_assign(&mut self, rhs: &GroupElement) {
-        self.combine_add(&rhs);
+        self.combine_add(rhs);
     }
 }
 

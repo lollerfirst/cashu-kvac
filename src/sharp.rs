@@ -8,7 +8,7 @@ use crate::{
     secp::{GroupElement, Scalar, SCALAR_ZERO},
     transcript::CashuTranscript,
 };
-use bitcoin::{amount, secp256k1::constants::CURVE_ORDER};
+use bitcoin::secp256k1::constants::CURVE_ORDER;
 use num_traits::Zero;
 
 pub fn find_3_squares(value: u64) -> Result<(u64, u64, u64), Error> {
@@ -122,7 +122,7 @@ impl SharpPOSO {
     ) -> Result<Self, Error> {
         // MARK: - PARAMETERS SETUP
         // We use the same group for short opening and decomposition
-        if amount_attributes.len() == 0 {
+        if amount_attributes.is_empty() {
             return Err(Error::EmptyList);
         }
         // N is the number of attributes to prove the range of
@@ -171,13 +171,13 @@ impl SharpPOSO {
                 if z > (((V + 1) * L) + 1) {
                     return Err(Error::MaskingFailure);
                 }
-                Ok(Scalar::try_from(&z)?)
+                Scalar::try_from(&z)
             };
 
         let get_mask = |V: &BigInt, L: &BigInt| -> Result<Scalar, Error> {
             let nonce = Scalar::random();
             let r = (BigInt::from_be_bytes(&nonce.to_bytes())) % (((V + 1) * L) + 1);
-            Ok(Scalar::try_from(&r)?)
+            Scalar::try_from(&r)
         };
 
         transcript.domain_sep(b"SharpPOSO_Statement_");
@@ -193,7 +193,7 @@ impl SharpPOSO {
         let x_list: Vec<Scalar> = amount_attributes.iter().map(|att| att.a).collect();
         let r_x_list: Vec<Scalar> = amount_attributes.iter().map(|att| att.r).collect();
         for C_x_i in C_x_list.iter() {
-            transcript.append_element(b"C_x_i", &C_x_i);
+            transcript.append_element(b"C_x_i", C_x_i);
         }
 
         // (Algorithm 2, Phase 1, line 1)
@@ -467,7 +467,7 @@ impl SharpPOSO {
     ) -> bool {
         // MARK: - PARAMETERS SETUP
         // We use the same group for short opening and decomposition
-        if amount_commitments.len() == 0 {
+        if amount_commitments.is_empty() {
             return false;
         }
         // N is the number of attributes to prove the range of
@@ -538,7 +538,7 @@ impl SharpPOSO {
             return false;
         }
 
-        let upper_bound = 4 * &N * &B * &Y;
+        let upper_bound = 4 * N * B * Y;
         for zeta_k in self.zeta_list.iter() {
             // 𝛇_k ≤ (4·N·B·Y + 1)L_x
             if BigInt::from_be_bytes(&zeta_k.to_bytes()) > upper_bound {
