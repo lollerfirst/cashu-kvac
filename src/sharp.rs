@@ -12,19 +12,19 @@ use bitcoin::secp256k1::constants::CURVE_ORDER;
 use num_traits::Zero;
 
 /// Finds three squares that sum to a given value using Legendre's three-square theorem.
-/// 
+///
 /// This function implements a solution to represent a given positive integer as a sum of three squares,
 /// i.e., find x, y, z such that x² + y² + z² = value. The implementation uses Legendre's three-square
 /// theorem which states that a positive integer can be represented as a sum of three squares if and
 /// only if it is not of the form 4ᵃ(8b + 7).
-/// 
+///
 /// # Arguments
 /// * `value` - The positive integer to decompose into three squares
-/// 
+///
 /// # Returns
 /// * `Ok((x, y, z))` - A tuple of three non-negative integers whose squares sum to `value`
 /// * `Err(Error::ThreeSquaresFailure)` - If the value cannot be represented as sum of three squares
-/// 
+///
 /// # Examples
 /// ```
 /// let (x, y, z) = find_3_squares(21)?;
@@ -86,13 +86,13 @@ pub fn find_3_squares(value: u64) -> Result<(u64, u64, u64), Error> {
 }
 
 /// Generates a sequence of group elements for use in RAST 3-decomposition proof.
-/// 
+///
 /// # Arguments
 /// * `n` - The number of elements needed (will generate 3n generators)
-/// 
+///
 /// # Returns
 /// * `Vec<GroupElement>` - Vector of group elements used as generators
-/// 
+///
 /// This is an internal function used by the SharpPOSO proof system.
 fn get_rast_3dec_generators(n: u64) -> Vec<GroupElement> {
     (0..n * 3)
@@ -106,13 +106,13 @@ fn get_rast_3dec_generators(n: u64) -> Vec<GroupElement> {
 }
 
 /// Generates mask generators for the RAST 3-decomposition proof.
-/// 
+///
 /// # Arguments
 /// * `n` - The number of masks needed (will generate n+1 generators)
-/// 
+///
 /// # Returns
 /// * `Vec<GroupElement>` - Vector of group elements used as mask generators
-/// 
+///
 /// This is an internal function used by the SharpPOSO proof system.
 fn get_rast_3dec_masks_generators(n: u64) -> Vec<GroupElement> {
     (0..n + 1)
@@ -124,13 +124,13 @@ fn get_rast_3dec_masks_generators(n: u64) -> Vec<GroupElement> {
 }
 
 /// Generates generators for the second phase of the proof.
-/// 
+///
 /// # Arguments
 /// * `n` - The number of generators needed (will generate n+1 generators)
-/// 
+///
 /// # Returns
 /// * `Vec<GroupElement>` - Vector of group elements used as generators in phase 2
-/// 
+///
 /// This is an internal function used by the SharpPOSO proof system.
 fn get_generators_second_phase(n: u64) -> Vec<GroupElement> {
     (0..n + 1)
@@ -142,14 +142,14 @@ fn get_generators_second_phase(n: u64) -> Vec<GroupElement> {
 }
 
 /// Implementation of Short Relaxed Range Proofs (SharpPOSO).
-/// 
+///
 /// This struct implements the proof system described in the paper:
 /// "Short Relaxed Range Proofs" (https://eprint.iacr.org/2022/1153.pdf)
-/// 
+///
 /// The proof system allows proving that a committed value lies within a specific range [0, B]
 /// without revealing the actual value. This implementation supports batch proofs for multiple
 /// values simultaneously.
-/// 
+///
 /// The proof is split into two phases:
 /// 1. A phase for handling the range proof using three-square decomposition
 /// 2. A phase for proving the consistency of the decomposition
@@ -176,16 +176,16 @@ pub struct SharpPOSO {
 #[allow(non_snake_case)]
 impl SharpPOSO {
     /// Creates a new SharpPOSO proof for a batch of amount commitments.
-    /// 
+    ///
     /// # Arguments
     /// * `transcript` - A mutable reference to the Cashu transcript for the proof
     /// * `amount_attributes` - Slice of amount attributes to prove are in range
     /// * `range_max` - The upper bound B of the range [0, B] to prove
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Self)` - A new SharpPOSO proof if successful
     /// * `Err(Error)` - If the proof creation fails
-    /// 
+    ///
     /// # Note
     /// The proof follows the algorithm described in Section 4 of the Short Relaxed Range Proofs paper.
     pub fn new(
@@ -533,17 +533,17 @@ impl SharpPOSO {
     }
 
     /// Verifies a SharpPOSO proof.
-    /// 
+    ///
     /// This method verifies that all committed amounts in the proof lie within the range [0, B].
-    /// 
+    ///
     /// # Arguments
     /// * `transcript` - A mutable reference to the Cashu transcript used in proof creation
     /// * `amount_commitments` - Slice of group elements representing the amount commitments
     /// * `range_max` - The upper bound B of the range [0, B] being proved
-    /// 
+    ///
     /// # Returns
     /// * `bool` - true if the proof verifies correctly, false otherwise
-    /// 
+    ///
     /// # Note
     /// The verification follows the algorithm described in Section 4 of the Short Relaxed Range Proofs paper.
     pub fn verify(
