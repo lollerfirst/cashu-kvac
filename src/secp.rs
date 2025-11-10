@@ -436,7 +436,6 @@ impl std::ops::Add<&Scalar> for Scalar {
 }
 
 impl std::ops::AddAssign<&Scalar> for Scalar {
-
     fn add_assign(&mut self, rhs: &Scalar) {
         self.tweak_add(rhs);
     }

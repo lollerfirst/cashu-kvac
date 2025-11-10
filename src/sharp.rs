@@ -1,7 +1,12 @@
 use num_bigint::BigInt;
 use num_traits::FromBytes;
 
-use crate::{ errors::Error, generators::{hash_to_curve, GENERATORS}, models::AmountAttribute, secp::{GroupElement, Scalar, SCALAR_ZERO}, transcript::CashuTranscript
+use crate::{
+    errors::Error,
+    generators::{hash_to_curve, GENERATORS},
+    models::AmountAttribute,
+    secp::{GroupElement, Scalar, SCALAR_ZERO},
+    transcript::CashuTranscript,
 };
 use bitcoin::{amount, secp256k1::constants::CURVE_ORDER};
 use num_traits::Zero;
@@ -29,22 +34,28 @@ pub fn find_3_squares(value: u64) -> Result<(u64, u64, u64), Error> {
     let vmax = (value as f64).sqrt() as u64;
     for x in 0..=vmax {
         let x2 = (x as u128) * (x as u128);
-        if x2 > value as u128 { break; }
+        if x2 > value as u128 {
+            break;
+        }
         let rem1 = value as u128 - x2;
         let ymax = (rem1 as f64).sqrt() as u64;
         for y in x..=ymax {
             let y2 = (y as u128) * (y as u128);
-            if y2 > rem1 { break; }
+            if y2 > rem1 {
+                break;
+            }
             let rem2 = rem1 - y2;
             // check if rem2 is a perfect square
             let z = (rem2 as f64).sqrt() as u64;
-            for candidate_z in z..=z+1 {
+            for candidate_z in z..=z + 1 {
                 let z2 = (candidate_z as u128) * (candidate_z as u128);
                 if z2 == rem2 {
                     // return sorted tuple (x,y,z) where x<=y<=z
                     return Ok((x, y, candidate_z));
                 }
-                if z2 > rem2 { break; }
+                if z2 > rem2 {
+                    break;
+                }
             }
         }
     }
@@ -55,26 +66,32 @@ pub fn find_3_squares(value: u64) -> Result<(u64, u64, u64), Error> {
 }
 
 fn get_rast_3dec_generators(n: u64) -> Vec<GroupElement> {
-    (0..n*3).map(|m| {
-        let j = m % 3;
-        let i = m / 3;
-        hash_to_curve(format!("CASHU_SHARP_RAST_3DEC_{i}_{j}").as_bytes())
+    (0..n * 3)
+        .map(|m| {
+            let j = m % 3;
+            let i = m / 3;
+            hash_to_curve(format!("CASHU_SHARP_RAST_3DEC_{i}_{j}").as_bytes())
                 .expect("Couldn't map hash to point on the curve")
-    }).collect()
+        })
+        .collect()
 }
 
 fn get_rast_3dec_masks_generators(n: u64) -> Vec<GroupElement> {
-    (0..n+1).map(|m| {
-        hash_to_curve(format!("CASHU_SHARP_RAST_3DEC_MASKS_{m}").as_bytes())
+    (0..n + 1)
+        .map(|m| {
+            hash_to_curve(format!("CASHU_SHARP_RAST_3DEC_MASKS_{m}").as_bytes())
                 .expect("Couldn't map hash to point on the curve")
-    }).collect()
+        })
+        .collect()
 }
 
 fn get_generators_second_phase(n: u64) -> Vec<GroupElement> {
-    (0..n+1).map(|m| {
-        hash_to_curve(format!("CASHU_SHARP_OPENINGS_{m}").as_bytes())
+    (0..n + 1)
+        .map(|m| {
+            hash_to_curve(format!("CASHU_SHARP_OPENINGS_{m}").as_bytes())
                 .expect("Couldn't map hash to point on the curve")
-    }).collect()
+        })
+        .collect()
 }
 #[allow(non_snake_case)]
 pub struct SharpPOSO {
@@ -104,7 +121,7 @@ impl SharpPOSO {
         range_max: u64,
     ) -> Result<Self, Error> {
         // MARK: - PARAMETERS SETUP
-        // We use the same group for short opening and decomposition   
+        // We use the same group for short opening and decomposition
         if amount_attributes.len() == 0 {
             return Err(Error::EmptyList);
         }
@@ -112,11 +129,11 @@ impl SharpPOSO {
         let N = amount_attributes.len() as u64;
 
         if range_max == 0 {
-            return Err(Error::InvalidRangeBound)
+            return Err(Error::InvalidRangeBound);
         }
         let B = range_max;
         let P = BigInt::from_be_bytes(&CURVE_ORDER);
-        
+
         // Y is the challenge space size. For exact [0, B] membership, Y < 4B
         let Y = BigInt::from(4 * B - 1);
         // R is the number of repetitions. It must be that (Y + 1)^R - 1 <= CURVE_ORDER
@@ -131,51 +148,53 @@ impl SharpPOSO {
         // L_x is the masking overhead for the short witnesses
         // 18((B·Y+1)·L_x)^2 ≤ SECP256K1_ORDER
         let mut L_x = BigInt::from(1);
-        tmp = (B*&Y+1) * &L_x;
+        tmp = (B * &Y + 1) * &L_x;
         tmp.pow(2);
         tmp *= 18;
         while tmp <= P {
             L_x <<= 1;
-            tmp = (B*&Y+1) * &L_x;
+            tmp = (B * &Y + 1) * &L_x;
             tmp.pow(2);
             tmp *= 18;
         }
         L_x >>= 1;
 
         if L_x.is_zero() {
-            return Err(Error::ParameterSetupFailure)
+            return Err(Error::ParameterSetupFailure);
         }
 
-        let apply_mask = |value: Scalar, mask: Scalar, V: &BigInt, L: &BigInt| -> Result<Scalar, Error> {
-            let r = (BigInt::from_be_bytes(&mask.to_bytes())) % (((V + 1)*L) + 1);
-            let v = BigInt::from_be_bytes(&value.to_bytes());
-            let z = v + r;
-            if z > (((V + 1)*L) + 1) {
-                return Err(Error::MaskingFailure);
-            }
-            Ok(Scalar::try_from(&z)?)
-        };
+        let apply_mask =
+            |value: Scalar, mask: Scalar, V: &BigInt, L: &BigInt| -> Result<Scalar, Error> {
+                let r = (BigInt::from_be_bytes(&mask.to_bytes())) % (((V + 1) * L) + 1);
+                let v = BigInt::from_be_bytes(&value.to_bytes());
+                let z = v + r;
+                if z > (((V + 1) * L) + 1) {
+                    return Err(Error::MaskingFailure);
+                }
+                Ok(Scalar::try_from(&z)?)
+            };
 
         let get_mask = |V: &BigInt, L: &BigInt| -> Result<Scalar, Error> {
             let nonce = Scalar::random();
-            let r = (BigInt::from_be_bytes(&nonce.to_bytes())) % (((V + 1)*L) + 1);
+            let r = (BigInt::from_be_bytes(&nonce.to_bytes())) % (((V + 1) * L) + 1);
             Ok(Scalar::try_from(&r)?)
         };
 
         transcript.domain_sep(b"SharpPOSO_Statement_");
 
-
         // MARK: - PHASE 1
 
         // A list with all the amount commitments C_x_i = [C_x_0, C_x_1, ...]
         // A list with all the blinding factors r_x_i = [r_x_0, r_x_1, ...]
-        let C_x_list: Vec<GroupElement> = amount_attributes.iter().map(|att| att.commitment()).collect();
+        let C_x_list: Vec<GroupElement> = amount_attributes
+            .iter()
+            .map(|att| att.commitment())
+            .collect();
         let x_list: Vec<Scalar> = amount_attributes.iter().map(|att| att.a).collect();
         let r_x_list: Vec<Scalar> = amount_attributes.iter().map(|att| att.r).collect();
         for C_x_i in C_x_list.iter() {
             transcript.append_element(b"C_x_i", &C_x_i);
         }
-        
 
         // (Algorithm 2, Phase 1, line 1)
         // For each attribute's amount a_i, find y_(i,1), y_(i,2), y_(i,3)
@@ -196,20 +215,19 @@ impl SharpPOSO {
         let rast_3dec_generators = get_rast_3dec_generators(N);
         let r_y = Scalar::random();
 
-
         let mut C_y = GENERATORS.G_blind * &r_y;
         for i in 0..N {
-            let y_1 = y_list[(i*3) as usize];
-            let y_2 = y_list[(i*3+1) as usize];
-            let y_3 = y_list[(i*3+2) as usize];
-            C_y += &((rast_3dec_generators[(3*i) as usize] * &y_1)
-                + &(rast_3dec_generators[(3*i+1) as usize] * &y_2)
-                + &(rast_3dec_generators[(3*i+2) as usize] * &y_3))
+            let y_1 = y_list[(i * 3) as usize];
+            let y_2 = y_list[(i * 3 + 1) as usize];
+            let y_3 = y_list[(i * 3 + 2) as usize];
+            C_y += &((rast_3dec_generators[(3 * i) as usize] * &y_1)
+                + &(rast_3dec_generators[(3 * i + 1) as usize] * &y_2)
+                + &(rast_3dec_generators[(3 * i + 2) as usize] * &y_3))
         }
         let mu_list: Vec<Scalar>;
         let gamma_list: Vec<Scalar>;
         let zeta_list: Vec<Scalar>;
-        let R_x = 4*N*B*&Y;
+        let R_x = 4 * N * B * &Y;
 
         // Masking can succeed with probability 1-1/(L+1), and (1-1/(L+1))^R over all R repetitions
         // Therefore, we should be looking at the following probability of failure at iteration i of this loop:
@@ -221,33 +239,36 @@ impl SharpPOSO {
             let mut tmp_transcript = transcript.clone();
             let mut tmp_C_y = C_y;
 
-            let mut tmp_mu_list: Vec<Scalar> = vec![];           
+            let mut tmp_mu_list: Vec<Scalar> = vec![];
             for i in 0..R {
                 let mu_k = get_mask(&R_x, &L_x)?;
 
                 tmp_C_y += &(rast_3dec_masks_generators[i as usize] * &mu_k);
                 tmp_mu_list.push(mu_k);
             }
-            
+
             tmp_transcript.append_element(b"C_y", &tmp_C_y);
 
             // Get short challenges for every integer in the sq-decomp, for every x in the batch,
             // for every k in the repetitions R
-            let tmp_gamma_list: Vec<Scalar> = (0..4*N*R).map(|_| {
-                let big_chall = BigInt::from_be_bytes(&tmp_transcript.get_challenge(b"short_chall").to_bytes());
-                Scalar::try_from(&(big_chall % &Y)) // short chall
-            }
-            ).collect::<Result<Vec<Scalar>, Error>>()?;
-            
+            let tmp_gamma_list: Vec<Scalar> = (0..4 * N * R)
+                .map(|_| {
+                    let big_chall = BigInt::from_be_bytes(
+                        &tmp_transcript.get_challenge(b"short_chall").to_bytes(),
+                    );
+                    Scalar::try_from(&(big_chall % &Y)) // short chall
+                })
+                .collect::<Result<Vec<Scalar>, Error>>()?;
+
             let mut shortness_failure = false;
             let mut tmp_zeta_list: Vec<Scalar> = vec![];
             for k in 0..R {
                 let mut sum = Scalar::new(&SCALAR_ZERO);
                 for i in 0..N {
                     for j in 0..4 {
-                        let gamma_index = k*N*4 + i*4 + j;
+                        let gamma_index = k * N * 4 + i * 4 + j;
                         let gamma_ijk = tmp_gamma_list[gamma_index as usize];
-                        let y_ij = y_list[(i*4 + j) as usize];
+                        let y_ij = y_list[(i * 4 + j) as usize];
                         sum += &(y_ij * &gamma_ijk);
                     }
                 }
@@ -255,10 +276,13 @@ impl SharpPOSO {
                 let masked_sum = apply_mask(sum, tmp_mu_list[k as usize], &R_x, &L_x);
                 match masked_sum {
                     Ok(m) => tmp_zeta_list.push(m),
-                    Err(Error::MaskingFailure) => { shortness_failure = true; break; },
-                    Err(e) => return Err(e)
+                    Err(Error::MaskingFailure) => {
+                        shortness_failure = true;
+                        break;
+                    }
+                    Err(e) => return Err(e),
                 };
-            };
+            }
 
             // If we get a masking failure, retry.
             if shortness_failure {
@@ -273,11 +297,13 @@ impl SharpPOSO {
             zeta_list = tmp_zeta_list;
 
             transcript.append_element(b"C_y", &C_y);
-            (0..4*N*R).for_each(|_| { transcript.get_challenge(b"short_chall"); });
+            (0..4 * N * R).for_each(|_| {
+                transcript.get_challenge(b"short_chall");
+            });
 
             break;
         }
-        
+
         // ### END PHASE 1 ###
 
         // MARK: - PHASE 2
@@ -290,7 +316,7 @@ impl SharpPOSO {
 
         // Get masking factors for x_i and y_i decomposition
         let xr_list: Vec<Scalar> = (0..N).map(|_| Scalar::random()).collect();
-        let yr_list: Vec<Scalar> = (0..3*N).map(|_| Scalar::random()).collect();
+        let yr_list: Vec<Scalar> = (0..3 * N).map(|_| Scalar::random()).collect();
         let mu_r_list: Vec<Scalar> = (0..R).map(|_| Scalar::random()).collect();
 
         let mut d_list: Vec<Scalar> = vec![];
@@ -298,17 +324,16 @@ impl SharpPOSO {
             let mut sum = Scalar::new(&SCALAR_ZERO);
 
             for i in 0..N {
-
                 // x_i == y_i0, therefore xr_i == yr_i0
-                let gamma_index = k*N*4 + i*4;
+                let gamma_index = k * N * 4 + i * 4;
                 let gamma_i0k = gamma_list[gamma_index as usize];
                 let yr_i0 = xr_list[i as usize];
                 sum += &(yr_i0 * &gamma_i0k);
 
                 for j in 0..3 {
-                    let gamma_index = k*N*4 + i*4 + j + 1;
+                    let gamma_index = k * N * 4 + i * 4 + j + 1;
                     let gamma_ijk = gamma_list[gamma_index as usize];
-                    let yr_ij = yr_list[(i*3 + j) as usize];
+                    let yr_ij = yr_list[(i * 3 + j) as usize];
                     sum += &(yr_ij * &gamma_ijk);
                 }
             }
@@ -316,14 +341,20 @@ impl SharpPOSO {
             let d_k = sum + &mu_r_list[k as usize];
             d_list.push(d_k);
         }
-        
+
         // Set D_x_list = [r_x_0 * G_blind + xr_i * G_amount, ...]
         // Set D_y = rr_y * G_blind + 𝜮{i=1 to N} 𝜮{j=1 to 3} yr_{i,j} * G_{i,j} + 𝜮{k=1 to R} mu_r_k * G_k
-        let D_x: Vec<GroupElement> = (0..N).map(|i| GENERATORS.G_blind * &rr_x_list[i as usize] + &(GENERATORS.G_amount * &xr_list[i as usize])).collect();
+        let D_x: Vec<GroupElement> = (0..N)
+            .map(|i| {
+                GENERATORS.G_blind * &rr_x_list[i as usize]
+                    + &(GENERATORS.G_amount * &xr_list[i as usize])
+            })
+            .collect();
         let mut D_y = GENERATORS.G_blind * &rr_y;
-        for i in 1..N+1 {
+        for i in 1..N + 1 {
             for j in 0..3 {
-                D_y += &(rast_3dec_generators[(i*3+j) as usize] * &yr_list[(i*4+j+1) as usize]);
+                D_y += &(rast_3dec_generators[(i * 3 + j) as usize]
+                    * &yr_list[(i * 4 + j + 1) as usize]);
             }
         }
         for k in 0..R {
@@ -347,41 +378,48 @@ impl SharpPOSO {
         for i in 0..N {
             // alpha_*_1_i = 4·B·rr_x_i - 8·a_i·rr_x_i - 2𝜮 y_ij · yr_ij
             // alpha_*_0_i = -(4·xr_i^2 + 𝜮 yr_ij^2)
-            let mut alpha_star_1_i = xr_list[i as usize] * &scalar_4B - &(xr_list[i as usize] * &amount_attributes[i as usize].a * &scalar_8);
-            let mut alpha_star_0_i = -(scalar_4 * &xr_list[i as usize] * &xr_list[i as usize]);        
+            let mut alpha_star_1_i = xr_list[i as usize] * &scalar_4B
+                - &(xr_list[i as usize] * &amount_attributes[i as usize].a * &scalar_8);
+            let mut alpha_star_0_i = -(scalar_4 * &xr_list[i as usize] * &xr_list[i as usize]);
             let mut sigma_1: Scalar = Scalar::new(&SCALAR_ZERO);
             let mut sigma_2: Scalar = Scalar::new(&SCALAR_ZERO);
             for j in 1..4 {
-                sigma_1 += &(y_list[(i*4+j+1) as usize] * &yr_list[(i*4+j+1) as usize]);
-                sigma_2 += &(yr_list[(i*4+j+1) as usize] * &yr_list[(i*4+j+1) as usize]);
+                sigma_1 += &(y_list[(i * 4 + j + 1) as usize] * &yr_list[(i * 4 + j + 1) as usize]);
+                sigma_2 +=
+                    &(yr_list[(i * 4 + j + 1) as usize] * &yr_list[(i * 4 + j + 1) as usize]);
             }
             alpha_star_1_i += &(-sigma_1 * &scalar_2);
             alpha_star_0_i += &-sigma_2;
 
-            C_star += &(H_list[(i+1) as usize] * &alpha_star_1_i);
-            D_star += &(H_list[(i+1) as usize] * &alpha_star_0_i);   
+            C_star += &(H_list[(i + 1) as usize] * &alpha_star_1_i);
+            D_star += &(H_list[(i + 1) as usize] * &alpha_star_0_i);
         }
 
         // Prover sends (C*, {Dx_i}_1^N, Dy, D*, {d_k}_1^R) to verifier
         transcript.append_element(b"C_*", &C_star);
-        
+
         // Verifier responds with a challenge
         let gamma = transcript.get_challenge(b"gamma_large_chall");
 
         // t_y  = 𝜸 · r_y + rr_y
         let t_y = gamma * &r_y + &rr_y;
-        
+
         // t_x_i  = 𝜸 · r_x_i + rr_x_i
-        let t_x_list: Vec<Scalar> = (0..N).map(|i| gamma * &r_x_list[i as usize] + &rr_x_list[i as usize]).collect();
-        
+        let t_x_list: Vec<Scalar> = (0..N)
+            .map(|i| gamma * &r_x_list[i as usize] + &rr_x_list[i as usize])
+            .collect();
+
         // z_i = 𝜸 · x_i + xr_i
-        let z_x_list: Vec<Scalar> = (0..N).map(|i| gamma * &x_list[i as usize] + &xr_list[i as usize]).collect();
+        let z_x_list: Vec<Scalar> = (0..N)
+            .map(|i| gamma * &x_list[i as usize] + &xr_list[i as usize])
+            .collect();
 
         // z_i_j = 𝜸 · y_i_j + yr_i
         let mut z_y_list: Vec<Scalar> = vec![];
         for i in 0..N {
             for j in 1..4 {
-                let z_ij = gamma * &y_list[(i*4+j) as usize] + &yr_list[(i*3+j-1) as usize];
+                let z_ij =
+                    gamma * &y_list[(i * 4 + j) as usize] + &yr_list[(i * 3 + j - 1) as usize];
                 z_y_list.push(z_ij);
             }
         }
@@ -390,16 +428,23 @@ impl SharpPOSO {
         let t_star = gamma * &r_star + &rr_star;
 
         // 𝜏_k = 𝜸 · μ + μr
-        let tau_list: Vec<Scalar> = (0..R).map(|k| gamma * &mu_list[k as usize] + &mu_r_list[k as usize]).collect();
+        let tau_list: Vec<Scalar> = (0..R)
+            .map(|k| gamma * &mu_list[k as usize] + &mu_r_list[k as usize])
+            .collect();
 
         // Saving proof size by compressing {Dx, Dy, D*, d_}
         (0..N).for_each(|i| transcript.append_element(b"Dx", &D_x[i as usize]));
         transcript.append_element(b"Dy", &D_y);
         transcript.append_element(b"D*", &D_star);
-        (0..R).for_each(|k| transcript.append_element(b"d_k", &hash_to_curve(&d_list[k as usize].to_bytes()).unwrap()));
+        (0..R).for_each(|k| {
+            transcript.append_element(
+                b"d_k",
+                &hash_to_curve(&d_list[k as usize].to_bytes()).unwrap(),
+            )
+        });
 
         let d_h = transcript.get_challenge(b"D_h");
-        
+
         Ok(Self {
             C_y,
             zeta_list,
@@ -421,7 +466,7 @@ impl SharpPOSO {
         range_max: u64,
     ) -> bool {
         // MARK: - PARAMETERS SETUP
-        // We use the same group for short opening and decomposition   
+        // We use the same group for short opening and decomposition
         if amount_commitments.len() == 0 {
             return false;
         }
@@ -433,7 +478,7 @@ impl SharpPOSO {
         }
         let B = range_max;
         let P = BigInt::from_be_bytes(&CURVE_ORDER);
-        
+
         // Y is the challenge space size. For exact [0, B] membership, it must be Y < 4B
         let Y = BigInt::from(4 * B - 1);
         // R is the number of repetitions. It must be that (Y + 1)^R - 1 <= CURVE_ORDER
@@ -448,12 +493,12 @@ impl SharpPOSO {
         // L_x is the masking overhead for the short witnesses
         // 18((B·Y+1)·L_x)^2 ≤ SECP256K1_ORDER
         let mut L_x = BigInt::from(1);
-        tmp = (B*&Y+1) * &L_x;
+        tmp = (B * &Y + 1) * &L_x;
         tmp.pow(2);
         tmp *= 18;
         while tmp <= P {
             L_x <<= 1;
-            tmp = (B*&Y+1) * &L_x;
+            tmp = (B * &Y + 1) * &L_x;
             tmp.pow(2);
             tmp *= 18;
         }
@@ -473,33 +518,37 @@ impl SharpPOSO {
         let C_y = self.C_y;
 
         transcript.append_element(b"C_y", &C_y);
-        (0..4*N*R).for_each(|_| { transcript.get_challenge(b"short_chall"); });
-
+        (0..4 * N * R).for_each(|_| {
+            transcript.get_challenge(b"short_chall");
+        });
 
         // Get short challenges for every integer in the sq-decomp, for every x in the batch,
         // for every k in the repetitions R
-        let gamma_list: Vec<Scalar> = (0..4*N*R).map(|_| {
-            let big_chall = BigInt::from_be_bytes(&transcript.get_challenge(b"short_chall").to_bytes());
-            Scalar::try_from(&(big_chall % &Y)) // short chall
-        }
-        ).collect::<Result<Vec<Scalar>, Error>>().unwrap();
+        let gamma_list: Vec<Scalar> = (0..4 * N * R)
+            .map(|_| {
+                let big_chall =
+                    BigInt::from_be_bytes(&transcript.get_challenge(b"short_chall").to_bytes());
+                Scalar::try_from(&(big_chall % &Y)) // short chall
+            })
+            .collect::<Result<Vec<Scalar>, Error>>()
+            .unwrap();
 
         // Verify each 𝛇_k is short
         if (self.zeta_list.len() as u64) < R {
             return false;
         }
 
-        let upper_bound = 4*&N*&B*&Y;
+        let upper_bound = 4 * &N * &B * &Y;
         for zeta_k in self.zeta_list.iter() {
             // 𝛇_k ≤ (4·N·B·Y + 1)L_x
             if BigInt::from_be_bytes(&zeta_k.to_bytes()) > upper_bound {
                 return false;
-            } 
+            }
         }
 
         // Prover sends (C*, {Dx_i}_1^N, Dy, D*, {d_k}_1^R) to verifier
         transcript.append_element(b"C_*", &self.C_star);
-        
+
         // Verifier responds with a challenge
         let gamma = transcript.get_challenge(b"gamma_large_chall");
 
@@ -507,13 +556,14 @@ impl SharpPOSO {
         let mut Fx_list = vec![];
 
         // No surprises
-        if N != self.t_x_list.len() as u64 ||
-           N != self.z_x_list.len() as u64 {
-                return false;
-            }
+        if N != self.t_x_list.len() as u64 || N != self.z_x_list.len() as u64 {
+            return false;
+        }
 
         for i in 0..N {
-            let Fx_i = -amount_commitments[i as usize] * &gamma + &(GENERATORS.G_blind * &self.t_x_list[i as usize]) + &(GENERATORS.G_amount * &self.z_x_list[i as usize]);
+            let Fx_i = -amount_commitments[i as usize] * &gamma
+                + &(GENERATORS.G_blind * &self.t_x_list[i as usize])
+                + &(GENERATORS.G_amount * &self.z_x_list[i as usize]);
             Fx_list.push(Fx_i);
         }
 
@@ -522,7 +572,8 @@ impl SharpPOSO {
         let mut F_y = -self.C_y * &gamma + &(GENERATORS.G_blind * &self.t_y);
         for i in 0..N {
             for j in 0..3 {
-                F_y += &(generators_3dec[(i*3+j) as usize] * &self.z_y_list[(i*3+j) as usize]);
+                F_y +=
+                    &(generators_3dec[(i * 3 + j) as usize] * &self.z_y_list[(i * 3 + j) as usize]);
             }
         }
         for k in 0..R {
@@ -530,7 +581,7 @@ impl SharpPOSO {
         }
 
         // No surprises
-        if self.z_y_list.len() != (3*N) as usize {
+        if self.z_y_list.len() != (3 * N) as usize {
             return false;
         }
 
@@ -540,11 +591,11 @@ impl SharpPOSO {
             let mut f_k = -(self.zeta_list[k as usize] * &gamma);
             for i in 0..N {
                 // y_i0 = x_i0
-                f_k += &(self.z_x_list[i as usize] * &gamma_list[(k*N*4 + i*4) as usize]);
-
+                f_k += &(self.z_x_list[i as usize] * &gamma_list[(k * N * 4 + i * 4) as usize]);
 
                 for j in 0..3 {
-                    f_k += &(self.z_y_list[(i*3 + j) as usize] * &gamma_list[(k*N*4 + i*4 + j + 1) as usize]);
+                    f_k += &(self.z_y_list[(i * 3 + j) as usize]
+                        * &gamma_list[(k * N * 4 + i * 4 + j + 1) as usize]);
                 }
             }
 
@@ -553,18 +604,18 @@ impl SharpPOSO {
         }
 
         let mut f_star_list = vec![];
-        
+
         let scalar_4 = Scalar::from(4);
         let scalar_B = Scalar::from(B);
         let gamma_squared = gamma * &gamma;
-        
+
         // f_i* = 4·z_x_i·(𝜸B - z_x_i) + 𝜸^2 - 𝜮 z_y_ij^2
         for i in 0..N {
             let z_x_i = self.z_x_list[i as usize];
             let mut f_star_i = scalar_4 * &z_x_i * &(gamma * &scalar_B - &z_x_i) + &gamma_squared;
             for j in 0..3 {
-                let z_y_ij = self.z_y_list[(i*3+j) as usize];
-                f_star_i += &(-z_y_ij*&z_y_ij);
+                let z_y_ij = self.z_y_list[(i * 3 + j) as usize];
+                f_star_i += &(-z_y_ij * &z_y_ij);
             }
             f_star_list.push(f_star_i);
         }
@@ -574,14 +625,19 @@ impl SharpPOSO {
         // F* = -𝜸C* + t* · H0 + 𝜮 f_i* · H_i
         let mut F_star = -self.C_star * &gamma + &(H_list[0] * &self.t_star);
         for i in 0..N {
-            F_star += &(H_list[(i+1) as usize] * &f_star_list[i as usize]);
+            F_star += &(H_list[(i + 1) as usize] * &f_star_list[i as usize]);
         }
 
         // Verify we get the same value from shamir transform {Dx = Fx, Dy = Fy, D* = F*, d_k = f_k}
         (0..N).for_each(|i| transcript.append_element(b"Dx", &Fx_list[i as usize]));
         transcript.append_element(b"Dy", &F_y);
         transcript.append_element(b"D*", &F_star);
-        (0..R).for_each(|k| transcript.append_element(b"d_k", &hash_to_curve(&f_list[k as usize].to_bytes()).unwrap()));
+        (0..R).for_each(|k| {
+            transcript.append_element(
+                b"d_k",
+                &hash_to_curve(&f_list[k as usize].to_bytes()).unwrap(),
+            )
+        });
 
         let f_h = transcript.get_challenge(b"D_h");
 
@@ -601,22 +657,24 @@ mod tests {
     fn test_find_3_squares() {
         // sample values of the form 4*x + 1 (including small and larger ones)
         let samples: &[u64] = &[
-            1,      // 4*0+1
-            5,      // 4*1+1
-            9,      // 4*2+1
-            13,     // 4*3+1
-            21,     // 4*5+1
-            101,    // 4*25+1
-            1001,   // 4*250+1
-            4*12345 + 1,
-            4*1_000_000 + 1,
+            1,    // 4*0+1
+            5,    // 4*1+1
+            9,    // 4*2+1
+            13,   // 4*3+1
+            21,   // 4*5+1
+            101,  // 4*25+1
+            1001, // 4*250+1
+            4 * 12345 + 1,
+            4 * 1_000_000 + 1,
         ];
 
         for &n in samples {
             match find_3_squares(n) {
-                Ok((a,b,c)) => {
+                Ok((a, b, c)) => {
                     // ensure they are valid and sum correctly
-                    let sum = (a as u128)*(a as u128) + (b as u128)*(b as u128) + (c as u128)*(c as u128);
+                    let sum = (a as u128) * (a as u128)
+                        + (b as u128) * (b as u128)
+                        + (c as u128) * (c as u128);
                     assert_eq!(sum as u64, n, "Decomposition incorrect for n={}", n);
                 }
                 Err(err) => panic!("find_3_squares failed for n={} with error {:?}", n, err),
