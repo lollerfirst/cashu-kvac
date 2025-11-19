@@ -1,4 +1,4 @@
-use num_bigint::BigInt;
+use num_bigint::{BigInt, Sign};
 use num_traits::FromBytes;
 
 use crate::{
@@ -205,7 +205,7 @@ impl SharpPOSO {
             return Err(Error::InvalidRangeBound);
         }
         let B = range_max;
-        let P = BigInt::from_be_bytes(&CURVE_ORDER);
+        let P = BigInt::from_bytes_be(Sign::Plus, &CURVE_ORDER);
 
         // Y is the challenge space size. For exact [0, B] membership, Y < 4B
         let Y = BigInt::from(4 * B - 1);
@@ -224,6 +224,8 @@ impl SharpPOSO {
         tmp = (B * &Y + 1) * &L_x;
         tmp.pow(2);
         tmp *= 18;
+        println!("tmp = {}", tmp);
+        println!("P = {}", P);
         while tmp <= P {
             L_x <<= 1;
             tmp = (B * &Y + 1) * &L_x;
@@ -238,8 +240,8 @@ impl SharpPOSO {
 
         let apply_mask =
             |value: Scalar, mask: Scalar, V: &BigInt, L: &BigInt| -> Result<Scalar, Error> {
-                let r = (BigInt::from_be_bytes(&mask.to_bytes())) % (((V + 1) * L) + 1);
-                let v = BigInt::from_be_bytes(&value.to_bytes());
+                let r = (BigInt::from_bytes_be(Sign::Plus, &mask.to_bytes())) % (((V + 1) * L) + 1);
+                let v = BigInt::from_bytes_be(Sign::Plus, &value.to_bytes());
                 let z = v + r;
                 if z > (((V + 1) * L) + 1) {
                     return Err(Error::MaskingFailure);
@@ -249,7 +251,7 @@ impl SharpPOSO {
 
         let get_mask = |V: &BigInt, L: &BigInt| -> Result<Scalar, Error> {
             let nonce = Scalar::random();
-            let r = (BigInt::from_be_bytes(&nonce.to_bytes())) % (((V + 1) * L) + 1);
+            let r = (BigInt::from_bytes_be(Sign::Plus, &nonce.to_bytes())) % (((V + 1) * L) + 1);
             Scalar::try_from(&r)
         };
 
@@ -326,7 +328,7 @@ impl SharpPOSO {
             // for every k in the repetitions R
             let tmp_gamma_list: Vec<Scalar> = (0..4 * N * R)
                 .map(|_| {
-                    let big_chall = BigInt::from_be_bytes(
+                    let big_chall = BigInt::from_bytes_be(Sign::Plus,
                         &tmp_transcript.get_challenge(b"short_chall").to_bytes(),
                     );
                     Scalar::try_from(&(big_chall % &Y)) // short chall
@@ -564,7 +566,7 @@ impl SharpPOSO {
             return false;
         }
         let B = range_max;
-        let P = BigInt::from_be_bytes(&CURVE_ORDER);
+        let P = BigInt::from_bytes_be(Sign::Plus, &CURVE_ORDER);
 
         // Y is the challenge space size. For exact [0, B] membership, it must be Y < 4B
         let Y = BigInt::from(4 * B - 1);
@@ -614,7 +616,7 @@ impl SharpPOSO {
         let gamma_list: Vec<Scalar> = (0..4 * N * R)
             .map(|_| {
                 let big_chall =
-                    BigInt::from_be_bytes(&transcript.get_challenge(b"short_chall").to_bytes());
+                    BigInt::from_bytes_be(Sign::Plus, &transcript.get_challenge(b"short_chall").to_bytes());
                 Scalar::try_from(&(big_chall % &Y)) // short chall
             })
             .collect::<Result<Vec<Scalar>, Error>>()
@@ -628,7 +630,7 @@ impl SharpPOSO {
         let upper_bound = 4 * N * B * Y;
         for zeta_k in self.zeta_list.iter() {
             // 𝛇_k ≤ (4·N·B·Y + 1)L_x
-            if BigInt::from_be_bytes(&zeta_k.to_bytes()) > upper_bound {
+            if BigInt::from_bytes_be(Sign::Plus, &zeta_k.to_bytes()) > upper_bound {
                 return false;
             }
         }
@@ -767,5 +769,23 @@ mod tests {
                 Err(err) => panic!("find_3_squares failed for n={} with error {:?}", n, err),
             }
         }
+    }
+
+    #[test]
+    fn test_proof_creation_verification_roundtrip() {
+        let mut cli_tscr = CashuTranscript::new();
+        let mut mint_tscr = CashuTranscript::new();
+
+        let attributes: Vec<AmountAttribute> = vec![
+            AmountAttribute::new(2, None),
+            AmountAttribute::new(1, None),
+            AmountAttribute::new(14, None),
+        ];
+        let mut attribute_commitments = Vec::new();
+        for attr in attributes.iter() {
+            attribute_commitments.push(attr.commitment());
+        }
+        let range_proof = SharpPOSO::new(&mut cli_tscr, &attributes, 1 << 32).expect("range proof should compute correctly: ");
+        assert!(range_proof.verify(&mut mint_tscr, &attribute_commitments, 1 << 32))
     }
 }
