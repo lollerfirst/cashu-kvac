@@ -343,7 +343,7 @@ impl SharpPOSO {
                     for j in 0..4 {
                         let gamma_index = k * N * 4 + i * 4 + j;
                         let gamma_ijk = tmp_gamma_list[gamma_index as usize];
-                        let y_ij = y_list[(i * 4 + j) as usize];
+                        let y_ij = y_list[(i * 3 + j) as usize];
                         sum += &(y_ij * &gamma_ijk);
                     }
                 }
