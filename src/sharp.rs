@@ -1,5 +1,4 @@
 use num_bigint::{BigInt, Sign};
-use num_traits::FromBytes;
 
 use crate::{
     errors::Error,
@@ -340,8 +339,13 @@ impl SharpPOSO {
             for k in 0..R {
                 let mut sum = Scalar::new(&SCALAR_ZERO);
                 for i in 0..N {
-                    for j in 0..4 {
-                        let gamma_index = k * N * 4 + i * 4 + j;
+                    let gamma_index = k * N * 4 + i * 4;
+                    let gamma_i0k = tmp_gamma_list[gamma_index as usize];
+                    let x_i = amount_attributes[i as usize].a;
+                    sum += &(x_i * &gamma_i0k);
+                    
+                    for j in 0..3 {
+                        let gamma_index = k * N * 4 + i * 4 + j + 1;
                         let gamma_ijk = tmp_gamma_list[gamma_index as usize];
                         let y_ij = y_list[(i * 3 + j) as usize];
                         sum += &(y_ij * &gamma_ijk);
@@ -426,10 +430,10 @@ impl SharpPOSO {
             })
             .collect();
         let mut D_y = GENERATORS.G_blind * &rr_y;
-        for i in 1..N + 1 {
+        for i in 0..N {
             for j in 0..3 {
                 D_y += &(rast_3dec_generators[(i * 3 + j) as usize]
-                    * &yr_list[(i * 4 + j + 1) as usize]);
+                    * &yr_list[(i * 3 + j) as usize]);
             }
         }
         for k in 0..R {
@@ -458,10 +462,10 @@ impl SharpPOSO {
             let mut alpha_star_0_i = -(scalar_4 * &xr_list[i as usize] * &xr_list[i as usize]);
             let mut sigma_1: Scalar = Scalar::new(&SCALAR_ZERO);
             let mut sigma_2: Scalar = Scalar::new(&SCALAR_ZERO);
-            for j in 1..4 {
-                sigma_1 += &(y_list[(i * 4 + j + 1) as usize] * &yr_list[(i * 4 + j + 1) as usize]);
+            for j in 0..3 {
+                sigma_1 += &(y_list[(i * 3 + j) as usize] * &yr_list[(i * 3 + j) as usize]);
                 sigma_2 +=
-                    &(yr_list[(i * 4 + j + 1) as usize] * &yr_list[(i * 4 + j + 1) as usize]);
+                    &(yr_list[(i * 3 + j) as usize] * &yr_list[(i * 3 + j) as usize]);
             }
             alpha_star_1_i += &(-sigma_1 * &scalar_2);
             alpha_star_0_i += &-sigma_2;
@@ -492,9 +496,9 @@ impl SharpPOSO {
         // z_i_j = 𝜸 · y_i_j + yr_i
         let mut z_y_list: Vec<Scalar> = vec![];
         for i in 0..N {
-            for j in 1..4 {
+            for j in 0..3 {
                 let z_ij =
-                    gamma * &y_list[(i * 4 + j) as usize] + &yr_list[(i * 3 + j - 1) as usize];
+                    gamma * &y_list[(i * 3 + j) as usize] + &yr_list[(i * 3 + j) as usize];
                 z_y_list.push(z_ij);
             }
         }
