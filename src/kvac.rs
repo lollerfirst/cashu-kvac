@@ -68,7 +68,7 @@ impl<'a> SchnorrProver<'a> {
 
             for row in equation.take_rhs().into_iter() {
                 for (k, P) in self.random_terms.iter().zip(row.into_iter()) {
-                    R = R + (P * k).as_ref();
+                    R += (P * k).as_ref();
                 }
             }
 
@@ -144,7 +144,7 @@ impl<'a> SchnorrVerifier<'a> {
 
             for row in equation.take_rhs().into_iter() {
                 for (s, P) in self.responses.iter().zip(row.into_iter()) {
-                    R = R + (P * s).as_ref();
+                    R += (P * s).as_ref();
                 }
             }
             R = R - (V * self.challenge.as_ref()).as_ref();
@@ -556,11 +556,11 @@ impl BalanceProof {
     ) -> ZKP {
         let mut r_sum = Scalar::new(&SCALAR_ZERO);
         for input in inputs.iter() {
-            r_sum = r_sum + &input.r;
+            r_sum += &input.r;
         }
         let mut r_sum_ = Scalar::new(&SCALAR_ZERO);
         for output in outputs.iter() {
-            r_sum_ = r_sum_ + &output.r;
+            r_sum_ += &output.r;
         }
         let delta_r = (-r_sum_) + r_sum.as_ref();
         let B = GENERATORS.Gz_attribute * r_sum.as_ref()
@@ -595,7 +595,7 @@ impl BalanceProof {
             B.negate();
         }
         for input in inputs.iter() {
-            B = B + input.Ca.as_ref();
+            B += input.Ca.as_ref();
         }
         for output in outputs.iter() {
             B = B - output;
